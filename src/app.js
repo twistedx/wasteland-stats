@@ -4,6 +4,7 @@ const session = require("express-session");
 const { engine } = require("express-handlebars");
 const axios = require("axios");
 const config = require("./config");
+const { sendWebhookError } = require("./webhook");
 
 const app = express();
 
@@ -101,6 +102,7 @@ app.get("/", async (req, res) => {
     leaderboard = response.data;
   } catch (error) {
     console.error("Leaderboard error:", error.message);
+    sendWebhookError("Leaderboard Fetch", error.message);
     leaderboardError = true;
   }
 
@@ -137,6 +139,7 @@ app.get("/", async (req, res) => {
         statsNotLinked = true;
       } else {
         console.error("Stats error:", error.message);
+        sendWebhookError("Stats Fetch", error.message);
         statsError = "Failed to fetch stats.";
       }
     }

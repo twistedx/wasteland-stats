@@ -1,6 +1,7 @@
 const express = require("express");
 const axios = require("axios");
 const config = require("../config");
+const { sendWebhookError } = require("../webhook");
 const router = express.Router();
 
 const DISCORD_AUTH_URL = "https://discord.com/api/oauth2/authorize";
@@ -55,10 +56,11 @@ router.get("/discord/callback", async (req, res) => {
 
     res.redirect("/?login=success");
   } catch (error) {
-    console.error(
-      "Discord OAuth error:",
-      error.response?.data || error.message
-    );
+    const errMsg = error.response?.data
+      ? JSON.stringify(error.response.data)
+      : error.message;
+    console.error("Discord OAuth error:", errMsg);
+    sendWebhookError("Discord OAuth", errMsg);
     res.redirect("/?error=auth_failed");
   }
 });
