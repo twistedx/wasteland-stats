@@ -1,17 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@500;700;900&display=swap');
 
 :root {
-  --bg-primary: #0a0a12;
-  --bg-secondary: #0f0f1a;
-  --bg-card: #12121f;
-  --bg-card-hover: #191930;
-  --text-primary: #e8e8f0;
-  --text-secondary: #6b6b80;
-  --accent: #00f0ff;
-  --accent-dim: rgba(0, 240, 255, 0.15);
-  --accent-glow: rgba(0, 240, 255, 0.4);
-  --accent-secondary: #ff3e6c;
-  --accent-secondary-dim: rgba(255, 62, 108, 0.15);
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-card: #161616;
+  --bg-card-hover: #1e1e1e;
+  --text-primary: #e8e8e8;
+  --text-secondary: #888888;
+  --accent: #9a9a9a;
+  --accent-dim: rgba(154, 154, 154, 0.12);
+  --accent-glow: rgba(154, 154, 154, 0.3);
+  --accent-secondary: #ffffff;
+  --accent-secondary-dim: rgba(255, 255, 255, 0.1);
   --gold: #ffd700;
   --gold-glow: rgba(255, 215, 0, 0.3);
   --silver: #c0c0c0;
@@ -19,7 +19,7 @@
   --bronze: #cd7f32;
   --bronze-glow: rgba(205, 127, 50, 0.25);
   --danger: #ff3e3e;
-  --border: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.08);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -35,7 +35,7 @@ body {
 
 /* Header */
 header {
-  background: var(--bg-secondary);
+  background: #000000;
   padding: 0.75rem 2rem;
   border-bottom: 1px solid var(--border);
   position: relative;
@@ -47,7 +47,7 @@ header::after {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 1px;
+  height: 2px;
   background: linear-gradient(90deg, transparent, var(--accent), transparent);
 }
 
@@ -70,6 +70,14 @@ header::after {
   text-transform: uppercase;
   letter-spacing: 0.15em;
   text-shadow: 0 0 20px var(--accent-glow);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.site-logo {
+  height: 40px;
+  width: auto;
 }
 
 .site-title:hover {
@@ -118,13 +126,13 @@ header::after {
 }
 
 .nav-discord {
-  color: var(--accent-secondary);
+  color: #5865F2;
   font-weight: 700;
 }
 
 .nav-discord:hover {
   color: white;
-  background: var(--accent-secondary-dim);
+  background: rgba(88, 101, 242, 0.15);
 }
 
 /* Buttons */
@@ -143,13 +151,14 @@ header::after {
 }
 
 .btn-discord {
-  background: linear-gradient(135deg, var(--accent), #0090ff);
+  background: #5865F2;
   text-decoration: none;
-  box-shadow: 0 0 15px var(--accent-dim);
+  box-shadow: 0 0 15px rgba(88, 101, 242, 0.3);
 }
 
 .btn-discord:hover {
-  box-shadow: 0 0 25px var(--accent-glow);
+  background: #4752c4;
+  box-shadow: 0 0 25px rgba(88, 101, 242, 0.5);
   transform: translateY(-1px);
 }
 
@@ -437,7 +446,7 @@ details.misc-stats .stats-grid { padding: 1rem; }
   color: var(--accent);
   padding: 1.5rem;
   background: var(--accent-dim);
-  border: 1px solid rgba(0, 240, 255, 0.2);
+  border: 1px solid rgba(154, 154, 154, 0.25);
   border-radius: 4px;
   font-weight: 700;
   text-transform: uppercase;
@@ -709,7 +718,7 @@ footer::before {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(0, 240, 255, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(154, 154, 154, 0.2), transparent);
 }
 
 .footer-content { display: flex; flex-direction: column; gap: 0.25rem; }
