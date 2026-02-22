@@ -68,7 +68,13 @@ app.use(
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(express.static(path.join(__dirname, "..", "public")));
+app.use(express.static(path.join(__dirname, "..", "public"), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith(".css")) {
+      res.setHeader("Content-Type", "text/css");
+    }
+  },
+}));
 
 app.use("/auth", require("./routes/auth"));
 
@@ -80,6 +86,7 @@ app.get("/", async (req, res) => {
   let leaderboardError = false;
   let stats = null;
   let statsError = null;
+  let statsNotLinked = false;
   let miscStats = [];
 
   // Fetch leaderboard
@@ -115,8 +122,7 @@ app.get("/", async (req, res) => {
       ).map((f) => ({ label: f.label, value: stats[f.key] }));
     } catch (error) {
       if (error.response?.status === 404) {
-        statsError =
-          "No game stats found. Have you verified your in-game account with your Discord?";
+        statsNotLinked = true;
       } else {
         console.error("Stats error:", error.message);
         statsError = "Failed to fetch stats.";
@@ -146,6 +152,7 @@ app.get("/", async (req, res) => {
     leaderboardError,
     stats,
     statsError,
+    statsNotLinked,
     miscStats,
   });
 });

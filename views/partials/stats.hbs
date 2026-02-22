@@ -1,7 +1,12 @@
 <section id="my-stats-section">
   <h2>Your Combat Stats</h2>
 
-  {{#if statsError}}
+  {{#if statsNotLinked}}
+    <div class="notice">
+      <strong>Account Not Linked</strong>
+      <p>Your Discord account isn't linked to an Arma account yet. Link your accounts in-game to see your stats here.</p>
+    </div>
+  {{else if statsError}}
     <div class="error">{{statsError}}</div>
   {{else if stats}}
     <div id="my-stats-content">
