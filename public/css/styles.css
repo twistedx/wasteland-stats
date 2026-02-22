@@ -411,6 +411,10 @@ tr:hover { background: rgba(0, 240, 255, 0.02); }
   margin-top: 1.25rem;
 }
 
+.cta-grid-single {
+  grid-template-columns: 1fr;
+}
+
 .cta-card {
   text-align: center;
   padding: 1.5rem;
