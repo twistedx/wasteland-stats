@@ -52,4 +52,19 @@
       </tbody>
     </table>
   {{/if}}
+
+  <div class="cta-grid">
+    {{#unless user}}
+      <div class="cta-card">
+        <h3>Track Your Stats</h3>
+        <p>Login to see your personal kills, deaths, K/D ratio, and more.</p>
+        <a href="/auth/discord" class="btn btn-discord">Login with Discord</a>
+      </div>
+    {{/unless}}
+    <div class="cta-card">
+      <h3>Support the Server</h3>
+      <p>Help keep the fight going and the servers running strong.</p>
+      <a href="https://www.iwannaplaygames.com/products" target="_blank" rel="noopener" class="btn btn-donate">Donate Today</a>
+    </div>
+  </div>
 </section>

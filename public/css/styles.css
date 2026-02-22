@@ -404,6 +404,43 @@ tr:hover { background: rgba(0, 240, 255, 0.02); }
 
 .player-name { font-weight: 700; }
 
+.cta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.cta-card {
+  text-align: center;
+  padding: 1.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  transition: border-color 0.2s;
+}
+
+.cta-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.cta-card h3 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.8rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.5rem;
+}
+
+.cta-card p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
 /* Misc stats collapsible */
 details.misc-stats {
   margin: 1.5rem 0;
@@ -711,6 +748,20 @@ details.misc-stats .stats-grid { padding: 1rem; }
   margin-bottom: 0.5rem;
 }
 
+.btn-donate {
+  background: #4ade80;
+  color: #0a0a0a;
+  text-decoration: none;
+  font-weight: 700;
+  box-shadow: 0 0 15px rgba(74, 222, 128, 0.2);
+}
+
+.btn-donate:hover {
+  background: #22c55e;
+  box-shadow: 0 0 25px rgba(74, 222, 128, 0.4);
+  transform: translateY(-1px);
+}
+
 /* Footer */
 footer {
   text-align: center;
@@ -749,6 +800,7 @@ footer a:hover { text-shadow: 0 0 10px var(--accent-dim); }
   .hero { height: 200px; }
   .hero-title { font-size: 1.4rem; }
   .hero-overlay { padding: 1.25rem; }
+  .cta-grid { grid-template-columns: 1fr; }
   .showcase-grid { grid-template-columns: 1fr; }
   .showcase-image { height: 160px; }
   .video-grid { grid-template-columns: 1fr; }
