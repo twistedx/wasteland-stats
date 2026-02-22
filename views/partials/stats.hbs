@@ -1,0 +1,53 @@
+<section id="my-stats-section">
+  <h2>Your Combat Stats</h2>
+
+  {{#if statsError}}
+    <div class="error">{{statsError}}</div>
+  {{else if stats}}
+    <div id="my-stats-content">
+      <div class="stats-header">
+        <h3>{{stats.arma_username}}</h3>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card primary">
+          <div class="stat-value">{{formatNumber stats.kill_count}}</div>
+          <div class="stat-label">Kills</div>
+        </div>
+        <div class="stat-card primary">
+          <div class="stat-value">{{formatNumber stats.deaths}}</div>
+          <div class="stat-label">Deaths</div>
+        </div>
+        <div class="stat-card primary">
+          <div class="stat-value">{{fallback stats.kdRatio "0.0"}}</div>
+          <div class="stat-label">K/D Ratio</div>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">{{fallback stats.mostKilled "-"}}</div>
+          <div class="stat-label">Most Killed ({{fallback stats.mostKilledCount "0"}}x)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{fallback stats.mostKilledBy "-"}}</div>
+          <div class="stat-label">Nemesis ({{fallback stats.mostKilledByCount "0"}}x)</div>
+        </div>
+      </div>
+
+      {{#if miscStats.length}}
+        <details class="misc-stats">
+          <summary>Detailed Stats</summary>
+          <div class="stats-grid misc">
+            {{#each miscStats}}
+              <div class="stat-card small">
+                <div class="stat-value">{{formatNumber this.value}}</div>
+                <div class="stat-label">{{this.label}}</div>
+              </div>
+            {{/each}}
+          </div>
+        </details>
+      {{/if}}
+    </div>
+  {{else}}
+    <div class="loading">Loading your stats...</div>
+  {{/if}}
+</section>
