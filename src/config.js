@@ -11,6 +11,7 @@ const config = {
     redirectUri: process.env.DISCORD_REDIRECT_URI,
   },
   sessionSecret: process.env.SESSION_SECRET,
+  discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL || null,
 };
 
 const required = ["apiBaseUrl", "apiToken", "sessionSecret"];

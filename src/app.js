@@ -117,6 +117,18 @@ app.get("/", async (req, res) => {
       });
       stats = response.data;
 
+      // Send Discord webhook notification
+      if (config.discordWebhookUrl) {
+        axios.post(config.discordWebhookUrl, {
+          embeds: [{
+            title: "Stats Viewed",
+            description: `**${user.username}** pulled their stats on the website.`,
+            color: 0x5865F2,
+            timestamp: new Date().toISOString(),
+          }],
+        }).catch(() => {});
+      }
+
       miscStats = MISC_FIELDS.filter(
         (f) => stats[f.key] !== undefined && stats[f.key] !== null
       ).map((f) => ({ label: f.label, value: stats[f.key] }));
