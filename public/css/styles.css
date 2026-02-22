@@ -135,6 +135,16 @@ header::after {
   background: rgba(88, 101, 242, 0.15);
 }
 
+.nav-store {
+  color: #4ade80;
+  font-weight: 700;
+}
+
+.nav-store:hover {
+  color: white;
+  background: rgba(74, 222, 128, 0.15);
+}
+
 /* Buttons */
 .btn {
   padding: 0.5rem 1.2rem;
