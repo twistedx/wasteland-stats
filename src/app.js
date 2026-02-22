@@ -146,6 +146,8 @@ app.get("/", async (req, res) => {
 
   res.render("home", {
     page: "home",
+    pageTitle: "Stats & Leaderboard",
+    pageDescription: "Track your Arma Wasteland combat stats, view kill/death ratios, and compete on the season and all-time leaderboards.",
     user,
     tab,
     leaderboard,
@@ -170,7 +172,12 @@ app.get("/about", (req, res) => {
         "https://cdn.discordapp.com/embed/avatars/" + defaultIndex + ".png";
     }
   }
-  res.render("about", { page: "about", pageTitle: "About", user });
+  res.render("about", {
+    page: "about",
+    pageTitle: "About",
+    pageDescription: "Learn about Arma Wasteland — a dynamic open-world survival game mode built on Arma Reforger featuring base building, resource scavenging, and team combat.",
+    user,
+  });
 });
 
 app.get("/how-to", (req, res) => {
@@ -186,7 +193,12 @@ app.get("/how-to", (req, res) => {
         "https://cdn.discordapp.com/embed/avatars/" + defaultIndex + ".png";
     }
   }
-  res.render("how-to", { page: "howto", pageTitle: "How To Play", user });
+  res.render("how-to", {
+    page: "howto",
+    pageTitle: "How To Play",
+    pageDescription: "Master Arma Wasteland with squad tactics, communication tips, formation strategies, and video guides to dominate the battlefield.",
+    user,
+  });
 });
 
 module.exports = app;
