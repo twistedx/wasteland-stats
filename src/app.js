@@ -1,10 +1,12 @@
 const express = require("express");
 const path = require("path");
 const session = require("express-session");
+const FileStore = require("session-file-store")(session);
 const { engine } = require("express-handlebars");
 const axios = require("axios");
 const config = require("./config");
 const { sendWebhookError } = require("./webhook");
+const analytics = require("./analytics");
 
 const app = express();
 
@@ -49,6 +51,15 @@ app.engine(
       },
       fallback: (val, def) => (val !== undefined && val !== null ? val : def),
       math: (a, b) => a + b,
+      formatDate: (val) => {
+        if (!val) return "-";
+        const d = new Date(val);
+        if (isNaN(d)) return val;
+        return d.toLocaleDateString("en-US", {
+          year: "numeric", month: "short", day: "numeric",
+          hour: "2-digit", minute: "2-digit",
+        });
+      },
     },
   })
 );
@@ -57,6 +68,11 @@ app.set("views", path.join(__dirname, "..", "views"));
 
 app.use(
   session({
+    store: new FileStore({
+      path: path.join(__dirname, "..", "sessions"),
+      ttl: 86400,
+      retries: 0,
+    }),
     secret: config.sessionSecret,
     resave: false,
     saveUninitialized: false,
@@ -77,10 +93,14 @@ app.use(express.static(path.join(__dirname, "..", "public"), {
   },
 }));
 
+analytics.init();
+app.use(analytics.middleware);
+
 app.use("/auth", require("./routes/auth"));
 app.use("/admin", require("./routes/admin"));
+app.use("/api", require("./routes/api"));
 
-app.get("/", async (req, res) => {
+async function fetchHomeData(req) {
   const tab = req.query.tab === "alltime" ? "alltime" : "season";
   const user = req.session.user || null;
 
@@ -90,6 +110,7 @@ app.get("/", async (req, res) => {
   let statsError = null;
   let statsNotLinked = false;
   let miscStats = [];
+  let atmBalance = null;
 
   // Fetch leaderboard
   try {
@@ -135,6 +156,23 @@ app.get("/", async (req, res) => {
       miscStats = MISC_FIELDS.filter(
         (f) => stats[f.key] !== undefined && stats[f.key] !== null
       ).map((f) => ({ label: f.label, value: stats[f.key] }));
+
+      // Fetch ATM balance if we have arma_id
+      if (stats.arma_id) {
+        try {
+          const cashRes = await apiClient({
+            method: "GET",
+            url: "/user/getUserCash/",
+            data: { arma_id: stats.arma_id, token: config.apiToken },
+          });
+          atmBalance = cashRes.data?.cash ?? cashRes.data?.data?.cash ?? cashRes.data?.amount ?? null;
+          if (atmBalance === null && cashRes.data?.data !== undefined) {
+            atmBalance = cashRes.data.data;
+          }
+        } catch (cashErr) {
+          console.error("Cash fetch error:", cashErr.message);
+        }
+      }
     } catch (error) {
       if (error.response?.status === 404) {
         statsNotLinked = true;
@@ -160,18 +198,16 @@ app.get("/", async (req, res) => {
     }
   }
 
-  res.render("home", {
+  return { user, tab, leaderboard, leaderboardError, stats, statsError, statsNotLinked, miscStats, atmBalance };
+}
+
+app.get("/", async (req, res) => {
+  const data = await fetchHomeData(req);
+  res.render("dashboard", {
     page: "home",
-    pageTitle: "Stats & Leaderboard",
-    pageDescription: "Track your Arma Wasteland combat stats, view kill/death ratios, and compete on the season and all-time leaderboards.",
-    user,
-    tab,
-    leaderboard,
-    leaderboardError,
-    stats,
-    statsError,
-    statsNotLinked,
-    miscStats,
+    pageTitle: "Server Dashboard",
+    pageDescription: "Live combat statistics, kill leaderboards, and ban analytics from the Arma Wasteland battlefield.",
+    ...data,
   });
 });
 

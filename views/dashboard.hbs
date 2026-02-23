@@ -1,0 +1,79 @@
+<div class="hero" style="background-image: url('/img/image1.jpg');">
+  <div class="hero-overlay">
+    <h2 class="hero-title">Arma Wasteland</h2>
+    <p class="hero-subtitle">Track your combat stats, climb the leaderboard, dominate the battlefield.</p>
+  </div>
+</div>
+
+{{#if user}}
+  {{> stats}}
+{{/if}}
+
+<section>
+  <h2>Top 10 Leaderboard Stats</h2>
+  <p class="section-intro">Combined stats from the top 10 players this season.</p>
+
+  <div class="dash-counters" id="dash-counters">
+    <div class="dash-counter-card">
+      <div class="dash-counter-value" data-target="kills">—</div>
+      <div class="dash-counter-label">Player Kills</div>
+    </div>
+    <div class="dash-counter-card">
+      <div class="dash-counter-value" data-target="deaths">—</div>
+      <div class="dash-counter-label">Deaths</div>
+    </div>
+    <div class="dash-counter-card">
+      <div class="dash-counter-value" data-target="shotsFired">—</div>
+      <div class="dash-counter-label">Shots Fired</div>
+    </div>
+    <div class="dash-counter-card">
+      <div class="dash-counter-value" data-target="grenades">—</div>
+      <div class="dash-counter-label">Grenades Thrown</div>
+    </div>
+    <div class="dash-counter-card">
+      <div class="dash-counter-value" data-target="aiKills">—</div>
+      <div class="dash-counter-label">AI Kills</div>
+    </div>
+    <div class="dash-counter-card">
+      <div class="dash-counter-value" data-target="roadkills">—</div>
+      <div class="dash-counter-label">Roadkills</div>
+    </div>
+    <div class="dash-counter-card">
+      <div class="dash-counter-value" data-target="distancePassengerKm" data-suffix=" km">—</div>
+      <div class="dash-counter-label">Distance as Passenger</div>
+    </div>
+    <div class="dash-counter-card">
+      <div class="dash-counter-value" data-target="vehicleDeaths">—</div>
+      <div class="dash-counter-label">Vehicle Deaths</div>
+    </div>
+    <div class="dash-counter-card">
+      <div class="dash-counter-value" data-target="distanceDrivenKm" data-suffix=" km">—</div>
+      <div class="dash-counter-label">Distance Driven</div>
+    </div>
+    <div class="dash-counter-card">
+      <div class="dash-counter-value" data-target="distanceWalkedKm" data-suffix=" km">—</div>
+      <div class="dash-counter-label">Distance Walked</div>
+    </div>
+    <div class="dash-counter-card">
+      <div class="dash-counter-value" data-target="bandagesUsed">—</div>
+      <div class="dash-counter-label">Bandages Used</div>
+    </div>
+    <div class="dash-counter-card">
+      <div class="dash-counter-value" data-target="morphineUsed">—</div>
+      <div class="dash-counter-label">Morphine Used</div>
+    </div>
+    <div class="dash-counter-card">
+      <div class="dash-counter-value" data-target="tourniquetsUsed">—</div>
+      <div class="dash-counter-label">Tourniquets Used</div>
+    </div>
+    <div class="dash-counter-card">
+      <div class="dash-counter-value" data-target="salineUsed">—</div>
+      <div class="dash-counter-label">Saline Used</div>
+    </div>
+  </div>
+</section>
+
+{{> leaderboard}}
+
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script src="/js/dashboard.js"></script>

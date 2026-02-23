@@ -49,15 +49,19 @@ router.get("/discord/callback", async (req, res) => {
 
     // Fetch guild member roles using bot token
     let isAdmin = false;
+    let isWriteAdmin = false;
     try {
       const memberRes = await axios.get(
         `${DISCORD_API}/guilds/${config.discordGuildId}/members/${discordUser.id}`,
         { headers: { Authorization: `Bot ${config.discordBotToken}` } }
       );
       const memberRoles = memberRes.data.roles || [];
+      console.log(`User ${discordUser.username} roles:`, memberRoles);
+      console.log("Admin role IDs:", config.adminRoleIds);
       isAdmin = memberRoles.some(r => config.adminRoleIds.includes(r));
+      isWriteAdmin = memberRoles.some(r => config.adminWriteRoleIds.includes(r));
     } catch (roleErr) {
-      console.error("Role fetch error:", roleErr.message);
+      console.error("Role fetch error:", roleErr.response?.status, roleErr.response?.data || roleErr.message);
     }
 
     req.session.user = {
@@ -66,9 +70,12 @@ router.get("/discord/callback", async (req, res) => {
       avatar: discordUser.avatar,
       discriminator: discordUser.discriminator,
       isAdmin,
+      isWriteAdmin,
     };
 
-    res.redirect("/?login=success");
+    req.session.save(() => {
+      res.redirect("/?login=success");
+    });
   } catch (error) {
     const errMsg = error.response?.data
       ? JSON.stringify(error.response.data)

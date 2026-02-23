@@ -1,9 +1,4 @@
 <section id="my-stats-section">
-  {{#if user.isAdmin}}
-    <div class="admin-bar">
-      <a href="/admin/bans" class="btn btn-admin">Ban List</a>
-    </div>
-  {{/if}}
   <h2>Your Combat Stats</h2>
 
   {{#if statsNotLinked}}
@@ -41,6 +36,12 @@
           <div class="stat-value">{{fallback stats.mostKilledBy "-"}}</div>
           <div class="stat-label">Nemesis ({{fallback stats.mostKilledByCount "0"}}x)</div>
         </div>
+        {{#if atmBalance}}
+          <div class="stat-card primary">
+            <div class="stat-value">${{formatNumber atmBalance}}</div>
+            <div class="stat-label">ATM Balance</div>
+          </div>
+        {{/if}}
       </div>
 
       {{#if miscStats.length}}

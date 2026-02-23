@@ -1,0 +1,161 @@
+<section id="admin-section">
+  <h2>Admin</h2>
+  <div class="tab-bar">
+    <a href="/admin/analytics" class="tab active">Analytics</a>
+    <a href="/admin/bans" class="tab">Ban List</a>
+    {{#if user.isWriteAdmin}}
+      <a href="/admin/money" class="tab">Add Money</a>
+      <a href="/admin/skins" class="tab">Skins</a>
+    {{/if}}
+  </div>
+
+  <!-- Visitor stat cards -->
+  <div class="analytics-cards">
+    <div class="stat-card primary">
+      <div class="stat-value">{{formatNumber todayViews}}</div>
+      <div class="stat-label">Views Today</div>
+      <div class="stat-compare">Yesterday: {{formatNumber yesterdayViews}}</div>
+    </div>
+    <div class="stat-card primary">
+      <div class="stat-value">{{formatNumber totalViews}}</div>
+      <div class="stat-label">Total Views</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{formatNumber uniqueToday}}</div>
+      <div class="stat-label">Unique Today</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{formatNumber uniqueWeek}}</div>
+      <div class="stat-label">Unique This Week</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{formatNumber uniqueMonth}}</div>
+      <div class="stat-label">Unique This Month</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{formatNumber loggedInToday}}</div>
+      <div class="stat-label">Logged-In Views</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{formatNumber anonymousToday}}</div>
+      <div class="stat-label">Anonymous Views</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{formatNumber activeUserCount}}</div>
+      <div class="stat-label">Active Users Today</div>
+    </div>
+  </div>
+
+  <!-- Visitor traffic chart -->
+  <div class="dash-panel dash-panel-wide" style="margin-bottom: 1rem;">
+    <div class="dash-panel-header">Visitor Traffic — Last 30 Days</div>
+    <div id="chart-visitors" class="dash-chart"></div>
+  </div>
+
+  <!-- Game stats charts -->
+  <div class="dash-grid">
+    <div class="dash-panel dash-panel-wide">
+      <div class="dash-panel-header">Ban Activity Over Time</div>
+      <div id="chart-bans" class="dash-chart"></div>
+    </div>
+
+    <div class="dash-panel">
+      <div class="dash-panel-header">Ban Reasons</div>
+      <div id="chart-reasons" class="dash-chart"></div>
+    </div>
+
+    <div class="dash-panel">
+      <div class="dash-panel-header">Top Admins by Bans Issued</div>
+      <div id="chart-admins" class="dash-chart"></div>
+    </div>
+  </div>
+
+  <!-- Tables -->
+  <div class="analytics-tables">
+    <div class="admin-form-card">
+      <h3>Top Pages</h3>
+      {{#if topPages.length}}
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Page</th>
+              <th>Views</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each topPages}}
+              <tr>
+                <td class="rank">{{math @index 1}}</td>
+                <td>{{this.path}}</td>
+                <td>{{formatNumber this.count}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      {{else}}
+        <div class="empty-state">No page view data yet.</div>
+      {{/if}}
+    </div>
+
+    <div class="admin-form-card">
+      <h3>Active Users Today</h3>
+      {{#if activeUsers.length}}
+        <table>
+          <thead>
+            <tr>
+              <th>Username</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each activeUsers}}
+              <tr>
+                <td class="player-name">{{this}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      {{else}}
+        <div class="empty-state">No logged-in users today.</div>
+      {{/if}}
+    </div>
+  </div>
+
+  <div class="admin-form-card">
+    <h3>Recent Activity</h3>
+    {{#if recentActivity.length}}
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>User</th>
+              <th>Page</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each recentActivity}}
+              <tr>
+                <td>{{this.time}}</td>
+                <td class="player-name">
+                  {{#if this.loggedIn}}
+                    {{this.username}}
+                  {{else}}
+                    <span style="color: var(--text-secondary);">Anonymous</span>
+                  {{/if}}
+                </td>
+                <td>{{this.path}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    {{else}}
+      <div class="empty-state">No activity recorded yet.</div>
+    {{/if}}
+  </div>
+</section>
+
+<script>window.__dailyViews = {{{dailyViewsJson}}};</script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script src="/js/admin-charts.js"></script>

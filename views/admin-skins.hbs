@@ -1,0 +1,67 @@
+<section id="admin-section">
+  <h2>Admin</h2>
+  <div class="tab-bar">
+    <a href="/admin/analytics" class="tab">Analytics</a>
+    <a href="/admin/bans" class="tab">Ban List</a>
+    {{#if user.isWriteAdmin}}
+      <a href="/admin/money" class="tab">Add Money</a>
+      <a href="/admin/skins" class="tab active">Skins</a>
+    {{/if}}
+  </div>
+
+  {{#if successMessage}}
+    <div class="notice success-notice">
+      <strong>Success</strong>
+      <p>{{successMessage}}</p>
+    </div>
+  {{/if}}
+
+  {{#if errorMessage}}
+    <div class="error">{{errorMessage}}</div>
+  {{/if}}
+
+  <div class="admin-form-card">
+    <h3>Assign Skin</h3>
+    {{#if skinsError}}
+      <div class="error">Failed to load available skins.</div>
+    {{else}}
+      <form method="POST" action="/admin/skins" class="money-form">
+        <div class="form-group">
+          <label class="form-label">Discord User ID</label>
+          <input
+            type="text"
+            name="discord_id"
+            class="filter-input"
+            placeholder="Right-click user in Discord → Copy User ID"
+            required
+          >
+        </div>
+        <div class="form-group">
+          <label class="form-label">Skin / Item</label>
+          <select name="item_name" class="filter-select skin-select" required>
+            <option value="">Select a skin...</option>
+            {{#each skins}}
+              <option value="{{this}}">{{this}}</option>
+            {{/each}}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-admin">Assign Skin</button>
+      </form>
+    {{/if}}
+  </div>
+
+  <div class="admin-form-card">
+    <h3>Available Skins ({{skins.length}})</h3>
+    {{#if skins.length}}
+      <div class="skin-list">
+        {{#each skins}}
+          <span class="skin-tag">{{this}}</span>
+        {{/each}}
+      </div>
+    {{else if skinsError}}
+      <div class="empty-state">Could not load skins.</div>
+    {{else}}
+      <div class="empty-state">No skins configured on the server.</div>
+    {{/if}}
+  </div>
+</section>

@@ -1,0 +1,119 @@
+<section id="admin-section">
+  <h2>Admin</h2>
+  <div class="tab-bar">
+    <a href="/admin/analytics" class="tab">Analytics</a>
+    <a href="/admin/bans" class="tab">Ban List</a>
+    {{#if user.isWriteAdmin}}
+      <a href="/admin/money" class="tab active">Add Money</a>
+      <a href="/admin/skins" class="tab">Skins</a>
+    {{/if}}
+  </div>
+
+  {{#if successMessage}}
+    <div class="notice success-notice">
+      <strong>Success</strong>
+      <p>{{successMessage}}</p>
+    </div>
+  {{/if}}
+
+  {{#if errorMessage}}
+    <div class="error">{{errorMessage}}</div>
+  {{/if}}
+
+  <div class="admin-form-card">
+    <h3>Search Player</h3>
+    <form class="filter-bar" method="GET" action="/admin/money">
+      <input
+        type="text"
+        name="search"
+        class="filter-input"
+        placeholder="Search by username..."
+        value="{{search}}"
+      >
+      <button type="submit" class="btn btn-admin">Search</button>
+    </form>
+
+    {{#if players.length}}
+      <p class="result-count">{{players.length}} player{{#unless (eq players.length 1)}}s{{/unless}} found</p>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Arma ID</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each players}}
+              <tr>
+                <td class="player-name">{{fallback this.arma_username "Unknown"}}</td>
+                <td class="guid">{{fallback this.arma_id "-"}}</td>
+                <td>
+                  <button
+                    type="button"
+                    class="btn btn-admin btn-small select-player-btn"
+                    data-arma-id="{{this.arma_id}}"
+                    data-username="{{this.arma_username}}"
+                  >Select</button>
+                </td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    {{else if search}}
+      <div class="empty-state">No players found matching "{{search}}".</div>
+    {{/if}}
+  </div>
+
+  <div class="admin-form-card">
+    <h3>Add Money</h3>
+    <form method="POST" action="/admin/money" class="money-form">
+      <div class="form-group">
+        <label class="form-label">Player Arma ID</label>
+        <input
+          type="text"
+          name="arma_id"
+          id="arma-id-input"
+          class="filter-input"
+          placeholder="Arma ID (select from search or paste)"
+          value="{{selectedArmaId}}"
+          required
+        >
+      </div>
+      <div class="form-group">
+        <label class="form-label">Selected Player</label>
+        <input
+          type="text"
+          id="selected-username"
+          class="filter-input"
+          value="{{selectedUsername}}"
+          disabled
+          placeholder="Search and select a player above"
+        >
+      </div>
+      <div class="form-group">
+        <label class="form-label">Amount ($)</label>
+        <input
+          type="number"
+          name="amount"
+          class="filter-input"
+          placeholder="Enter amount"
+          required
+          min="1"
+        >
+      </div>
+      <button type="submit" class="btn btn-admin">Add Money</button>
+    </form>
+  </div>
+</section>
+
+<script>
+  document.querySelectorAll('.select-player-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.getElementById('arma-id-input').value = this.dataset.armaId;
+      document.getElementById('selected-username').value = this.dataset.username;
+    });
+  });
+</script>

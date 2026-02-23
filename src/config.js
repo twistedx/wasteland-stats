@@ -15,6 +15,8 @@ const config = {
   discordBotToken: process.env.DISCORD_BOT_TOKEN,
   discordGuildId: process.env.DISCORD_GUILD_ID,
   adminRoleIds: (process.env.ADMIN_ROLE_IDS || "").split(",").filter(Boolean),
+  backendToken: process.env.BACKEND_TOKEN,
+  adminWriteRoleIds: (process.env.ADMIN_WRITE_ROLE_IDS || "").split(",").filter(Boolean),
 };
 
 const required = ["apiBaseUrl", "apiToken", "sessionSecret", "discordBotToken", "discordGuildId"];

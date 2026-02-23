@@ -31,11 +31,14 @@
     <div class="header-content">
       <a href="/" class="site-title"><img src="/img/armatextlogo600x100.png" alt="Arma Wasteland" class="site-logo"></a>
       <nav class="nav-links">
-        <a href="/" class="nav-link {{#if (eq page 'home')}}active{{/if}}">Stats</a>
+        <a href="/" class="nav-link {{#if (eq page 'home')}}active{{/if}}">Home</a>
         <a href="/about" class="nav-link {{#if (eq page 'about')}}active{{/if}}">About</a>
         <a href="/how-to" class="nav-link {{#if (eq page 'howto')}}active{{/if}}">How To Play</a>
         <a href="https://discord.gg/W8jNyvAnEp" target="_blank" rel="noopener" class="nav-link nav-discord">Discord</a>
         <a href="https://www.iwannaplaygames.com/products" target="_blank" rel="noopener" class="nav-link nav-store">Store</a>
+        {{#if user.isAdmin}}
+          <a href="/admin/analytics" class="nav-link nav-admin {{#if (eq page 'admin')}}active{{/if}}">Admin</a>
+        {{/if}}
       </nav>
       <div id="auth-section">
         {{#if user}}
