@@ -1,4 +1,9 @@
 <section id="my-stats-section">
+  {{#if user.isAdmin}}
+    <div class="admin-bar">
+      <a href="/admin/bans" class="btn btn-admin">Ban List</a>
+    </div>
+  {{/if}}
   <h2>Your Combat Stats</h2>
 
   {{#if statsNotLinked}}

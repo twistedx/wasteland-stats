@@ -1,0 +1,62 @@
+<section id="admin-section">
+  <h2>Ban List</h2>
+
+  <form class="filter-bar" method="GET" action="/admin/bans">
+    <input
+      type="text"
+      name="search"
+      class="filter-input"
+      placeholder="Search bans..."
+      value="{{search}}"
+    >
+    <select name="field" class="filter-select">
+      <option value="all" {{#if (eq field 'all')}}selected{{/if}}>All Fields</option>
+      <option value="username" {{#if (eq field 'username')}}selected{{/if}}>Username</option>
+      <option value="guid" {{#if (eq field 'guid')}}selected{{/if}}>Arma GUID</option>
+      <option value="banned_by" {{#if (eq field 'banned_by')}}selected{{/if}}>Banned By</option>
+      <option value="reason" {{#if (eq field 'reason')}}selected{{/if}}>Reason</option>
+    </select>
+    <button type="submit" class="btn btn-admin">Search</button>
+  </form>
+
+  {{#if bansError}}
+    <div class="error">Failed to load ban list. Please try again.</div>
+  {{else}}
+    <p class="result-count">{{banCount}} ban{{#unless (eq banCount 1)}}s{{/unless}} found</p>
+
+    {{#if bans.length}}
+      <div class="table-scroll">
+        <table id="ban-table">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Arma GUID</th>
+              <th>Ban Date</th>
+              <th>Banned By</th>
+              <th>Reason</th>
+              <th>Duration (hrs)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each bans}}
+              <tr>
+                <td class="player-name">{{fallback this.arma_username "Unknown"}}</td>
+                <td class="guid">{{fallback this.arma_id "-"}}</td>
+                <td>{{fallback this.time_stamp "-"}}</td>
+                <td>{{fallback this.admin_name "-"}}</td>
+                <td class="reason-cell">{{fallback this.reason "-"}}</td>
+                <td>{{fallback this.duration_hours "Permanent"}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    {{else}}
+      <div class="empty-state">No bans match your search.</div>
+    {{/if}}
+  {{/if}}
+
+  <div class="admin-nav">
+    <a href="/" class="btn btn-small">&larr; Back to Stats</a>
+  </div>
+</section>

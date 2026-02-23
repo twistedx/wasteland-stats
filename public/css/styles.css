@@ -766,6 +766,115 @@ details.misc-stats .stats-grid { padding: 1rem; }
   transform: translateY(-1px);
 }
 
+/* Admin */
+.admin-bar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.btn-admin {
+  background: #f59e0b;
+  color: #0a0a0a;
+  text-decoration: none;
+  font-weight: 700;
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.2);
+}
+
+.btn-admin:hover {
+  background: #d97706;
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.4);
+  transform: translateY(-1px);
+}
+
+.filter-bar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  align-items: center;
+}
+
+.filter-input {
+  flex: 1;
+  padding: 0.6rem 0.9rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--text-primary);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.filter-input::placeholder {
+  color: var(--text-secondary);
+}
+
+.filter-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 10px var(--accent-dim);
+}
+
+.filter-select {
+  padding: 0.6rem 0.9rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--text-primary);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.filter-select:focus {
+  border-color: var(--accent);
+}
+
+.result-count {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.75rem;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.guid {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.reason-cell {
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 2rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.85rem;
+}
+
+.admin-nav {
+  margin-top: 1.5rem;
+}
+
 /* Footer */
 footer {
   text-align: center;
@@ -812,4 +921,7 @@ footer a:hover { text-shadow: 0 0 10px var(--accent-dim); }
   .gallery-item:nth-child(1) { grid-column: span 2; }
   .gallery-item img { min-height: 140px; }
   .gallery-item:nth-child(1) img { min-height: 180px; }
+  .filter-bar { flex-direction: column; }
+  .filter-input { width: 100%; }
+  .reason-cell { max-width: 150px; }
 }

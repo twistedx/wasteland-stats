@@ -78,6 +78,7 @@ app.use(express.static(path.join(__dirname, "..", "public"), {
 }));
 
 app.use("/auth", require("./routes/auth"));
+app.use("/admin", require("./routes/admin"));
 
 app.get("/", async (req, res) => {
   const tab = req.query.tab === "alltime" ? "alltime" : "season";

@@ -12,9 +12,12 @@ const config = {
   },
   sessionSecret: process.env.SESSION_SECRET,
   discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL || null,
+  discordBotToken: process.env.DISCORD_BOT_TOKEN,
+  discordGuildId: process.env.DISCORD_GUILD_ID,
+  adminRoleIds: (process.env.ADMIN_ROLE_IDS || "").split(",").filter(Boolean),
 };
 
-const required = ["apiBaseUrl", "apiToken", "sessionSecret"];
+const required = ["apiBaseUrl", "apiToken", "sessionSecret", "discordBotToken", "discordGuildId"];
 for (const key of required) {
   if (!config[key]) {
     throw new Error(`Missing required env var for config.${key}`);
