@@ -1,0 +1,44 @@
+<section>
+  <h2>News &amp; Updates</h2>
+  <p class="section-intro">Latest announcements from the Arma Wasteland community.</p>
+
+  {{#if notFound}}
+    <div class="error">Post not found.</div>
+  {{/if}}
+
+  {{#if allTags.length}}
+    <div class="blog-tag-filter">
+      <a href="/blog" class="blog-tag {{#unless activeTag}}blog-tag-active{{/unless}}">All</a>
+      {{#each allTags}}
+        <a href="/blog?tag={{this}}" class="blog-tag {{#if (eq this ../activeTag)}}blog-tag-active{{/if}}">{{this}}</a>
+      {{/each}}
+    </div>
+  {{/if}}
+
+  {{#if posts.length}}
+    <div class="blog-grid">
+      {{#each posts}}
+        <a href="/blog/{{this.slug}}" class="blog-card">
+          <div class="blog-card-title">{{this.title}}</div>
+          <div class="blog-card-meta">By <strong>{{this.author}}</strong> &middot; {{formatDate this.createdAt}}</div>
+          {{#if this.description}}
+            <div class="blog-card-excerpt">{{this.description}}</div>
+          {{else}}
+            <div class="blog-card-excerpt">{{excerpt this.content 150}}</div>
+          {{/if}}
+          {{#if this.tags.length}}
+            <div class="blog-card-tags">
+              {{#each this.tags}}
+                <span class="blog-tag-pill">{{this}}</span>
+              {{/each}}
+            </div>
+          {{/if}}
+        </a>
+      {{/each}}
+    </div>
+  {{else}}
+    {{#unless notFound}}
+      <div class="empty-state">No posts yet. Check back soon!</div>
+    {{/unless}}
+  {{/if}}
+</section>

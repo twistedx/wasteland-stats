@@ -3,6 +3,7 @@ const axios = require("axios");
 const config = require("../config");
 const { sendWebhookError } = require("../webhook");
 const analytics = require("../analytics");
+const blog = require("../blog");
 const router = express.Router();
 
 const apiClient = axios.create({
@@ -412,6 +413,125 @@ router.get("/analytics", (req, res) => {
     ...stats,
     dailyViewsJson: JSON.stringify(stats.dailyViews),
   });
+});
+
+// Blog-admin middleware
+function requireBlogAdmin(req, res, next) {
+  if (!req.session.user.isBlogAdmin) {
+    console.warn(`Unauthorized blog-admin access by ${req.session.user.username} (${req.session.user.discord_id})`);
+    sendWebhookError("Unauthorized Blog-Admin Access", `**${req.session.user.username}** (${req.session.user.discord_id}) tried to access ${req.originalUrl}`);
+    return res.redirect("/admin/analytics");
+  }
+  next();
+}
+
+// GET /admin/blog — list all posts
+router.get("/blog", requireBlogAdmin, (req, res) => {
+  const user = req.session.user;
+  buildAvatarUrl(user);
+
+  const posts = blog.getPosts(false);
+
+  res.render("admin-blog", {
+    page: "admin",
+    pageTitle: "Blog Management",
+    pageDescription: "Manage blog posts.",
+    user,
+    posts,
+    successMessage: req.query.success || null,
+    errorMessage: req.query.error || null,
+  });
+});
+
+// GET /admin/blog/new — create form
+router.get("/blog/new", requireBlogAdmin, (req, res) => {
+  const user = req.session.user;
+  buildAvatarUrl(user);
+
+  res.render("admin-blog-edit", {
+    page: "admin",
+    pageTitle: "New Post",
+    pageDescription: "Create a new blog post.",
+    user,
+    post: null,
+    isNew: true,
+  });
+});
+
+// POST /admin/blog — create post
+router.post("/blog", requireBlogAdmin, (req, res) => {
+  const { title, description, content, tags, published } = req.body;
+  const user = req.session.user;
+
+  if (!title || !content) {
+    return res.redirect("/admin/blog/new?error=Title and content are required.");
+  }
+
+  blog.createPost({
+    title,
+    description: description || "",
+    content,
+    tags: tags || "",
+    author: user.username,
+    authorId: user.discord_id,
+    published: published === "on",
+  });
+
+  res.redirect("/admin/blog?success=Post created.");
+});
+
+// GET /admin/blog/edit/:id — edit form
+router.get("/blog/edit/:id", requireBlogAdmin, (req, res) => {
+  const user = req.session.user;
+  buildAvatarUrl(user);
+
+  const post = blog.getPostById(req.params.id);
+  if (!post) {
+    return res.redirect("/admin/blog?error=Post not found.");
+  }
+
+  res.render("admin-blog-edit", {
+    page: "admin",
+    pageTitle: "Edit Post",
+    pageDescription: "Edit blog post.",
+    user,
+    post,
+    isNew: false,
+    successMessage: req.query.success || null,
+    errorMessage: req.query.error || null,
+  });
+});
+
+// POST /admin/blog/edit/:id — update post
+router.post("/blog/edit/:id", requireBlogAdmin, (req, res) => {
+  const { title, description, content, tags, published } = req.body;
+
+  if (!title || !content) {
+    return res.redirect(`/admin/blog/edit/${req.params.id}?error=Title and content are required.`);
+  }
+
+  const updated = blog.updatePost(req.params.id, {
+    title,
+    description: description || "",
+    content,
+    tags: tags || "",
+    published: published === "on",
+  });
+
+  if (!updated) {
+    return res.redirect("/admin/blog?error=Post not found.");
+  }
+
+  res.redirect("/admin/blog?success=Post updated.");
+});
+
+// POST /admin/blog/delete/:id — delete post
+router.post("/blog/delete/:id", requireBlogAdmin, (req, res) => {
+  const deleted = blog.deletePost(req.params.id);
+  if (!deleted) {
+    return res.redirect("/admin/blog?error=Post not found.");
+  }
+  res.redirect("/admin/blog?success=Post deleted.");
 });
 
 module.exports = router;

@@ -8,6 +8,8 @@ const config = require("./config");
 const { sendWebhookError } = require("./webhook");
 const analytics = require("./analytics");
 const battlemetrics = require("./battlemetrics");
+const blog = require("./blog");
+const { marked } = require("marked");
 
 const app = express();
 
@@ -62,6 +64,28 @@ app.engine(
           hour: "2-digit", minute: "2-digit",
         });
       },
+      markdown: (val) => {
+        if (!val) return "";
+        return marked(val);
+      },
+      joinTags: (arr) => {
+        if (!arr || !Array.isArray(arr)) return "";
+        return arr.join(", ");
+      },
+      encodeURI: (val) => {
+        if (!val) return "";
+        return encodeURIComponent(val);
+      },
+      excerpt: (val, len) => {
+        if (!val) return "";
+        const plain = val
+          .replace(/<[^>]*>/g, "")
+          .replace(/[#*_`~\[\]()>!-]/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (plain.length <= len) return plain;
+        return plain.substring(0, len) + "...";
+      },
     },
   })
 );
@@ -97,11 +121,13 @@ app.use(express.static(path.join(__dirname, "..", "public"), {
 
 analytics.init();
 battlemetrics.init();
+blog.init();
 app.use(analytics.middleware);
 
 app.use("/auth", require("./routes/auth"));
 app.use("/admin", require("./routes/admin"));
 app.use("/api", require("./routes/api"));
+app.use("/blog", require("./routes/blog"));
 
 async function fetchHomeData(req) {
   const tab = req.query.tab === "alltime" ? "alltime" : "season";

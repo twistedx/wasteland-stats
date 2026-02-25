@@ -1,0 +1,75 @@
+<section id="admin-section">
+  <h2>Admin</h2>
+  <div class="tab-bar">
+    <a href="/admin/analytics" class="tab">Analytics</a>
+    <a href="/admin/bans" class="tab">Ban List</a>
+    <a href="/admin/kills" class="tab">Kill Log</a>
+    {{#if user.isWriteAdmin}}
+      <a href="/admin/money" class="tab">Add Money</a>
+      <a href="/admin/skins" class="tab">Skins</a>
+    {{/if}}
+    {{#if user.isBlogAdmin}}
+      <a href="/admin/blog" class="tab active">Blog</a>
+    {{/if}}
+  </div>
+
+  {{#if successMessage}}
+    <div class="success-notice">{{successMessage}}</div>
+  {{/if}}
+  {{#if errorMessage}}
+    <div class="error">{{errorMessage}}</div>
+  {{/if}}
+
+  <div class="admin-form-card blog-edit-card">
+    <h3>{{#if isNew}}New Post{{else}}Edit Post{{/if}}</h3>
+    <form method="POST" action="{{#if isNew}}/admin/blog{{else}}/admin/blog/edit/{{post.id}}{{/if}}">
+      <div class="form-group">
+        <label class="form-label" for="title">Title</label>
+        <input type="text" id="title" name="title" class="filter-input blog-input-full" value="{{#if post}}{{post.title}}{{/if}}" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="description">Short Description <span style="color: var(--text-secondary); font-size: 0.7rem;">(shown on card previews)</span></label>
+        <input type="text" id="description" name="description" class="filter-input blog-input-full" value="{{#if post}}{{post.description}}{{/if}}" maxlength="200" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="content">Content <span style="color: var(--text-secondary); font-size: 0.7rem;">(Markdown supported)</span></label>
+        <textarea id="content" name="content" class="blog-textarea" required>{{#if post}}{{post.content}}{{/if}}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="tags">Tags <span style="color: var(--text-secondary); font-size: 0.7rem;">(comma separated, e.g. update, patch, event)</span></label>
+        <input type="text" id="tags" name="tags" class="filter-input blog-input-full" value="{{#if post}}{{joinTags post.tags}}{{/if}}" />
+      </div>
+      <div class="form-group blog-publish-row">
+        <label class="form-label">
+          <input type="checkbox" name="published" {{#if isNew}}checked{{else}}{{#if post.published}}checked{{/if}}{{/if}} />
+          Published
+        </label>
+      </div>
+      <button type="submit" class="btn btn-admin">{{#if isNew}}Create Post{{else}}Update Post{{/if}}</button>
+      <a href="/admin/blog" class="btn btn-small" style="margin-left: 0.5rem;">Cancel</a>
+    </form>
+  </div>
+
+  <div class="admin-form-card blog-help-card">
+    <h3>Markdown Reference</h3>
+    <table class="md-help-table">
+      <thead><tr><th>Type this</th><th>To get</th></tr></thead>
+      <tbody>
+        <tr><td><code># Heading 1</code></td><td>Large heading</td></tr>
+        <tr><td><code>## Heading 2</code></td><td>Medium heading</td></tr>
+        <tr><td><code>### Heading 3</code></td><td>Small heading</td></tr>
+        <tr><td><code>**bold text**</code></td><td><strong>bold text</strong></td></tr>
+        <tr><td><code>*italic text*</code></td><td><em>italic text</em></td></tr>
+        <tr><td><code>[link text](https://url)</code></td><td>Clickable link</td></tr>
+        <tr><td><code>![alt](https://img-url)</code></td><td>Image</td></tr>
+        <tr><td><code>- item</code></td><td>Bullet list</td></tr>
+        <tr><td><code>1. item</code></td><td>Numbered list</td></tr>
+        <tr><td><code>> quote</code></td><td>Blockquote</td></tr>
+        <tr><td><code>`inline code`</code></td><td><code>inline code</code></td></tr>
+        <tr><td><code>---</code></td><td>Horizontal line</td></tr>
+      </tbody>
+    </table>
+    <h4 style="margin-top: 1rem;">Embed YouTube Video</h4>
+    <code class="md-help-block">&lt;iframe width="560" height="315" src="https://www.youtube.com/embed/VIDEO_ID" frameborder="0" allowfullscreen&gt;&lt;/iframe&gt;</code>
+  </div>
+</section>

@@ -8,6 +8,9 @@
       <a href="/admin/money" class="tab">Add Money</a>
       <a href="/admin/skins" class="tab">Skins</a>
     {{/if}}
+    {{#if user.isBlogAdmin}}
+      <a href="/admin/blog" class="tab">Blog</a>
+    {{/if}}
   </div>
 
   <form class="filter-bar" method="GET" action="/admin/kills">
