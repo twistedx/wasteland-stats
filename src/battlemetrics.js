@@ -1,6 +1,7 @@
 const axios = require("axios");
-const fs = require("fs");
+const Database = require("better-sqlite3");
 const path = require("path");
+const fs = require("fs");
 
 const SERVERS = [
   { id: "32143546", label: "Server 1" },
@@ -8,50 +9,101 @@ const SERVERS = [
 ];
 
 const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
-const PEAK_WINDOW = 24 * 60 * 60 * 1000; // 24 hours
-const PEAK_FILE = path.join(__dirname, "..", "data", "peaks.json");
+const DB_DIR = "/var/data";
+const DB_FILE = path.join(DB_DIR, "peaks.db");
 
+let db = null;
 let serverData = [];
-// { serverId: [ { count, timestamp }, ... ] } — rolling 24h samples
-let peakSamples = {};
 let pollTimer = null;
+let resetTimer = null;
 
-function loadPeaks() {
-  try {
-    if (fs.existsSync(PEAK_FILE)) {
-      peakSamples = JSON.parse(fs.readFileSync(PEAK_FILE, "utf8"));
-    }
-  } catch (err) {
-    console.error("BattleMetrics: failed to load peaks", err.message);
-    peakSamples = {};
+function initDb() {
+  if (!fs.existsSync(DB_DIR)) {
+    fs.mkdirSync(DB_DIR, { recursive: true });
   }
-}
 
-function savePeaks() {
-  try {
-    fs.writeFileSync(PEAK_FILE, JSON.stringify(peakSamples), "utf8");
-  } catch (err) {
-    console.error("BattleMetrics: failed to save peaks", err.message);
+  db = new Database(DB_FILE);
+  db.pragma("journal_mode = WAL");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS peaks (
+      server_id TEXT NOT NULL,
+      count INTEGER NOT NULL,
+      recorded_at INTEGER NOT NULL
+    )
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_peaks_server ON peaks (server_id, recorded_at)
+  `);
+
+  // Migrate from old JSON file if DB is empty
+  const total = db.prepare("SELECT COUNT(*) AS c FROM peaks").get().c;
+  const oldFile = path.join(__dirname, "..", "data", "peaks.json");
+  if (total === 0 && fs.existsSync(oldFile)) {
+    try {
+      const raw = JSON.parse(fs.readFileSync(oldFile, "utf8"));
+      const insert = db.prepare("INSERT INTO peaks (server_id, count, recorded_at) VALUES (?, ?, ?)");
+      const migrate = db.transaction(() => {
+        for (const [serverId, samples] of Object.entries(raw)) {
+          if (!Array.isArray(samples)) continue;
+          for (const s of samples) {
+            insert.run(serverId, s.count, s.timestamp);
+          }
+        }
+      });
+      migrate();
+      console.log("BattleMetrics: migrated peaks from JSON to SQLite.");
+    } catch (err) {
+      console.error("BattleMetrics: JSON migration failed", err.message);
+    }
   }
 }
 
 function recordSample(serverId, count) {
-  if (!peakSamples[serverId]) peakSamples[serverId] = [];
-  peakSamples[serverId].push({ count, timestamp: Date.now() });
-  // Prune samples older than 24 hours
-  const cutoff = Date.now() - PEAK_WINDOW;
-  peakSamples[serverId] = peakSamples[serverId].filter(s => s.timestamp >= cutoff);
+  db.prepare("INSERT INTO peaks (server_id, count, recorded_at) VALUES (?, ?, ?)").run(serverId, count, Date.now());
 }
 
 function getPeak(serverId) {
-  const samples = peakSamples[serverId];
-  if (!samples || samples.length === 0) return 0;
-  const cutoff = Date.now() - PEAK_WINDOW;
-  let max = 0;
-  for (const s of samples) {
-    if (s.timestamp >= cutoff && s.count > max) max = s.count;
+  const row = db.prepare(
+    "SELECT MAX(count) AS peak FROM peaks WHERE server_id = ?"
+  ).get(serverId);
+  return row?.peak || 0;
+}
+
+function dropAllPeaks() {
+  db.prepare("DELETE FROM peaks").run();
+  console.log("BattleMetrics: daily peak reset complete.");
+}
+
+function msUntilNext5amEST() {
+  const now = new Date();
+  // EST = UTC-5
+  const estOffset = -5 * 60;
+  const estNow = new Date(now.getTime() + estOffset * 60 * 1000);
+
+  const next5am = new Date(estNow);
+  next5am.setUTCHours(5, 0, 0, 0);
+
+  // If 5 AM EST already passed today, schedule for tomorrow
+  if (next5am <= estNow) {
+    next5am.setUTCDate(next5am.getUTCDate() + 1);
   }
-  return max;
+
+  // Convert back to real time
+  return next5am.getTime() - estOffset * 60 * 1000 - now.getTime();
+}
+
+function scheduleDailyReset() {
+  const ms = msUntilNext5amEST();
+  const hours = (ms / 3600000).toFixed(1);
+  console.log(`BattleMetrics: next peak reset in ${hours}h (5:00 AM EST).`);
+
+  resetTimer = setTimeout(() => {
+    dropAllPeaks();
+    // Re-schedule for next day
+    scheduleDailyReset();
+  }, ms);
 }
 
 async function fetchServers() {
@@ -83,7 +135,7 @@ async function fetchServers() {
       srv.peak = getPeak(srv.id);
       return srv;
     }
-    const fallback = {
+    return {
       id: SERVERS[i].id,
       label: SERVERS[i].label,
       name: "Unavailable",
@@ -95,14 +147,11 @@ async function fetchServers() {
       updatedAt: null,
       peak: getPeak(SERVERS[i].id),
     };
-    return fallback;
   });
-
-  savePeaks();
 }
 
 function init() {
-  loadPeaks();
+  initDb();
 
   fetchServers().catch((err) =>
     console.error("BattleMetrics: initial fetch failed", err.message)
@@ -113,6 +162,8 @@ function init() {
       console.error("BattleMetrics: poll failed", err.message)
     );
   }, POLL_INTERVAL);
+
+  scheduleDailyReset();
 
   console.log(
     `BattleMetrics: polling ${SERVERS.length} servers every ${POLL_INTERVAL / 1000}s`
