@@ -265,6 +265,53 @@ app.get("/about", (req, res) => {
   });
 });
 
+app.get("/robots.txt", (req, res) => {
+  const base = config.siteUrl;
+  res.set("Content-Type", "text/plain");
+  res.send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /auth\nDisallow: /api\n\nSitemap: ${base}/sitemap.xml\n`);
+});
+
+app.get("/sitemap.xml", (req, res) => {
+  const base = config.siteUrl;
+  const now = new Date().toISOString().split("T")[0];
+
+  const staticPages = [
+    { loc: "/", priority: "1.0", changefreq: "daily" },
+    { loc: "/blog", priority: "0.8", changefreq: "daily" },
+    { loc: "/about", priority: "0.5", changefreq: "monthly" },
+    { loc: "/how-to", priority: "0.5", changefreq: "monthly" },
+  ];
+
+  const posts = blog.getPosts(true);
+
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+  xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+
+  for (const page of staticPages) {
+    xml += "  <url>\n";
+    xml += `    <loc>${base}${page.loc}</loc>\n`;
+    xml += `    <lastmod>${now}</lastmod>\n`;
+    xml += `    <changefreq>${page.changefreq}</changefreq>\n`;
+    xml += `    <priority>${page.priority}</priority>\n`;
+    xml += "  </url>\n";
+  }
+
+  for (const post of posts) {
+    const lastmod = new Date(post.updatedAt || post.createdAt).toISOString().split("T")[0];
+    xml += "  <url>\n";
+    xml += `    <loc>${base}/blog/${post.slug}</loc>\n`;
+    xml += `    <lastmod>${lastmod}</lastmod>\n`;
+    xml += `    <changefreq>weekly</changefreq>\n`;
+    xml += `    <priority>0.7</priority>\n`;
+    xml += "  </url>\n";
+  }
+
+  xml += "</urlset>";
+
+  res.set("Content-Type", "application/xml");
+  res.send(xml);
+});
+
 app.get("/how-to", (req, res) => {
   const user = req.session.user || null;
   if (user) {
