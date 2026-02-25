@@ -6,35 +6,42 @@
 </div>
 
 {{#if serverStatus.length}}
-<section>
-  <h2>Server Status</h2>
-  <div class="server-status-bar">
-    {{#each serverStatus}}
-      <div class="server-card {{#if (eq this.status 'online')}}server-online{{else}}server-offline{{/if}}">
+<div class="server-donate-frame">
+  <section>
+    <h2>Server Status</h2>
+    <div class="server-status-bar">
+      {{#each serverStatus}}
+        <div class="server-card {{#if (eq this.status 'online')}}server-online{{else}}server-offline{{/if}}">
+          <div class="server-card-header">
+            <span class="server-dot"></span>
+            <span class="server-label">{{this.label}}</span>
+          </div>
+          <div class="server-players">{{this.players}}<span class="server-max">/{{this.maxPlayers}}</span></div>
+          <div class="server-bar-track">
+            <div class="server-bar-fill" style="width: {{percent this.players this.maxPlayers}}%;"></div>
+          </div>
+          <div class="server-name">{{this.name}}</div>
+        </div>
+      {{/each}}
+      <div class="server-card server-total">
         <div class="server-card-header">
-          <span class="server-dot"></span>
-          <span class="server-label">{{this.label}}</span>
+          <span class="server-label">Total Online</span>
         </div>
-        <div class="server-players">{{this.players}}<span class="server-max">/{{this.maxPlayers}}</span></div>
-        <div class="server-bar-track">
-          <div class="server-bar-fill" style="width: {{percent this.players this.maxPlayers}}%;"></div>
+        <div class="server-players">{{totalPlayers}}<span class="server-max">/{{totalMaxPlayers}}</span></div>
+        <div class="server-peaks">
+          {{#each serverStatus}}
+            <div class="server-peak-line">{{this.label}} Peak: <span>{{this.peak}}</span></div>
+          {{/each}}
         </div>
-        <div class="server-name">{{this.name}}</div>
-      </div>
-    {{/each}}
-    <div class="server-card server-total">
-      <div class="server-card-header">
-        <span class="server-label">Total Online</span>
-      </div>
-      <div class="server-players">{{totalPlayers}}<span class="server-max">/{{totalMaxPlayers}}</span></div>
-      <div class="server-peaks">
-        {{#each serverStatus}}
-          <div class="server-peak-line">{{this.label}} Peak: <span>{{this.peak}}</span></div>
-        {{/each}}
       </div>
     </div>
+  </section>
+
+  <div class="donate-cta">
+    <h2 class="donate-cta-text">Your support keeps us going</h2>
+    <a href="https://www.iwannaplaygames.com/products" target="_blank" rel="noopener" class="btn btn-donate">Donate Today</a>
   </div>
-</section>
+</div>
 {{/if}}
 
 {{#if user}}

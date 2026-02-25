@@ -1059,6 +1059,47 @@ details.misc-stats .stats-grid { padding: 1rem; }
   letter-spacing: 0.1em;
 }
 
+.server-donate-frame {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.server-donate-frame section { padding: 0; margin: 0; }
+.donate-cta {
+  text-align: center;
+  padding: 1.25rem 0 0.5rem;
+  border-top: 1px solid var(--border);
+  margin-top: 1.5rem;
+}
+.donate-cta-text {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+.btn-donate {
+  display: inline-block;
+  padding: 0.6rem 2rem;
+  background: linear-gradient(135deg, #d4a017, #f5c842, #d4a017);
+  color: #1a1a1a;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: none;
+  border-radius: 6px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 0 12px rgba(212, 160, 23, 0.3);
+}
+.btn-donate:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 20px rgba(245, 200, 66, 0.5);
+}
+
 .dash-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
