@@ -88,9 +88,8 @@ async function buildStats() {
   // Aggregate server totals from detailed stats
   let totalKills = 0, totalDeaths = 0, totalShots = 0, totalGrenades = 0;
   let totalAiKills = 0, totalRoadkills = 0;
-  let totalDistWalked = 0, totalDistDriven = 0, totalDistPassenger = 0;
+  let totalDistWalked = 0, totalDistDriven = 0;
   let totalBandages = 0, totalMorphine = 0, totalVehicleDeaths = 0;
-  let totalTourniquets = 0, totalSaline = 0;
 
   for (const s of results.detailedStats) {
     totalKills += Number(s.kill_count) || 0;
@@ -101,11 +100,8 @@ async function buildStats() {
     totalRoadkills += Number(s.roadkills) || 0;
     totalDistWalked += Number(s.distance_walked) || 0;
     totalDistDriven += Number(s.distance_driven) || 0;
-    totalDistPassenger += Number(s.distance_as_occupant) || 0;
     totalBandages += (Number(s.bandage_self) || 0) + (Number(s.bandage_friendlies) || 0);
     totalMorphine += (Number(s.morphine_self) || 0) + (Number(s.morphine_friendlies) || 0);
-    totalTourniquets += (Number(s.tourniquet_self) || 0) + (Number(s.tourniquet_friendlies) || 0);
-    totalSaline += (Number(s.saline_self) || 0) + (Number(s.saline_friendlies) || 0);
     totalVehicleDeaths += Number(s.players_died_in_vehicle) || 0;
   }
 
@@ -119,12 +115,8 @@ async function buildStats() {
     vehicleDeaths: totalVehicleDeaths,
     distanceWalkedKm: Math.round(totalDistWalked / 1000),
     distanceDrivenKm: Math.round(totalDistDriven / 1000),
-    distancePassengerKm: Math.round(totalDistPassenger / 1000),
     bandagesUsed: totalBandages,
     morphineUsed: totalMorphine,
-    tourniquetsUsed: totalTourniquets,
-    salineUsed: totalSaline,
-    atmDeposited: analytics.getTotalDeposited(),
   };
 
   cachedStats = results;
