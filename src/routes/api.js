@@ -2,6 +2,7 @@ const express = require("express");
 const axios = require("axios");
 const config = require("../config");
 const { sendWebhookError } = require("../webhook");
+const analytics = require("../analytics");
 const router = express.Router();
 
 const apiClient = axios.create({
@@ -123,6 +124,7 @@ async function buildStats() {
     morphineUsed: totalMorphine,
     tourniquetsUsed: totalTourniquets,
     salineUsed: totalSaline,
+    atmDeposited: analytics.getTotalDeposited(),
   };
 
   cachedStats = results;

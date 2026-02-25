@@ -13,6 +13,7 @@ const SKIP_PREFIXES = [
 ];
 
 let visits = [];
+let totalDeposited = 0;
 let dirty = false;
 let flushTimer = null;
 
@@ -26,6 +27,7 @@ function init() {
       const raw = fs.readFileSync(DATA_FILE, "utf-8");
       const parsed = JSON.parse(raw);
       visits = Array.isArray(parsed.visits) ? parsed.visits : [];
+      totalDeposited = Number(parsed.totalDeposited) || 0;
     } catch (err) {
       console.error("Analytics: failed to load data file, starting fresh.", err.message);
       visits = [];
@@ -49,7 +51,7 @@ function init() {
 
 function flush() {
   try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify({ visits }));
+    fs.writeFileSync(DATA_FILE, JSON.stringify({ visits, totalDeposited }));
     dirty = false;
   } catch (err) {
     console.error("Analytics: flush error", err.message);
@@ -189,4 +191,13 @@ function getStats() {
   };
 }
 
-module.exports = { init, middleware, getStats };
+function recordDeposit(amount) {
+  totalDeposited += Number(amount) || 0;
+  dirty = true;
+}
+
+function getTotalDeposited() {
+  return totalDeposited;
+}
+
+module.exports = { init, middleware, getStats, recordDeposit, getTotalDeposited };

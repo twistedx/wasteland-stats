@@ -171,6 +171,9 @@ router.post("/money", requireWriteAdmin, async (req, res) => {
       },
     });
 
+    // Track deposit total
+    analytics.recordDeposit(Number(amount));
+
     // Log to Discord webhook
     if (config.discordWebhookUrl) {
       axios.post(config.discordWebhookUrl, {
