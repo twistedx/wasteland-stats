@@ -1,0 +1,69 @@
+<section id="admin-section">
+  <h2>Admin</h2>
+  <div class="tab-bar">
+    <a href="/admin/analytics" class="tab">Analytics</a>
+    <a href="/admin/bans" class="tab">Ban List</a>
+    <a href="/admin/kills" class="tab active">Kill Log</a>
+    {{#if user.isWriteAdmin}}
+      <a href="/admin/money" class="tab">Add Money</a>
+      <a href="/admin/skins" class="tab">Skins</a>
+    {{/if}}
+  </div>
+
+  <form class="filter-bar" method="GET" action="/admin/kills">
+    <input
+      type="text"
+      name="search"
+      class="filter-input"
+      placeholder="Search player by name..."
+      value="{{search}}"
+    >
+    <select name="sort" class="filter-select">
+      <option value="kills" {{#if (eq sort 'kills')}}selected{{/if}}>Sort: Kills</option>
+      <option value="deaths" {{#if (eq sort 'deaths')}}selected{{/if}}>Sort: Deaths</option>
+      <option value="kd" {{#if (eq sort 'kd')}}selected{{/if}}>Sort: K/D</option>
+      <option value="id" {{#if (eq sort 'id')}}selected{{/if}}>Sort: Killer ID</option>
+    </select>
+    <button type="submit" class="btn btn-admin">Search</button>
+  </form>
+
+  {{#if killsError}}
+    <div class="error">Failed to load kill stats. Please try again.</div>
+  {{else}}
+    <p class="result-count">{{playerCount}} player{{#unless (eq playerCount 1)}}s{{/unless}} found{{#if search}} for "{{search}}"{{/if}}</p>
+
+    {{#if players.length}}
+      <div class="table-scroll">
+        <table id="kills-table">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>Killer ID</th>
+              <th>Kills</th>
+              <th>Deaths</th>
+              <th>K/D</th>
+              <th>Most Killed</th>
+              <th>Nemesis</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each players}}
+              <tr>
+                <td class="player-name">{{this.arma_username}}</td>
+                <td class="guid">{{this.arma_id}}</td>
+                <td>{{this.kill_count}}</td>
+                <td>{{this.deaths}}</td>
+                <td>{{this.kdRatio}}</td>
+                <td>{{this.mostKilled}} ({{this.mostKilledCount}})</td>
+                <td>{{this.mostKilledBy}} ({{this.mostKilledByCount}})</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    {{else}}
+      <div class="empty-state">{{#if search}}No players match your search.{{else}}No kill data available.{{/if}}</div>
+    {{/if}}
+  {{/if}}
+
+</section>

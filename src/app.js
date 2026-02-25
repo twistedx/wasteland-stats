@@ -7,6 +7,7 @@ const axios = require("axios");
 const config = require("./config");
 const { sendWebhookError } = require("./webhook");
 const analytics = require("./analytics");
+const battlemetrics = require("./battlemetrics");
 
 const app = express();
 
@@ -51,6 +52,7 @@ app.engine(
       },
       fallback: (val, def) => (val !== undefined && val !== null ? val : def),
       math: (a, b) => a + b,
+      percent: (a, b) => (b ? Math.round((a / b) * 100) : 0),
       formatDate: (val) => {
         if (!val) return "-";
         const d = new Date(val);
@@ -94,6 +96,7 @@ app.use(express.static(path.join(__dirname, "..", "public"), {
 }));
 
 analytics.init();
+battlemetrics.init();
 app.use(analytics.middleware);
 
 app.use("/auth", require("./routes/auth"));
@@ -203,11 +206,15 @@ async function fetchHomeData(req) {
 
 app.get("/", async (req, res) => {
   const data = await fetchHomeData(req);
+  const serverStatus = battlemetrics.getStatus();
   res.render("dashboard", {
     page: "home",
     pageTitle: "Server Dashboard",
     pageDescription: "Live combat statistics, kill leaderboards, and ban analytics from the Arma Wasteland battlefield.",
     ...data,
+    serverStatus: serverStatus.servers,
+    totalPlayers: serverStatus.totalPlayers,
+    totalMaxPlayers: serverStatus.totalMax,
   });
 });
 

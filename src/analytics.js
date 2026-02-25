@@ -100,6 +100,7 @@ function getStats() {
   const uniqueWeek = new Set();
   const uniqueMonth = new Set();
   const activeUsersSet = new Set();
+  const allTimeUsersSet = new Set();
   const pageCounts = {};
 
   for (const v of visits) {
@@ -119,6 +120,7 @@ function getStats() {
     if (v.ts >= weekStart) uniqueWeek.add(v.vid);
     if (v.ts >= monthStart) uniqueMonth.add(v.vid);
 
+    if (v.loggedIn && v.username) allTimeUsersSet.add(v.username);
     pageCounts[v.path] = (pageCounts[v.path] || 0) + 1;
   }
 
@@ -182,6 +184,7 @@ function getStats() {
     recentActivity,
     activeUsers,
     activeUserCount: activeUsers.length,
+    allTimeUsers: allTimeUsersSet.size,
     dailyViews,
   };
 }

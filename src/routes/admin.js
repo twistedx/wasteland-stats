@@ -263,6 +263,137 @@ router.post("/skins", requireWriteAdmin, async (req, res) => {
   }
 });
 
+// GET /admin/kills
+router.get("/kills", async (req, res) => {
+  const user = req.session.user;
+  buildAvatarUrl(user);
+
+  const search = (req.query.search || "").trim();
+  const sort = req.query.sort || "kills";
+  let players = [];
+  let killsError = false;
+
+  try {
+    if (search) {
+      // Search for players by name
+      const searchRes = await apiClient({
+        method: "GET",
+        url: "/user/searchUsersByUsername/",
+        data: { search, token: config.apiToken },
+      });
+      const matches = searchRes.data?.users || searchRes.data?.data || searchRes.data;
+      const matchList = Array.isArray(matches) ? matches : [];
+
+      // Fetch detailed stats for each match (up to 20)
+      const statsPromises = matchList.slice(0, 20).map(async (p) => {
+        try {
+          const statsRes = await apiClient({
+            method: "GET",
+            url: "/user/getPlayerStatsByIDCurrentSeason",
+            data: { arma_id: p.arma_id, token: config.apiToken },
+          });
+          const s = statsRes.data || {};
+          return {
+            arma_id: p.arma_id,
+            arma_username: s.arma_username || p.arma_username,
+            kill_count: Number(s.kill_count) || 0,
+            deaths: Number(s.deaths) || 0,
+            kdRatio: s.kdRatio || "0.0",
+            mostKilled: s.mostKilled || "-",
+            mostKilledCount: Number(s.mostKilledCount) || 0,
+            mostKilledBy: s.mostKilledBy || "-",
+            mostKilledByCount: Number(s.mostKilledByCount) || 0,
+            shots_fired: Number(s.shots_fired) || 0,
+          };
+        } catch {
+          return {
+            arma_id: p.arma_id,
+            arma_username: p.arma_username,
+            kill_count: 0, deaths: 0, kdRatio: "0.0",
+            mostKilled: "-", mostKilledCount: 0,
+            mostKilledBy: "-", mostKilledByCount: 0,
+            shots_fired: 0,
+          };
+        }
+      });
+      players = await Promise.all(statsPromises);
+    } else {
+      // Default: show top 10 leaderboard
+      const lbRes = await apiClient.get("/user/topTenUserStats/", {
+        params: { token: config.apiToken },
+      });
+      const lb = Array.isArray(lbRes.data) ? lbRes.data : [];
+
+      // Fetch detailed stats + arma_id for each leaderboard entry
+      const statsPromises = lb.slice(0, 10).map(async (p) => {
+        try {
+          const idRes = await apiClient({
+            method: "GET",
+            url: "/user/getPlayerIDsByName",
+            data: { arma_username: p.arma_username, token: config.apiToken },
+          });
+          const ids = idRes.data;
+          const arma_id = Array.isArray(ids) && ids.length > 0 ? ids[0] : "-";
+
+          return {
+            arma_id,
+            arma_username: p.arma_username,
+            kill_count: Number(p.kill_count) || 0,
+            deaths: Number(p.deaths) || 0,
+            kdRatio: p.kdRatio || "0.0",
+            mostKilled: p.mostKilled || "-",
+            mostKilledCount: Number(p.mostKilledCount) || 0,
+            mostKilledBy: p.mostKilledBy || "-",
+            mostKilledByCount: Number(p.mostKilledByCount) || 0,
+            shots_fired: 0,
+          };
+        } catch {
+          return {
+            arma_id: "-",
+            arma_username: p.arma_username,
+            kill_count: Number(p.kill_count) || 0,
+            deaths: Number(p.deaths) || 0,
+            kdRatio: p.kdRatio || "0.0",
+            mostKilled: p.mostKilled || "-",
+            mostKilledCount: Number(p.mostKilledCount) || 0,
+            mostKilledBy: p.mostKilledBy || "-",
+            mostKilledByCount: Number(p.mostKilledByCount) || 0,
+            shots_fired: 0,
+          };
+        }
+      });
+      players = await Promise.all(statsPromises);
+    }
+
+    // Sort
+    if (sort === "kills") {
+      players.sort((a, b) => b.kill_count - a.kill_count);
+    } else if (sort === "deaths") {
+      players.sort((a, b) => b.deaths - a.deaths);
+    } else if (sort === "kd") {
+      players.sort((a, b) => parseFloat(b.kdRatio) - parseFloat(a.kdRatio));
+    } else if (sort === "id") {
+      players.sort((a, b) => String(a.arma_id).localeCompare(String(b.arma_id)));
+    }
+  } catch (error) {
+    console.error("Kill log error:", error.message);
+    sendWebhookError("Kill Log Fetch", error.message);
+    killsError = true;
+  }
+
+  res.render("admin-kills", {
+    page: "admin",
+    pageTitle: "Kill Log",
+    pageDescription: "Admin kill stats viewer for Arma Wasteland server.",
+    user,
+    players,
+    killsError,
+    playerCount: players.length,
+    search,
+    sort,
+  });
+});
+
 // GET /admin/analytics
 router.get("/analytics", (req, res) => {
   const user = req.session.user;
