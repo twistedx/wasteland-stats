@@ -8,6 +8,7 @@ const config = require("./config");
 const { sendWebhookError } = require("./webhook");
 const analytics = require("./analytics");
 const battlemetrics = require("./battlemetrics");
+const amp = require("./amp");
 const blog = require("./blog");
 const { marked } = require("marked");
 
@@ -127,6 +128,8 @@ app.use(express.static(path.join(__dirname, "..", "public"), {
 analytics.init();
 battlemetrics.init();
 blog.init();
+require("./steam-store").init();
+require("./amp").init();
 app.use(analytics.middleware);
 
 app.use("/auth", require("./routes/auth"));
@@ -237,15 +240,36 @@ async function fetchHomeData(req) {
 
 app.get("/", async (req, res) => {
   const data = await fetchHomeData(req);
-  const serverStatus = battlemetrics.getStatus();
+  const ampStatus = amp.getStatus();
+  const bmStatus = battlemetrics.getStatus();
+
+  // Use AMP data if available, fall back to BattleMetrics
+  let serverStatus, totalPlayers, totalMaxPlayers;
+  if (ampStatus.instances.length > 0) {
+    serverStatus = ampStatus.instances.map((inst, i) => ({
+      label: "Server " + (i + 1),
+      name: inst.targetName,
+      players: inst.players.current,
+      maxPlayers: inst.players.max,
+      status: inst.running ? "online" : "offline",
+      peak: 0,
+    }));
+    totalPlayers = ampStatus.totalPlayers;
+    totalMaxPlayers = ampStatus.totalMax;
+  } else {
+    serverStatus = bmStatus.servers;
+    totalPlayers = bmStatus.totalPlayers;
+    totalMaxPlayers = bmStatus.totalMax;
+  }
+
   res.render("dashboard", {
     page: "home",
     pageTitle: "Server Dashboard",
     pageDescription: "Live combat statistics, kill leaderboards, and ban analytics from the Arma Wasteland battlefield.",
     ...data,
-    serverStatus: serverStatus.servers,
-    totalPlayers: serverStatus.totalPlayers,
-    totalMaxPlayers: serverStatus.totalMax,
+    serverStatus,
+    totalPlayers,
+    totalMaxPlayers,
   });
 });
 

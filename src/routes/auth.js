@@ -2,6 +2,7 @@ const express = require("express");
 const axios = require("axios");
 const config = require("../config");
 const { sendWebhookError } = require("../webhook");
+const steamStore = require("../steam-store");
 const router = express.Router();
 
 const DISCORD_AUTH_URL = "https://discord.com/api/oauth2/authorize";
@@ -14,7 +15,7 @@ router.get("/discord", (req, res) => {
     client_id: config.discord.clientId,
     redirect_uri: config.discord.redirectUri,
     response_type: "code",
-    scope: "identify",
+    scope: "identify connections",
   });
   res.redirect(`${DISCORD_AUTH_URL}?${params.toString()}`);
 });
@@ -47,6 +48,19 @@ router.get("/discord/callback", async (req, res) => {
 
     const discordUser = userRes.data;
 
+    // Fetch connected accounts (Steam, Xbox, etc.)
+    let connections = [];
+    try {
+      const connRes = await axios.get(`${DISCORD_API}/users/@me/connections`, {
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+      connections = (connRes.data || [])
+        .filter(c => c.visibility === 1 || c.verified)
+        .map(c => ({ type: c.type, name: c.name, id: c.id, verified: c.verified }));
+    } catch (connErr) {
+      console.error("Connections fetch error:", connErr.response?.status, connErr.message);
+    }
+
     // Fetch guild member roles using bot token
     let isAdmin = false;
     let isWriteAdmin = false;
@@ -66,6 +80,12 @@ router.get("/discord/callback", async (req, res) => {
       console.error("Role fetch error:", roleErr.response?.status, roleErr.response?.data || roleErr.message);
     }
 
+    // Store Steam link if available
+    const steamConn = connections.find(c => c.type === "steam");
+    if (steamConn) {
+      steamStore.upsert(discordUser.id, discordUser.username, steamConn.id, steamConn.name);
+    }
+
     req.session.user = {
       discord_id: discordUser.id,
       username: discordUser.username,
@@ -74,6 +94,8 @@ router.get("/discord/callback", async (req, res) => {
       isAdmin,
       isWriteAdmin,
       isBlogAdmin,
+      connections,
+      steamId: steamConn?.id || null,
     };
 
     req.session.save(() => {

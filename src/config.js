@@ -19,6 +19,11 @@ const config = {
   adminWriteRoleIds: (process.env.ADMIN_WRITE_ROLE_IDS || "").split(",").filter(Boolean),
   blogRoleIds: (process.env.BLOG_ROLE_IDS || "").split(",").filter(Boolean),
   siteUrl: (process.env.SITE_URL || "http://localhost:3001").replace(/\/+$/, ""),
+  amp: {
+    url: (process.env.AMP_URL || "").replace(/\/+$/, ""),
+    username: process.env.AMP_USERNAME || "",
+    password: process.env.AMP_PASSWORD || "",
+  },
 };
 
 const required = ["apiBaseUrl", "apiToken", "sessionSecret", "discordBotToken", "discordGuildId"];

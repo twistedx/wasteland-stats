@@ -1,0 +1,236 @@
+<section id="admin-section">
+  <h2>Admin</h2>
+  <div class="tab-bar">
+    <a href="/admin/analytics" class="tab">Analytics</a>
+    <a href="/admin/bans" class="tab">Ban List</a>
+    <a href="/admin/kills" class="tab">Kill Log</a>
+    {{#if user.isWriteAdmin}}
+      <a href="/admin/money" class="tab">Add Money</a>
+      <a href="/admin/skins" class="tab">Skins</a>
+    {{/if}}
+    {{#if user.isBlogAdmin}}
+      <a href="/admin/blog" class="tab">Blog</a>
+    {{/if}}
+    <a href="/admin/servers" class="tab active">Servers</a>
+    <div style="margin-left:auto;display:flex;gap:0.5rem;align-items:center;padding:0 0.5rem;">
+      <button type="button" id="open-unban-modal" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Unban Player</button>
+      <button type="button" id="open-ban-modal" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Ban Player</button>
+    </div>
+  </div>
+
+  {{#if ampError}}
+    <div class="alert alert-error">Failed to load server data from AMP.</div>
+  {{/if}}
+
+  <!-- Summary cards -->
+  <div class="analytics-cards">
+    <div class="stat-card primary">
+      <div class="stat-value">{{totalPlayers}} / {{totalMax}}</div>
+      <div class="stat-label">Total Players Online</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{instanceCount}}</div>
+      <div class="stat-label">Game Instances</div>
+    </div>
+    {{#if fetchedAt}}
+      <div class="stat-card">
+        <div class="stat-value" style="font-size:0.9rem;">{{formatDate fetchedAt}}</div>
+        <div class="stat-label">Last Updated</div>
+      </div>
+    {{/if}}
+  </div>
+
+  <!-- Server cards -->
+  <div class="server-grid">
+    {{#each instances}}
+      <div class="server-card {{#if running}}server-online{{else}}server-offline{{/if}}">
+        <div class="server-card-header">
+          <div class="server-name">{{friendlyName}}</div>
+          <div class="server-status-badge {{#if running}}badge-online{{else}}badge-offline{{/if}}">
+            {{#if running}}Online{{else}}Offline{{/if}}
+          </div>
+        </div>
+
+        <div class="server-card-subtitle">{{targetName}}</div>
+
+        <!-- Players -->
+        <div class="server-metric">
+          <div class="server-metric-header">
+            <span>Players</span>
+            <span class="server-metric-value">{{players.current}} / {{players.max}}</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill progress-players" style="width: {{players.percent}}%"></div>
+          </div>
+        </div>
+
+        <!-- CPU -->
+        <div class="server-metric">
+          <div class="server-metric-header">
+            <span>CPU</span>
+            <span class="server-metric-value">{{cpu.percent}}%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill progress-cpu" style="width: {{cpu.percent}}%"></div>
+          </div>
+        </div>
+
+        <!-- Memory -->
+        <div class="server-metric">
+          <div class="server-metric-header">
+            <span>Memory</span>
+            <span class="server-metric-value">{{formatNumber memory.value}} / {{formatNumber memory.max}} {{memory.units}}</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill progress-ram" style="width: {{memory.percent}}%"></div>
+          </div>
+        </div>
+
+        <div class="server-card-footer">
+          <span>{{instanceName}}</span>
+          <span>AMP {{ampVersion}}</span>
+        </div>
+      </div>
+    {{/each}}
+  </div>
+
+  {{#unless instances.length}}
+    {{#unless ampError}}
+      <div class="empty-state">No game server instances found.</div>
+    {{/unless}}
+  {{/unless}}
+
+  <!-- Charts -->
+  <div class="server-charts-controls" style="margin-top:1.5rem;display:flex;gap:0.5rem;align-items:center;">
+    <span style="color:var(--text-secondary);font-size:0.85rem;">Time Range:</span>
+    <button class="btn btn-small chart-range-btn active" data-hours="6">6h</button>
+    <button class="btn btn-small chart-range-btn" data-hours="24">24h</button>
+    <button class="btn btn-small chart-range-btn" data-hours="168">7d</button>
+    <button class="btn btn-small chart-range-btn" data-hours="720">30d</button>
+  </div>
+
+  <div class="dash-grid" style="margin-top:1rem;">
+    <div class="dash-panel dash-panel-wide">
+      <div class="dash-panel-header">Player Count Over Time</div>
+      <div id="chart-players" class="dash-chart"></div>
+    </div>
+    <div class="dash-panel">
+      <div class="dash-panel-header">CPU Usage Over Time</div>
+      <div id="chart-cpu" class="dash-chart"></div>
+    </div>
+    <div class="dash-panel">
+      <div class="dash-panel-header">Memory Usage Over Time</div>
+      <div id="chart-memory" class="dash-chart"></div>
+    </div>
+  </div>
+</section>
+
+{{> ban-modal}}
+
+<script>window.__chartData = {{{chartDataJson}}};</script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script>
+(function() {
+  var colors = ['#5865F2', '#22c55e', '#F59E0B', '#ef4444', '#8B5CF6', '#06b6d4'];
+  var chartData = window.__chartData || {};
+
+  function formatTime(ts) {
+    var d = new Date(ts);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function buildChart(elId, dataKey, yLabel, unit) {
+    var el = document.getElementById(elId);
+    if (!el) return null;
+    var chart = echarts.init(el);
+
+    var series = [];
+    var i = 0;
+    for (var id in chartData) {
+      var s = chartData[id];
+      series.push({
+        name: s.name,
+        type: 'line',
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { width: 2 },
+        areaStyle: { opacity: 0.1 },
+        itemStyle: { color: colors[i % colors.length] },
+        data: s.times.map(function(t, idx) {
+          return [t, s[dataKey][idx]];
+        })
+      });
+      i++;
+    }
+
+    chart.setOption({
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(20,20,30,0.95)',
+        borderColor: 'rgba(255,255,255,0.1)',
+        textStyle: { color: '#fff', fontSize: 12 },
+        formatter: function(params) {
+          var time = new Date(params[0].value[0]);
+          var str = '<div style="margin-bottom:4px;font-weight:600;">' + time.toLocaleString() + '</div>';
+          params.forEach(function(p) {
+            str += '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + p.color + ';margin-right:6px;"></span>';
+            str += p.seriesName + ': <b>' + p.value[1] + (unit || '') + '</b><br/>';
+          });
+          return str;
+        }
+      },
+      legend: {
+        data: series.map(function(s) { return s.name; }),
+        textStyle: { color: 'rgba(255,255,255,0.7)' },
+        top: 0
+      },
+      grid: { top: 35, right: 15, bottom: 25, left: 50 },
+      xAxis: {
+        type: 'time',
+        axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+        axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } },
+        splitLine: { show: false }
+      },
+      yAxis: {
+        type: 'value',
+        name: yLabel,
+        nameTextStyle: { color: 'rgba(255,255,255,0.5)' },
+        axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } }
+      },
+      series: series
+    });
+
+    return chart;
+  }
+
+  var cPlayers = buildChart('chart-players', 'players', 'Players', '');
+  var cCpu = buildChart('chart-cpu', 'cpu', 'CPU', '%');
+  var cMemory = buildChart('chart-memory', 'memory', 'RAM', '%');
+
+  window.addEventListener('resize', function() {
+    if (cPlayers) cPlayers.resize();
+    if (cCpu) cCpu.resize();
+    if (cMemory) cMemory.resize();
+  });
+
+  // Time range buttons
+  document.querySelectorAll('.chart-range-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.chart-range-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var hours = btn.getAttribute('data-hours');
+      fetch('/admin/servers/history?hours=' + hours)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          chartData = data;
+          window.__chartData = data;
+          if (cPlayers) { cPlayers.dispose(); cPlayers = buildChart('chart-players', 'players', 'Players', ''); }
+          if (cCpu) { cCpu.dispose(); cCpu = buildChart('chart-cpu', 'cpu', 'CPU', '%'); }
+          if (cMemory) { cMemory.dispose(); cMemory = buildChart('chart-memory', 'memory', 'RAM', '%'); }
+        });
+    });
+  });
+})();
+</script>

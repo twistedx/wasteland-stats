@@ -1,0 +1,232 @@
+const axios = require("axios");
+const Database = require("better-sqlite3");
+const path = require("path");
+const fs = require("fs");
+const config = require("./config");
+
+const POLL_INTERVAL = 60 * 1000; // 1 minute
+const DB_DIR = "/var/data";
+const DB_FILE = path.join(DB_DIR, "amp.db");
+
+let sessionID = null;
+let serverData = [];
+let pollTimer = null;
+let lastFetch = null;
+let db = null;
+
+async function login() {
+  const res = await axios.post(`${config.amp.url}/API/Core/Login`, {
+    username: config.amp.username,
+    password: config.amp.password,
+    token: "",
+    rememberMe: false,
+  }, {
+    headers: { "Content-Type": "application/json" },
+    timeout: 15000,
+  });
+
+  if (!res.data.success) {
+    throw new Error("AMP login failed: " + (res.data.resultReason || "unknown"));
+  }
+
+  sessionID = res.data.sessionID;
+  return sessionID;
+}
+
+async function apiCall(endpoint, params = {}) {
+  if (!sessionID) {
+    await login();
+  }
+
+  try {
+    const res = await axios.post(`${config.amp.url}/API/${endpoint}`, {
+      SESSIONID: sessionID,
+      ...params,
+    }, {
+      headers: { "Content-Type": "application/json" },
+      timeout: 15000,
+    });
+
+    // Check for auth errors and re-login
+    if (res.data?.Title === "Unauthorized Access" || res.data?.Title === "Session Expired") {
+      await login();
+      const retry = await axios.post(`${config.amp.url}/API/${endpoint}`, {
+        SESSIONID: sessionID,
+        ...params,
+      }, {
+        headers: { "Content-Type": "application/json" },
+        timeout: 15000,
+      });
+      return retry.data;
+    }
+
+    return res.data;
+  } catch (err) {
+    // If 401/403, re-login and retry once
+    if (err.response && (err.response.status === 401 || err.response.status === 403)) {
+      await login();
+      const retry = await axios.post(`${config.amp.url}/API/${endpoint}`, {
+        SESSIONID: sessionID,
+        ...params,
+      }, {
+        headers: { "Content-Type": "application/json" },
+        timeout: 15000,
+      });
+      return retry.data;
+    }
+    throw err;
+  }
+}
+
+async function fetchInstances() {
+  const targets = await apiCall("ADSModule/GetInstances", { ForceIncludeSelf: true });
+
+  const instances = [];
+  for (const target of targets) {
+    if (!target.AvailableInstances) continue;
+    for (const inst of target.AvailableInstances) {
+      // Skip the ADS controller itself
+      if (inst.Module === "ADS") continue;
+
+      const metrics = inst.Metrics || {};
+      const cpu = metrics["CPU Usage"] || {};
+      const ram = metrics["Memory Usage"] || {};
+      const users = metrics["Active Users"] || {};
+
+      instances.push({
+        instanceId: inst.InstanceID,
+        instanceName: inst.InstanceName,
+        friendlyName: inst.FriendlyName,
+        targetName: target.FriendlyName,
+        module: inst.Module,
+        running: inst.Running,
+        appState: inst.AppState,
+        suspended: inst.Suspended,
+        ampVersion: inst.AMPVersion,
+        cpu: {
+          value: cpu.RawValue || 0,
+          max: cpu.MaxValue || 100,
+          percent: cpu.Percent || 0,
+          units: cpu.Units || "%",
+        },
+        memory: {
+          value: ram.RawValue || 0,
+          max: ram.MaxValue || 0,
+          percent: ram.Percent || 0,
+          units: ram.Units || "MB",
+        },
+        players: {
+          current: users.RawValue || 0,
+          max: users.MaxValue || 0,
+          percent: users.Percent || 0,
+        },
+        endpoints: (inst.ApplicationEndpoints || []).map(ep => ({
+          name: ep.DisplayName,
+          endpoint: ep.Endpoint,
+          uri: ep.Uri,
+        })),
+      });
+    }
+  }
+
+  serverData = instances;
+  lastFetch = new Date().toISOString();
+
+  // Record metrics to DB
+  if (db) {
+    const insert = db.prepare(
+      "INSERT INTO metrics (instance_id, friendly_name, players, max_players, cpu_percent, memory_percent, memory_mb, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    );
+    const now = Date.now();
+    const tx = db.transaction(() => {
+      for (const inst of instances) {
+        insert.run(
+          inst.instanceId,
+          inst.friendlyName,
+          inst.players.current,
+          inst.players.max,
+          inst.cpu.percent,
+          inst.memory.percent,
+          inst.memory.value,
+          now
+        );
+      }
+    });
+    tx();
+  }
+}
+
+function initDb() {
+  if (!fs.existsSync(DB_DIR)) {
+    fs.mkdirSync(DB_DIR, { recursive: true });
+  }
+  db = new Database(DB_FILE);
+  db.pragma("journal_mode = WAL");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS metrics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      instance_id TEXT NOT NULL,
+      friendly_name TEXT,
+      players INTEGER NOT NULL DEFAULT 0,
+      max_players INTEGER NOT NULL DEFAULT 0,
+      cpu_percent INTEGER NOT NULL DEFAULT 0,
+      memory_percent INTEGER NOT NULL DEFAULT 0,
+      memory_mb INTEGER NOT NULL DEFAULT 0,
+      recorded_at INTEGER NOT NULL
+    )
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_metrics_instance ON metrics (instance_id, recorded_at)
+  `);
+
+  // Prune data older than 30 days
+  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  db.prepare("DELETE FROM metrics WHERE recorded_at < ?").run(cutoff);
+}
+
+function init() {
+  if (!config.amp.url || !config.amp.username || !config.amp.password) {
+    console.log("AMP: skipping init (no credentials configured).");
+    return;
+  }
+
+  initDb();
+
+  fetchInstances().catch(err =>
+    console.error("AMP: initial fetch failed:", err.message)
+  );
+
+  pollTimer = setInterval(() => {
+    fetchInstances().catch(err =>
+      console.error("AMP: poll failed:", err.message)
+    );
+  }, POLL_INTERVAL);
+
+  console.log(`AMP: polling instances every ${POLL_INTERVAL / 1000}s`);
+}
+
+function getStatus() {
+  const totalPlayers = serverData.reduce((sum, s) => sum + s.players.current, 0);
+  const totalMax = serverData.reduce((sum, s) => sum + s.players.max, 0);
+  return {
+    instances: serverData,
+    totalPlayers,
+    totalMax,
+    fetchedAt: lastFetch,
+  };
+}
+
+function getHistory(hours = 24) {
+  if (!db) return [];
+  const since = Date.now() - hours * 60 * 60 * 1000;
+  return db.prepare(`
+    SELECT instance_id, friendly_name, players, max_players, cpu_percent, memory_percent, memory_mb, recorded_at
+    FROM metrics
+    WHERE recorded_at >= ?
+    ORDER BY recorded_at ASC
+  `).all(since);
+}
+
+module.exports = { init, getStatus, getHistory, apiCall };
