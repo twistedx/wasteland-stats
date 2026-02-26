@@ -15,6 +15,7 @@ let lastFetch = null;
 let db = null;
 
 async function login() {
+  console.log("AMP: logging in to", config.amp.url);
   const res = await axios.post(`${config.amp.url}/API/Core/Login`, {
     username: config.amp.username,
     password: config.amp.password,
@@ -26,14 +27,17 @@ async function login() {
   });
 
   if (!res.data.success) {
+    console.error("AMP: login failed:", res.data.resultReason || "unknown");
     throw new Error("AMP login failed: " + (res.data.resultReason || "unknown"));
   }
 
   sessionID = res.data.sessionID;
+  console.log("AMP: login successful, sessionID obtained");
   return sessionID;
 }
 
 async function apiCall(endpoint, params = {}) {
+  console.log(`AMP: calling ${endpoint}`);
   if (!sessionID) {
     await login();
   }
@@ -49,6 +53,7 @@ async function apiCall(endpoint, params = {}) {
 
     // Check for auth errors and re-login
     if (res.data?.Title === "Unauthorized Access" || res.data?.Title === "Session Expired") {
+      console.log(`AMP: session expired on ${endpoint}, re-authenticating`);
       await login();
       const retry = await axios.post(`${config.amp.url}/API/${endpoint}`, {
         SESSIONID: sessionID,
@@ -82,23 +87,34 @@ async function fetchInstances() {
   const response = await apiCall("ADSModule/GetInstances", { ForceIncludeSelf: true });
 
   // Handle both raw array and { result: [...] } wrapper
+  console.log("AMP: GetInstances raw response type:", typeof response, Array.isArray(response) ? `array[${response.length}]` : Object.keys(response || {}).join(","));
   const targets = Array.isArray(response) ? response : (response?.result || response || []);
   if (!Array.isArray(targets)) {
     console.error("AMP: unexpected GetInstances response:", JSON.stringify(response).slice(0, 200));
     return;
   }
+  console.log(`AMP: found ${targets.length} target(s)`);
 
   const instances = [];
   for (const target of targets) {
-    if (!target.AvailableInstances) continue;
+    if (!target.AvailableInstances) {
+      console.log(`AMP: target "${target.FriendlyName}" has no AvailableInstances`);
+      continue;
+    }
+    console.log(`AMP: target "${target.FriendlyName}" has ${target.AvailableInstances.length} instance(s)`);
     for (const inst of target.AvailableInstances) {
       // Skip the ADS controller itself
-      if (inst.Module === "ADS") continue;
+      if (inst.Module === "ADS") {
+        console.log(`AMP:   skipping ADS controller "${inst.FriendlyName}"`);
+        continue;
+      }
 
       const metrics = inst.Metrics || {};
+      const metricKeys = Object.keys(metrics);
       const cpu = metrics["CPU Usage"] || {};
       const ram = metrics["Memory Usage"] || {};
       const users = metrics["Active Users"] || {};
+      console.log(`AMP:   instance "${inst.FriendlyName}" (${inst.Module}) running=${inst.Running} metrics=[${metricKeys.join(", ")}] players=${users.RawValue}/${users.MaxValue} cpu=${cpu.RawValue}% ram=${ram.RawValue}MB`);
 
       instances.push({
         instanceId: inst.InstanceID,
