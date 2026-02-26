@@ -100,7 +100,7 @@ app.set("views", path.join(__dirname, "..", "views"));
 app.use(
   session({
     store: new FileStore({
-      path: path.join(__dirname, "..", "sessions"),
+      path: "/var/data/sessions",
       ttl: 86400,
       retries: 2,
       reapInterval: 3600,
