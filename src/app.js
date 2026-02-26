@@ -48,6 +48,10 @@ app.engine(
     partialsDir: path.join(__dirname, "..", "views", "partials"),
     helpers: {
       eq: (a, b) => a === b,
+      gt: (a, b) => a > b,
+      lt: (a, b) => a < b,
+      add: (a, b) => a + b,
+      subtract: (a, b) => a - b,
       formatNumber: (val) => {
         if (val === undefined || val === null) return "0";
         return Number(val).toLocaleString();
@@ -97,7 +101,8 @@ app.use(
     store: new FileStore({
       path: path.join(__dirname, "..", "sessions"),
       ttl: 86400,
-      retries: 0,
+      retries: 2,
+      reapInterval: 3600,
     }),
     secret: config.sessionSecret,
     resave: false,

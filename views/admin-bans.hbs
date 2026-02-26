@@ -29,6 +29,7 @@
       <option value="reason" {{#if (eq field 'reason')}}selected{{/if}}>Reason</option>
     </select>
     <button type="submit" class="btn btn-admin">Search</button>
+    <a href="/admin/bans/export" class="btn btn-admin" style="margin-left:auto;">Export CSV</a>
   </form>
 
   {{#if bansError}}

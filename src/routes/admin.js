@@ -89,6 +89,48 @@ router.get("/bans", async (req, res) => {
   });
 });
 
+// GET /admin/bans/export — download all bans as CSV
+router.get("/bans/export", async (req, res) => {
+  try {
+    const response = await apiClient({
+      method: "GET",
+      url: "/user/getAllUserBans/",
+      data: { token: config.apiToken },
+    });
+    const bans = Array.isArray(response.data?.data) ? response.data.data : [];
+
+    const header = "Username,Discord,Arma GUID,Ban Date,Banned By,Reason,Duration";
+    const rows = bans.map((b) => {
+      const username = csvEscape(b.banned_arma_username || "Unknown");
+      const discord = csvEscape(b.banned_discord_username || "");
+      const guid = csvEscape(b.user_id_banned || "");
+      const date = b.time_stamp ? new Date(b.time_stamp).toISOString() : "";
+      const bannedBy = csvEscape(b.admin_name || "");
+      const reason = csvEscape(b.reason || "");
+      const duration = b.duration_hours === -1 ? "Permanent" : (b.duration_hours + "h");
+      return `${username},${discord},${guid},${date},${bannedBy},${reason},${duration}`;
+    });
+
+    const csv = header + "\n" + rows.join("\n");
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=bans-export.csv");
+    res.send(csv);
+  } catch (error) {
+    console.error("Ban export error:", error.message);
+    sendWebhookError("Ban Export", error.message);
+    res.redirect("/admin/bans?error=Failed to export bans.");
+  }
+});
+
+function csvEscape(val) {
+  const str = String(val);
+  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
 // Helper to build avatar URL
 function buildAvatarUrl(user) {
   if (user.avatar) {
@@ -274,8 +316,12 @@ router.get("/kills", async (req, res) => {
 
   const search = (req.query.search || "").trim();
   const sort = req.query.sort || "kills";
+  const selectedArmaId = (req.query.arma_id || "").trim();
+  const selectedUsername = (req.query.username || "").trim();
   let players = [];
   let killsError = false;
+  let recentKills = [];
+  let recentKillsError = false;
 
   try {
     if (search) {
@@ -321,8 +367,8 @@ router.get("/kills", async (req, res) => {
         }
       });
       players = await Promise.all(statsPromises);
-    } else {
-      // Default: show top 10 leaderboard
+    } else if (!selectedArmaId) {
+      // Default: show top 10 leaderboard (only when no player selected)
       const lbRes = await apiClient.get("/user/topTenUserStats/", {
         params: { token: config.apiToken },
       });
@@ -385,6 +431,37 @@ router.get("/kills", async (req, res) => {
     killsError = true;
   }
 
+  // Fetch recent kills for selected player (7 days, paginated)
+  let recentPlayer = null;
+  const killPage = Math.max(1, parseInt(req.query.page) || 1);
+  const perPage = 25;
+  let totalIncidents = 0;
+  let totalPages = 1;
+  if (selectedArmaId) {
+    try {
+      const recentRes = await apiClient.get("/user/getRecentPlayerKillsByArmaId", {
+        params: { token: config.apiToken, arma_id: selectedArmaId, rows: 500 },
+      });
+      const data = recentRes.data;
+      let allIncidents = Array.isArray(data?.incidents) ? data.incidents : [];
+      recentPlayer = data?.player || null;
+
+      // Filter to last 7 days
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      allIncidents = allIncidents.filter((inc) => {
+        return inc.time_stamp && new Date(inc.time_stamp).getTime() >= sevenDaysAgo;
+      });
+
+      totalIncidents = allIncidents.length;
+      totalPages = Math.max(1, Math.ceil(totalIncidents / perPage));
+      const offset = (killPage - 1) * perPage;
+      recentKills = allIncidents.slice(offset, offset + perPage);
+    } catch (error) {
+      console.error("[RecentKills] Error:", error.message);
+      recentKillsError = true;
+    }
+  }
+
   res.render("admin-kills", {
     page: "admin",
     pageTitle: "Kill Log",
@@ -395,6 +472,13 @@ router.get("/kills", async (req, res) => {
     playerCount: players.length,
     search,
     sort,
+    selectedArmaId,
+    selectedUsername: selectedUsername || (recentPlayer?.arma_username || ""),
+    recentKills,
+    recentKillsError,
+    recentKillCount: totalIncidents,
+    killPage,
+    totalPages,
   });
 });
 

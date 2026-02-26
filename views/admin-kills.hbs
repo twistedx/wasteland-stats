@@ -47,6 +47,7 @@
               <th>K/D</th>
               <th>Most Killed</th>
               <th>Nemesis</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -59,6 +60,12 @@
                 <td>{{this.kdRatio}}</td>
                 <td>{{this.mostKilled}} ({{this.mostKilledCount}})</td>
                 <td>{{this.mostKilledBy}} ({{this.mostKilledByCount}})</td>
+                <td>
+                  <a
+                    href="/admin/kills?arma_id={{this.arma_id}}&username={{encodeURI this.arma_username}}"
+                    class="btn btn-admin btn-small"
+                  >View Kills</a>
+                </td>
               </tr>
             {{/each}}
           </tbody>
@@ -67,6 +74,65 @@
     {{else}}
       <div class="empty-state">{{#if search}}No players match your search.{{else}}No kill data available.{{/if}}</div>
     {{/if}}
+  {{/if}}
+
+  {{#if selectedArmaId}}
+    <div class="admin-form-card" style="margin-top:1.5rem;">
+      <h3>Recent Kills — {{#if selectedUsername}}{{selectedUsername}}{{else}}{{selectedArmaId}}{{/if}}</h3>
+      <p class="guid" style="margin-bottom:0.75rem;">Arma ID: {{selectedArmaId}}</p>
+      <a href="/admin/kills" class="btn btn-admin btn-small" style="margin-bottom:1rem;display:inline-block;">Back to Kill Log</a>
+
+      {{#if recentKillsError}}
+        <div class="error">Failed to load recent kills for this player.</div>
+      {{else if recentKills.length}}
+        <p class="result-count">{{recentKillCount}} incident{{#unless (eq recentKillCount 1)}}s{{/unless}} in last 7 days — page {{killPage}} of {{totalPages}}</p>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Role</th>
+                <th>Killer</th>
+                <th>Killed</th>
+                <th>Server</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each recentKills}}
+                <tr>
+                  <td>
+                    {{#if (eq this.incident_role "killer")}}<span class="badge badge-kill">Kill</span>
+                    {{else if (eq this.incident_role "killed")}}<span class="badge badge-death">Death</span>
+                    {{else}}<span class="badge badge-both">Both</span>
+                    {{/if}}
+                  </td>
+                  <td class="player-name">{{fallback this.killer_name "-"}}</td>
+                  <td class="player-name">{{fallback this.killed_name "-"}}</td>
+                  <td>{{fallback this.server_info "-"}}</td>
+                  <td>{{formatDate this.time_stamp}}</td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        </div>
+
+        {{#if (gt totalPages 1)}}
+          <div class="pagination">
+            {{#if (gt killPage 1)}}
+              <a href="/admin/kills?arma_id={{selectedArmaId}}&username={{encodeURI selectedUsername}}&page=1" class="btn btn-admin btn-small">&laquo; First</a>
+              <a href="/admin/kills?arma_id={{selectedArmaId}}&username={{encodeURI selectedUsername}}&page={{subtract killPage 1}}" class="btn btn-admin btn-small">&lsaquo; Prev</a>
+            {{/if}}
+            <span class="pagination-info">Page {{killPage}} of {{totalPages}}</span>
+            {{#if (lt killPage totalPages)}}
+              <a href="/admin/kills?arma_id={{selectedArmaId}}&username={{encodeURI selectedUsername}}&page={{add killPage 1}}" class="btn btn-admin btn-small">Next &rsaquo;</a>
+              <a href="/admin/kills?arma_id={{selectedArmaId}}&username={{encodeURI selectedUsername}}&page={{totalPages}}" class="btn btn-admin btn-small">Last &raquo;</a>
+            {{/if}}
+          </div>
+        {{/if}}
+      {{else}}
+        <div class="empty-state">No kills found for this player in the last 7 days.</div>
+      {{/if}}
+    </div>
   {{/if}}
 
 </section>
