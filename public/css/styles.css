@@ -938,6 +938,17 @@ details.misc-stats .stats-grid { padding: 1rem; }
   width: 100%;
 }
 
+.balance-display {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #22c55e;
+  letter-spacing: 0.02em;
+}
+
 .btn-small.select-player-btn {
   padding: 0.25rem 0.7rem;
   font-size: 0.7rem;
@@ -1055,6 +1066,68 @@ details.misc-stats .stats-grid { padding: 1rem; }
   font-size: 0.85rem;
   font-weight: 600;
   padding: 0 0.5rem;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.modal-content {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  width: 100%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-body .admin-form-card {
+  background: var(--bg-card);
+  padding: 1rem;
+  border-radius: 4px;
 }
 
 /* Dashboard */

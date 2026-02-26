@@ -1,0 +1,170 @@
+<!-- Ban/Unban Player Modal -->
+<div id="action-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="modal-title">Ban Player</h3>
+      <button type="button" id="close-modal" class="modal-close">&times;</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="admin-form-card" style="margin-bottom:1rem;">
+        <h4 style="margin-bottom:0.75rem;">Search Player</h4>
+        <div class="filter-bar">
+          <input
+            type="text"
+            id="modal-search-input"
+            class="filter-input"
+            placeholder="Search by username..."
+          >
+          <button type="button" id="modal-search-btn" class="btn btn-admin">Search</button>
+        </div>
+        <div id="modal-search-results"></div>
+      </div>
+
+      <form id="modal-form" method="POST" action="/admin/bans" class="money-form">
+        <div class="form-group">
+          <label class="form-label">Player Arma ID</label>
+          <input
+            type="text"
+            name="arma_id"
+            id="modal-arma-id"
+            class="filter-input"
+            placeholder="Select from search or paste Arma ID"
+            required
+          >
+        </div>
+        <div class="form-group">
+          <label class="form-label">Selected Player</label>
+          <input
+            type="text"
+            id="modal-selected-username"
+            class="filter-input"
+            disabled
+            placeholder="Search and select a player above"
+          >
+        </div>
+        <div id="ban-fields">
+          <div class="form-group">
+            <label class="form-label">Reason</label>
+            <input
+              type="text"
+              name="reason"
+              id="modal-reason"
+              class="filter-input"
+              placeholder="Ban reason"
+            >
+          </div>
+          <div class="form-group">
+            <label class="form-label">Duration</label>
+            <select name="duration_hours" class="filter-select">
+              <option value="-1">Permanent</option>
+              <option value="1">1 Hour</option>
+              <option value="6">6 Hours</option>
+              <option value="12">12 Hours</option>
+              <option value="24">24 Hours</option>
+              <option value="48">48 Hours</option>
+              <option value="72">72 Hours</option>
+              <option value="168">7 Days</option>
+              <option value="336">14 Days</option>
+              <option value="720">30 Days</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" id="modal-submit-btn" class="btn btn-admin" style="background:var(--danger);">Ban Player</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    var modal = document.getElementById('action-modal');
+    var title = document.getElementById('modal-title');
+    var form = document.getElementById('modal-form');
+    var banFields = document.getElementById('ban-fields');
+    var reasonInput = document.getElementById('modal-reason');
+    var submitBtn = document.getElementById('modal-submit-btn');
+    var searchInput = document.getElementById('modal-search-input');
+    var searchBtn = document.getElementById('modal-search-btn');
+    var resultsDiv = document.getElementById('modal-search-results');
+    var armaIdInput = document.getElementById('modal-arma-id');
+    var usernameInput = document.getElementById('modal-selected-username');
+    var mode = 'ban';
+
+    function openModal(m) {
+      mode = m;
+      // Reset
+      armaIdInput.value = '';
+      usernameInput.value = '';
+      searchInput.value = '';
+      resultsDiv.innerHTML = '';
+
+      if (mode === 'ban') {
+        title.textContent = 'Ban Player';
+        form.action = '/admin/bans';
+        banFields.style.display = '';
+        reasonInput.required = true;
+        submitBtn.textContent = 'Ban Player';
+        submitBtn.style.background = 'var(--danger)';
+        submitBtn.style.color = '';
+      } else {
+        title.textContent = 'Unban Player';
+        form.action = '/admin/bans/unban';
+        banFields.style.display = 'none';
+        reasonInput.required = false;
+        submitBtn.textContent = 'Unban Player';
+        submitBtn.style.background = '#22c55e';
+        submitBtn.style.color = '#fff';
+      }
+      modal.style.display = 'flex';
+    }
+
+    var banBtn = document.getElementById('open-ban-modal');
+    var unbanBtn = document.getElementById('open-unban-modal');
+    if (banBtn) banBtn.addEventListener('click', function() { openModal('ban'); });
+    if (unbanBtn) unbanBtn.addEventListener('click', function() { openModal('unban'); });
+    document.getElementById('close-modal').addEventListener('click', function() { modal.style.display = 'none'; });
+    modal.addEventListener('click', function(e) { if (e.target === modal) modal.style.display = 'none'; });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') modal.style.display = 'none'; });
+
+    function esc(s) {
+      var d = document.createElement('div');
+      d.appendChild(document.createTextNode(s));
+      return d.innerHTML;
+    }
+
+    function escAttr(s) {
+      return esc(s).replace(/"/g, '&quot;');
+    }
+
+    function doSearch() {
+      var q = searchInput.value.trim();
+      if (!q) return;
+      resultsDiv.innerHTML = '<p class="result-count">Searching...</p>';
+      fetch('/admin/bans/search-players?q=' + encodeURIComponent(q))
+      .then(function(res) { return res.json(); })
+      .then(function(players) {
+        if (!players.length) {
+          resultsDiv.innerHTML = '<div class="empty-state">No players found.</div>';
+          return;
+        }
+        var table = '<div class="table-scroll"><table><thead><tr><th>Username</th><th>Arma ID</th><th>Action</th></tr></thead><tbody>';
+        players.forEach(function(p) {
+          table += '<tr><td class="player-name">' + esc(p.arma_username) + '</td><td class="guid">' + esc(p.arma_id) + '</td><td><button type="button" class="btn btn-admin btn-small modal-select-btn" data-arma-id="' + escAttr(p.arma_id) + '" data-username="' + escAttr(p.arma_username) + '">Select</button></td></tr>';
+        });
+        table += '</tbody></table></div>';
+        resultsDiv.innerHTML = '<p class="result-count">' + players.length + ' player(s) found</p>' + table;
+        resultsDiv.querySelectorAll('.modal-select-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            armaIdInput.value = this.dataset.armaId;
+            usernameInput.value = this.dataset.username;
+          });
+        });
+      })
+      .catch(function() { resultsDiv.innerHTML = '<div class="error">Search failed.</div>'; });
+    }
+
+    searchBtn.addEventListener('click', doSearch);
+    searchInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } });
+  })();
+</script>

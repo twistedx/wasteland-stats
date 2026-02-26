@@ -11,6 +11,10 @@
     {{#if user.isBlogAdmin}}
       <a href="/admin/blog" class="tab">Blog</a>
     {{/if}}
+    <div style="margin-left:auto;display:flex;gap:0.5rem;align-items:center;padding:0 0.5rem;">
+      <button type="button" id="open-unban-modal" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Unban Player</button>
+      <button type="button" id="open-ban-modal" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Ban Player</button>
+    </div>
   </div>
 
   {{#if successMessage}}
@@ -97,6 +101,10 @@
           placeholder="Search and select a player above"
         >
       </div>
+      <div class="form-group" id="balance-group" style="display:none;">
+        <label class="form-label">Current Balance</label>
+        <div id="balance-display" class="balance-display">—</div>
+      </div>
       <div class="form-group">
         <label class="form-label">Amount ($)</label>
         <input
@@ -113,11 +121,45 @@
   </div>
 </section>
 
+{{> ban-modal}}
+
 <script>
-  document.querySelectorAll('.select-player-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      document.getElementById('arma-id-input').value = this.dataset.armaId;
-      document.getElementById('selected-username').value = this.dataset.username;
+  (function() {
+    var balanceGroup = document.getElementById('balance-group');
+    var balanceDisplay = document.getElementById('balance-display');
+
+    function fetchBalance(armaId) {
+      if (!armaId) {
+        balanceGroup.style.display = 'none';
+        return;
+      }
+      balanceGroup.style.display = '';
+      balanceDisplay.textContent = 'Loading...';
+      fetch('/admin/money/balance?arma_id=' + encodeURIComponent(armaId))
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.balance !== null && data.balance !== undefined) {
+            balanceDisplay.textContent = '$' + Number(data.balance).toLocaleString();
+          } else {
+            balanceDisplay.textContent = 'Unable to fetch balance';
+          }
+        })
+        .catch(function() {
+          balanceDisplay.textContent = 'Error fetching balance';
+        });
+    }
+
+    document.querySelectorAll('.select-player-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var armaId = this.dataset.armaId;
+        document.getElementById('arma-id-input').value = armaId;
+        document.getElementById('selected-username').value = this.dataset.username;
+        fetchBalance(armaId);
+      });
     });
-  });
+
+    // If a player is already selected (from query params), fetch balance
+    var existingId = document.getElementById('arma-id-input').value;
+    if (existingId) fetchBalance(existingId);
+  })();
 </script>

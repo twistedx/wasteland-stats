@@ -30,7 +30,6 @@ router.get("/bans", async (req, res) => {
   const user = req.session.user;
   const search = (req.query.search || "").trim();
   const field = req.query.field || "all";
-
   buildAvatarUrl(user);
 
   let bans = [];
@@ -86,7 +85,31 @@ router.get("/bans", async (req, res) => {
     banCount: bans.length,
     search,
     field,
+    successMessage: req.query.success || null,
+    errorMessage: req.query.error || null,
   });
+});
+
+// GET /admin/bans/search-players — JSON endpoint for modal player search
+router.get("/bans/search-players", async (req, res) => {
+  const q = (req.query.q || "").trim();
+  if (!q) return res.json([]);
+  try {
+    const searchRes = await apiClient({
+      method: "GET",
+      url: "/user/searchUsersByUsername/",
+      data: { search: q, token: config.apiToken },
+    });
+    const data = searchRes.data?.users || searchRes.data?.data || searchRes.data;
+    const players = Array.isArray(data) ? data : [];
+    res.json(players.slice(0, 20).map((p) => ({
+      arma_id: p.arma_id || "-",
+      arma_username: p.arma_username || "Unknown",
+    })));
+  } catch (error) {
+    console.error("Player search error (bans):", error.message);
+    res.json([]);
+  }
 });
 
 // GET /admin/bans/export — download all bans as CSV
@@ -120,6 +143,95 @@ router.get("/bans/export", async (req, res) => {
     console.error("Ban export error:", error.message);
     sendWebhookError("Ban Export", error.message);
     res.redirect("/admin/bans?error=Failed to export bans.");
+  }
+});
+
+// POST /admin/bans — ban a player
+router.post("/bans", async (req, res) => {
+  const { arma_id, reason, duration_hours } = req.body;
+  const user = req.session.user;
+
+  if (!arma_id || !reason) {
+    return res.redirect("/admin/bans?error=Arma ID and reason are required.");
+  }
+
+  const hours = parseInt(duration_hours);
+  if (isNaN(hours)) {
+    return res.redirect("/admin/bans?error=Invalid duration.");
+  }
+
+  try {
+    await apiClient({
+      method: "POST",
+      url: "/user/banByArmaID/",
+      data: {
+        token: config.apiToken,
+        arma_id,
+        reason,
+        duration_hours: hours,
+        admin_name: user.username,
+      },
+    });
+
+    if (config.discordWebhookUrl) {
+      const safeId = String(arma_id).replace(/[`*_~|]/g, "");
+      const safeReason = String(reason).replace(/[`*_~|]/g, "");
+      axios.post(config.discordWebhookUrl, {
+        embeds: [{
+          title: "Player Banned",
+          description: `**${user.username}** banned \`${safeId}\`\n**Reason:** ${safeReason}\n**Duration:** ${hours === -1 ? "Permanent" : hours + "h"}`,
+          color: 0xff3e3e,
+          timestamp: new Date().toISOString(),
+        }],
+      }).catch(() => {});
+    }
+
+    res.redirect("/admin/bans?success=" + encodeURIComponent("Player " + arma_id + " has been banned."));
+  } catch (error) {
+    console.error("Ban player error:", error.message);
+    const apiMsg = error.response?.data?.message || error.message;
+    sendWebhookError("Ban Player", apiMsg);
+    res.redirect("/admin/bans?error=" + encodeURIComponent("Failed to ban player. " + apiMsg));
+  }
+});
+
+// POST /admin/bans/unban — unban a player
+router.post("/bans/unban", async (req, res) => {
+  const { arma_id } = req.body;
+  const user = req.session.user;
+
+  if (!arma_id) {
+    return res.redirect("/admin/bans?error=Arma ID is required.");
+  }
+
+  try {
+    await apiClient({
+      method: "POST",
+      url: "/user/removeUserBanByID/",
+      data: {
+        token: config.apiToken,
+        arma_id,
+      },
+    });
+
+    if (config.discordWebhookUrl) {
+      const safeId = String(arma_id).replace(/[`*_~|]/g, "");
+      axios.post(config.discordWebhookUrl, {
+        embeds: [{
+          title: "Player Unbanned",
+          description: `**${user.username}** unbanned \`${safeId}\``,
+          color: 0x22c55e,
+          timestamp: new Date().toISOString(),
+        }],
+      }).catch(() => {});
+    }
+
+    res.redirect("/admin/bans?success=" + encodeURIComponent("Player " + arma_id + " has been unbanned."));
+  } catch (error) {
+    console.error("Unban player error:", error.message);
+    const apiMsg = error.response?.data?.message || error.message;
+    sendWebhookError("Unban Player", apiMsg);
+    res.redirect("/admin/bans?error=" + encodeURIComponent("Failed to unban player. " + apiMsg));
   }
 });
 
@@ -192,6 +304,28 @@ router.get("/money", requireWriteAdmin, async (req, res) => {
     successMessage: req.query.success || null,
     errorMessage: req.query.error || null,
   });
+});
+
+// GET /admin/money/balance — JSON endpoint to fetch player cash balance
+router.get("/money/balance", requireWriteAdmin, async (req, res) => {
+  const armaId = (req.query.arma_id || "").trim();
+  if (!armaId) return res.json({ balance: null });
+  try {
+    const cashRes = await apiClient({
+      method: "GET",
+      url: "/user/getUserCash/",
+      data: { arma_id: armaId, token: config.apiToken },
+    });
+    let balance = cashRes.data?.cash ?? cashRes.data?.data?.cash ?? cashRes.data?.amount ?? null;
+    if (balance === null && cashRes.data?.data !== undefined) {
+      balance = cashRes.data.data;
+    }
+    console.log("[Money Balance]", armaId, cashRes.data);
+    res.json({ balance });
+  } catch (error) {
+    console.error("Balance fetch error:", error.message);
+    res.json({ balance: null });
+  }
 });
 
 // POST /admin/money
