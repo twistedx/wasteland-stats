@@ -79,7 +79,14 @@ async function apiCall(endpoint, params = {}) {
 }
 
 async function fetchInstances() {
-  const targets = await apiCall("ADSModule/GetInstances", { ForceIncludeSelf: true });
+  const response = await apiCall("ADSModule/GetInstances", { ForceIncludeSelf: true });
+
+  // Handle both raw array and { result: [...] } wrapper
+  const targets = Array.isArray(response) ? response : (response?.result || response || []);
+  if (!Array.isArray(targets)) {
+    console.error("AMP: unexpected GetInstances response:", JSON.stringify(response).slice(0, 200));
+    return;
+  }
 
   const instances = [];
   for (const target of targets) {
@@ -104,21 +111,21 @@ async function fetchInstances() {
         suspended: inst.Suspended,
         ampVersion: inst.AMPVersion,
         cpu: {
-          value: cpu.RawValue || 0,
-          max: cpu.MaxValue || 100,
-          percent: cpu.Percent || 0,
+          value: Number(cpu.RawValue) || 0,
+          max: Number(cpu.MaxValue) || 100,
+          percent: Number(cpu.Percent) || 0,
           units: cpu.Units || "%",
         },
         memory: {
-          value: ram.RawValue || 0,
-          max: ram.MaxValue || 0,
-          percent: ram.Percent || 0,
+          value: Number(ram.RawValue) || 0,
+          max: Number(ram.MaxValue) || 0,
+          percent: Number(ram.Percent) || 0,
           units: ram.Units || "MB",
         },
         players: {
-          current: users.RawValue || 0,
-          max: users.MaxValue || 0,
-          percent: users.Percent || 0,
+          current: Number(users.RawValue) || 0,
+          max: Number(users.MaxValue) || 0,
+          percent: Number(users.Percent) || 0,
         },
         endpoints: (inst.ApplicationEndpoints || []).map(ep => ({
           name: ep.DisplayName,
@@ -131,6 +138,7 @@ async function fetchInstances() {
 
   serverData = instances;
   lastFetch = new Date().toISOString();
+  console.log(`AMP: fetched ${instances.length} instances, ${instances.reduce((s, i) => s + i.players.current, 0)} total players`);
 
   // Record metrics to DB
   if (db) {
