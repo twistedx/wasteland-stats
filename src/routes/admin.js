@@ -754,31 +754,11 @@ router.post("/blog/delete/:id", requireBlogAdmin, (req, res) => {
 });
 
 // GET /admin/servers — AMP server status dashboard
-router.get("/servers", (req, res) => {
+router.get("/servers", async (req, res) => {
   const user = req.session.user;
   buildAvatarUrl(user);
 
-  const status = amp.getStatus();
-  const history = amp.getHistory(24);
-
-  // Build chart data: group by instance, time series of players/cpu/ram
-  const chartData = {};
-  for (const row of history) {
-    if (!chartData[row.instance_id]) {
-      chartData[row.instance_id] = {
-        name: row.friendly_name,
-        times: [],
-        players: [],
-        cpu: [],
-        memory: [],
-      };
-    }
-    const series = chartData[row.instance_id];
-    series.times.push(row.recorded_at);
-    series.players.push(row.players);
-    series.cpu.push(row.cpu_percent);
-    series.memory.push(row.memory_percent);
-  }
+  const status = await amp.getFreshStatus();
 
   res.render("admin-servers", {
     page: "admin",
@@ -791,34 +771,8 @@ router.get("/servers", (req, res) => {
     instanceCount: status.instances.length,
     fetchedAt: status.fetchedAt,
     ampError: !status.fetchedAt && status.instances.length === 0,
-    chartDataJson: JSON.stringify(chartData),
+    chartDataJson: JSON.stringify({}),
   });
-});
-
-// GET /admin/servers/history — JSON endpoint for chart data
-router.get("/servers/history", (req, res) => {
-  const hours = Math.min(720, Math.max(1, parseInt(req.query.hours) || 24));
-  const history = amp.getHistory(hours);
-
-  const chartData = {};
-  for (const row of history) {
-    if (!chartData[row.instance_id]) {
-      chartData[row.instance_id] = {
-        name: row.friendly_name,
-        times: [],
-        players: [],
-        cpu: [],
-        memory: [],
-      };
-    }
-    const series = chartData[row.instance_id];
-    series.times.push(row.recorded_at);
-    series.players.push(row.players);
-    series.cpu.push(row.cpu_percent);
-    series.memory.push(row.memory_percent);
-  }
-
-  res.json(chartData);
 });
 
 module.exports = router;

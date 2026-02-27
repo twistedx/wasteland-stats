@@ -1,18 +1,9 @@
 const axios = require("axios");
-const Database = require("better-sqlite3");
-const path = require("path");
-const fs = require("fs");
 const config = require("./config");
-
-const POLL_INTERVAL = 60 * 1000; // 1 minute
-const DB_DIR = "/var/data";
-const DB_FILE = path.join(DB_DIR, "amp.db");
 
 let sessionID = null;
 let serverData = [];
-let pollTimer = null;
 let lastFetch = null;
-let db = null;
 
 async function login() {
   console.log("AMP: logging in to", config.amp.url);
@@ -154,59 +145,6 @@ async function fetchInstances() {
   serverData = instances;
   lastFetch = new Date().toISOString();
   console.log(`AMP: fetched ${instances.length} instances, ${instances.reduce((s, i) => s + i.players.current, 0)} total players`);
-
-  // Record metrics to DB
-  if (db) {
-    const insert = db.prepare(
-      "INSERT INTO metrics (instance_id, friendly_name, players, max_players, cpu_percent, memory_percent, memory_mb, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    );
-    const now = Date.now();
-    const tx = db.transaction(() => {
-      for (const inst of instances) {
-        insert.run(
-          inst.instanceId,
-          inst.friendlyName,
-          inst.players.current,
-          inst.players.max,
-          inst.cpu.percent,
-          inst.memory.percent,
-          inst.memory.value,
-          now
-        );
-      }
-    });
-    tx();
-  }
-}
-
-function initDb() {
-  if (!fs.existsSync(DB_DIR)) {
-    fs.mkdirSync(DB_DIR, { recursive: true });
-  }
-  db = new Database(DB_FILE);
-  db.pragma("journal_mode = WAL");
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS metrics (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      instance_id TEXT NOT NULL,
-      friendly_name TEXT,
-      players INTEGER NOT NULL DEFAULT 0,
-      max_players INTEGER NOT NULL DEFAULT 0,
-      cpu_percent INTEGER NOT NULL DEFAULT 0,
-      memory_percent INTEGER NOT NULL DEFAULT 0,
-      memory_mb INTEGER NOT NULL DEFAULT 0,
-      recorded_at INTEGER NOT NULL
-    )
-  `);
-
-  db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_metrics_instance ON metrics (instance_id, recorded_at)
-  `);
-
-  // Prune data older than 30 days
-  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-  db.prepare("DELETE FROM metrics WHERE recorded_at < ?").run(cutoff);
 }
 
 function init() {
@@ -214,20 +152,7 @@ function init() {
     console.log("AMP: skipping init (no credentials configured).");
     return;
   }
-
-  initDb();
-
-  fetchInstances().catch(err =>
-    console.error("AMP: initial fetch failed:", err.message)
-  );
-
-  pollTimer = setInterval(() => {
-    fetchInstances().catch(err =>
-      console.error("AMP: poll failed:", err.message)
-    );
-  }, POLL_INTERVAL);
-
-  console.log(`AMP: polling instances every ${POLL_INTERVAL / 1000}s`);
+  console.log("AMP: initialized (on-demand only, no DB).");
 }
 
 function getStatus() {
@@ -249,15 +174,4 @@ async function getFreshStatus() {
   return getStatus();
 }
 
-function getHistory(hours = 24) {
-  if (!db) return [];
-  const since = Date.now() - hours * 60 * 60 * 1000;
-  return db.prepare(`
-    SELECT instance_id, friendly_name, players, max_players, cpu_percent, memory_percent, memory_mb, recorded_at
-    FROM metrics
-    WHERE recorded_at >= ?
-    ORDER BY recorded_at ASC
-  `).all(since);
-}
-
-module.exports = { init, getStatus, getFreshStatus, getHistory, apiCall };
+module.exports = { init, getStatus, getFreshStatus, apiCall };
