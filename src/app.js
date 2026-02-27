@@ -238,7 +238,7 @@ async function fetchHomeData(req) {
 
 app.get("/", async (req, res) => {
   const data = await fetchHomeData(req);
-  const ampStatus = amp.getStatus();
+  const ampStatus = await amp.getFreshStatus();
   console.log(`HOME: AMP status — ${ampStatus.instances.length} instances, ${ampStatus.totalPlayers}/${ampStatus.totalMax} players, fetched=${ampStatus.fetchedAt}`);
   const serverStatus = ampStatus.instances.map((inst, i) => ({
     label: "Server " + (i + 1),

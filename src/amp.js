@@ -241,6 +241,11 @@ function getStatus() {
   };
 }
 
+async function getFreshStatus() {
+  await fetchInstances();
+  return getStatus();
+}
+
 function getHistory(hours = 24) {
   if (!db) return [];
   const since = Date.now() - hours * 60 * 60 * 1000;
@@ -252,4 +257,4 @@ function getHistory(hours = 24) {
   `).all(since);
 }
 
-module.exports = { init, getStatus, getHistory, apiCall };
+module.exports = { init, getStatus, getFreshStatus, getHistory, apiCall };
