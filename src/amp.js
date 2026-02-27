@@ -113,6 +113,8 @@ async function fetchInstances() {
       let cpu = {}, ram = {}, users = {};
       try {
         const status = await apiCall(`ADSModule/Servers/${inst.InstanceID}/API/Core/GetStatus`);
+        console.log(`AMP:   instance "${inst.FriendlyName}" GetStatus keys:`, Object.keys(status || {}));
+        console.log(`AMP:   instance "${inst.FriendlyName}" GetStatus raw:`, JSON.stringify(status).slice(0, 500));
         const liveMetrics = status?.Metrics || {};
         cpu = liveMetrics["CPU Usage"] || {};
         ram = liveMetrics["Memory Usage"] || {};
