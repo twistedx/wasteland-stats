@@ -13,6 +13,7 @@ const blog = require("./blog");
 const { marked } = require("marked");
 
 const app = express();
+app.set("trust proxy", 1);
 
 const apiClient = axios.create({
   baseURL: config.apiBaseUrl,
@@ -101,7 +102,7 @@ app.use(
   session({
     store: new FileStore({
       path: "/var/data/sessions",
-      ttl: 86400,
+      ttl: 7 * 86400,
       retries: 2,
       reapInterval: 3600,
     }),
@@ -109,8 +110,10 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false,
-      maxAge: 24 * 60 * 60 * 1000,
+      secure: true,
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     },
   })
 );
