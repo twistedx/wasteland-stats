@@ -5,6 +5,7 @@ const { sendWebhookError } = require("../webhook");
 const analytics = require("../analytics");
 const blog = require("../blog");
 const amp = require("../amp");
+const bm = require("../battlemetrics");
 const router = express.Router();
 
 const apiClient = axios.create({
@@ -758,17 +759,46 @@ router.get("/servers", async (req, res) => {
   const user = req.session.user;
   buildAvatarUrl(user);
 
-  const status = await amp.getFreshStatus();
+  const [status, bmStatus] = await Promise.all([
+    amp.getFreshStatus(),
+    bm.getFreshStatus(),
+  ]);
+
+  // Filter out idle/stopped instances and non-Wasteland servers (e.g. Rust)
+  const activeInstances = status.instances.filter(i => {
+    if (!i.running || i.appState < 5) {
+      console.log(`AMP: hiding "${i.friendlyName}" (not running: running=${i.running}, appState=${i.appState})`);
+      return false;
+    }
+    if (!i.friendlyName.toLowerCase().includes("wasteland")) {
+      console.log(`AMP: hiding "${i.friendlyName}" (not a Wasteland server)`);
+      return false;
+    }
+    return true;
+  });
+
+  // Overlay real-time BattleMetrics player counts onto AMP instances
+  // Match by order: Server 1 = first Wasteland instance, Server 2 = second
+  const wastelandInstances = activeInstances.filter(i => i.friendlyName.toLowerCase().includes("wasteland"));
+  for (let i = 0; i < bmStatus.servers.length && i < wastelandInstances.length; i++) {
+    const srv = bmStatus.servers[i];
+    wastelandInstances[i].players.current = srv.players;
+    wastelandInstances[i].players.max = srv.maxPlayers;
+    wastelandInstances[i].players.percent = srv.maxPlayers ? Math.round((srv.players / srv.maxPlayers) * 100) : 0;
+  }
+
+  const totalPlayers = activeInstances.reduce((sum, i) => sum + i.players.current, 0);
+  const totalMax = activeInstances.reduce((sum, i) => sum + i.players.max, 0);
 
   res.render("admin-servers", {
     page: "admin",
     pageTitle: "Servers",
     pageDescription: "Live server performance metrics from AMP.",
     user,
-    instances: status.instances,
-    totalPlayers: status.totalPlayers,
-    totalMax: status.totalMax,
-    instanceCount: status.instances.length,
+    instances: activeInstances,
+    totalPlayers,
+    totalMax,
+    instanceCount: activeInstances.length,
     fetchedAt: status.fetchedAt,
     ampError: !status.fetchedAt && status.instances.length === 0,
     chartDataJson: JSON.stringify({}),

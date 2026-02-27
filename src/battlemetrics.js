@@ -7,6 +7,10 @@ const SERVERS = [
 
 let serverData = [];
 
+// In-memory daily peak tracking (resets on process restart or new day)
+const peaks = {};  // keyed by server id
+let peakDate = new Date().toDateString();
+
 async function fetchServers() {
   const results = await Promise.allSettled(
     SERVERS.map(async (srv) => {
@@ -32,10 +36,22 @@ async function fetchServers() {
     })
   );
 
+  // Reset peaks on new day
+  const today = new Date().toDateString();
+  if (today !== peakDate) {
+    for (const id in peaks) delete peaks[id];
+    peakDate = today;
+  }
+
   serverData = results.map((r, i) => {
     if (r.status === "fulfilled") {
       const srv = r.value;
-      console.log(`BattleMetrics: ${srv.label} "${srv.name}" — ${srv.players}/${srv.maxPlayers} players`);
+      // Update daily peak
+      if (!peaks[srv.id] || srv.players > peaks[srv.id]) {
+        peaks[srv.id] = srv.players;
+      }
+      srv.peak = peaks[srv.id];
+      console.log(`BattleMetrics: ${srv.label} "${srv.name}" — ${srv.players}/${srv.maxPlayers} players (peak: ${srv.peak})`);
       return srv;
     }
     console.error(`BattleMetrics: ${SERVERS[i].label} fetch failed:`, r.reason?.message);
@@ -45,6 +61,7 @@ async function fetchServers() {
       name: "Unavailable",
       players: 0,
       maxPlayers: 0,
+      peak: peaks[SERVERS[i].id] || 0,
       status: "error",
     };
   });
