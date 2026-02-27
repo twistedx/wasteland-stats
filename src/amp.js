@@ -242,6 +242,9 @@ function getStatus() {
 }
 
 async function getFreshStatus() {
+  // Force a new session so AMP doesn't return cached data
+  sessionID = null;
+  await login();
   await fetchInstances();
   return getStatus();
 }
