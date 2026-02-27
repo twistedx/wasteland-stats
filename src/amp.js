@@ -109,12 +109,23 @@ async function fetchInstances() {
         continue;
       }
 
-      const metrics = inst.Metrics || {};
-      const metricKeys = Object.keys(metrics);
-      const cpu = metrics["CPU Usage"] || {};
-      const ram = metrics["Memory Usage"] || {};
-      const users = metrics["Active Users"] || {};
-      console.log(`AMP:   instance "${inst.FriendlyName}" (${inst.Module}) running=${inst.Running} metrics=[${metricKeys.join(", ")}] players=${users.RawValue}/${users.MaxValue} cpu=${cpu.RawValue}% ram=${ram.RawValue}MB`);
+      // GetInstances metrics are cached — fetch live status per instance
+      let cpu = {}, ram = {}, users = {};
+      try {
+        const status = await apiCall(`ADSModule/Servers/${inst.InstanceID}/API/Core/GetStatus`);
+        const liveMetrics = status?.Metrics || {};
+        cpu = liveMetrics["CPU Usage"] || {};
+        ram = liveMetrics["Memory Usage"] || {};
+        users = liveMetrics["Active Users"] || {};
+        console.log(`AMP:   instance "${inst.FriendlyName}" LIVE players=${users.RawValue}/${users.MaxValue} cpu=${cpu.RawValue}% ram=${ram.RawValue}MB`);
+      } catch (err) {
+        // Fall back to cached GetInstances metrics
+        const metrics = inst.Metrics || {};
+        cpu = metrics["CPU Usage"] || {};
+        ram = metrics["Memory Usage"] || {};
+        users = metrics["Active Users"] || {};
+        console.log(`AMP:   instance "${inst.FriendlyName}" CACHED (live fetch failed: ${err.message}) players=${users.RawValue}/${users.MaxValue}`);
+      }
 
       instances.push({
         instanceId: inst.InstanceID,
