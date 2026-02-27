@@ -8,6 +8,8 @@ const config = require("./config");
 const { sendWebhookError } = require("./webhook");
 const analytics = require("./analytics");
 const amp = require("./amp");
+const bm = require("./battlemetrics");
+const armahq = require("./armahq");
 const blog = require("./blog");
 const { marked } = require("marked");
 
@@ -128,6 +130,8 @@ analytics.init();
 blog.init();
 require("./steam-store").init();
 require("./amp").init();
+bm.init();
+armahq.init();
 app.use(analytics.middleware);
 
 app.use("/auth", require("./routes/auth"));
@@ -238,18 +242,18 @@ async function fetchHomeData(req) {
 
 app.get("/", async (req, res) => {
   const data = await fetchHomeData(req);
-  const ampStatus = await amp.getFreshStatus();
-  console.log(`HOME: AMP status — ${ampStatus.instances.length} instances, ${ampStatus.totalPlayers}/${ampStatus.totalMax} players, fetched=${ampStatus.fetchedAt}`);
-  const serverStatus = ampStatus.instances.map((inst, i) => ({
-    label: "Server " + (i + 1),
-    name: inst.targetName,
-    players: inst.players.current,
-    maxPlayers: inst.players.max,
-    status: inst.running ? "online" : "offline",
+  const hqStatus = await armahq.getFreshStatus();
+  console.log(`HOME: ArmaHQ status — ${hqStatus.servers.length} servers, ${hqStatus.totalPlayers}/${hqStatus.totalMax} players`);
+  const serverStatus = hqStatus.servers.map((srv) => ({
+    label: srv.label,
+    name: srv.name,
+    players: srv.players,
+    maxPlayers: srv.maxPlayers,
+    status: srv.status === "online" ? "online" : "offline",
     peak: 0,
   }));
-  const totalPlayers = ampStatus.totalPlayers;
-  const totalMaxPlayers = ampStatus.totalMax;
+  const totalPlayers = hqStatus.totalPlayers;
+  const totalMaxPlayers = hqStatus.totalMax;
 
   res.render("dashboard", {
     page: "home",
