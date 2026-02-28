@@ -44,10 +44,12 @@ async function init() {
 
     const code = interaction.options.getString("code").trim().toUpperCase();
     const discordId = interaction.user.id;
+    console.log(`DiscordBot: /verify called by ${interaction.user.username} (${discordId}) with code=${code}`);
 
     // Check if this Discord ID is already linked
     const existingLink = adminUsers.getByDiscordId(discordId);
     if (existingLink) {
+      console.log(`DiscordBot: ${discordId} already linked to ${existingLink.email}, rejecting`);
       return interaction.reply({
         content: `Your Discord account is already linked to **${existingLink.username}** (${existingLink.email}).`,
         ephemeral: true,
@@ -57,25 +59,32 @@ async function init() {
     // Redeem the verification code
     const email = adminUsers.redeemVerifyCode(code);
     if (!email) {
+      console.log(`DiscordBot: code ${code} is invalid or expired`);
       return interaction.reply({
         content: "Invalid or expired verification code. Go to your account page to get a new one.",
         ephemeral: true,
       });
     }
+    console.log(`DiscordBot: code ${code} redeemed for email=${email}`);
 
     // Link the Discord ID
     adminUsers.linkDiscord(email, discordId);
+    console.log(`DiscordBot: linked ${email} -> discord ${discordId}`);
 
     // Fetch guild member roles and set permissions
     try {
       const member = await interaction.guild.members.fetch(discordId);
       const memberRoles = member.roles.cache.map(r => r.id);
+      console.log(`DiscordBot: ${discordId} guild roles: [${memberRoles.join(",")}]`);
+      console.log(`DiscordBot: config adminRoleIds=[${config.adminRoleIds.join(",")}] writeRoleIds=[${config.adminWriteRoleIds.join(",")}] blogRoleIds=[${config.blogRoleIds.join(",")}]`);
 
       const isAdmin = memberRoles.some(r => config.adminRoleIds.includes(r));
       const isWriteAdmin = memberRoles.some(r => config.adminWriteRoleIds.includes(r));
       const isBlogAdmin = memberRoles.some(r => config.blogRoleIds.includes(r));
+      console.log(`DiscordBot: resolved isAdmin=${isAdmin} isWriteAdmin=${isWriteAdmin} isBlogAdmin=${isBlogAdmin}`);
 
       adminUsers.setRoles(email, { isAdmin, isWriteAdmin, isBlogAdmin });
+      console.log(`DiscordBot: saved roles to DB for ${email}`);
 
       const roleLabels = [];
       if (isAdmin) roleLabels.push("Admin");
@@ -95,6 +104,7 @@ async function init() {
     } catch (err) {
       console.error("DiscordBot: role fetch error:", err.message);
       // Link succeeded but roles failed — still linked
+      console.log(`DiscordBot: link succeeded but role fetch failed for ${email} -> ${discordId}`);
       return interaction.reply({
         content: `Account linked to **${email}**, but couldn't fetch your roles. Try logging in via Discord on the website to pick up permissions.`,
         ephemeral: true,

@@ -129,6 +129,7 @@ function generateVerifyCode(email) {
   db.prepare("INSERT INTO verify_codes (code, email, created_at) VALUES (?, ?, ?)").run(
     code, email.toLowerCase().trim(), Date.now()
   );
+  console.log(`AdminUsers: generated verify code ${code} for ${email}`);
   return code;
 }
 
@@ -164,13 +165,18 @@ async function updatePassword(email, currentPassword, newPassword) {
 // Redeem a verification code — returns the email if valid, null if expired/invalid
 function redeemVerifyCode(code) {
   const row = db.prepare("SELECT * FROM verify_codes WHERE code = ?").get(code.toUpperCase().trim());
-  if (!row) return null;
+  if (!row) {
+    console.log(`AdminUsers: redeem code ${code} — not found`);
+    return null;
+  }
   if (Date.now() - row.created_at > CODE_EXPIRY) {
+    console.log(`AdminUsers: redeem code ${code} — expired (created ${Math.round((Date.now() - row.created_at) / 1000)}s ago)`);
     db.prepare("DELETE FROM verify_codes WHERE code = ?").run(code);
     return null;
   }
   // Delete the code so it can't be reused
   db.prepare("DELETE FROM verify_codes WHERE code = ?").run(code);
+  console.log(`AdminUsers: redeem code ${code} — success, email=${row.email}`);
   return row.email;
 }
 
