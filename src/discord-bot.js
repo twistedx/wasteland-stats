@@ -33,7 +33,7 @@ async function init() {
   }
 
   // Start the bot
-  client = new Client({ intents: [GatewayIntentBits.Guilds] });
+  client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
 
   client.on("ready", () => {
     console.log(`DiscordBot: logged in as ${client.user.tag}`);
