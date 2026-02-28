@@ -1,23 +1,5 @@
 <section id="admin-section">
-  <h2>Admin</h2>
-  <div class="tab-bar">
-    <a href="/admin/analytics" class="tab">Analytics</a>
-    <a href="/admin/bans" class="tab">Ban List</a>
-    <a href="/admin/kills" class="tab">Kill Log</a>
-    {{#if user.isWriteAdmin}}
-      <a href="/admin/money" class="tab">Add Money</a>
-      <a href="/admin/skins" class="tab">Skins</a>
-    {{/if}}
-    {{#if user.isBlogAdmin}}
-      <a href="/admin/blog" class="tab active">Blog</a>
-    {{/if}}
-    <a href="/admin/servers" class="tab">Servers</a>
-    <a href="/admin/system" class="tab">System</a>
-    <div style="margin-left:auto;display:flex;gap:0.5rem;align-items:center;padding:0 0.5rem;">
-      <button type="button" id="open-unban-modal" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Unban Player</button>
-      <button type="button" id="open-ban-modal" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Ban Player</button>
-    </div>
-  </div>
+  {{> admin-nav}}
 
   {{#if successMessage}}
     <div class="success-notice">{{successMessage}}</div>
@@ -31,7 +13,8 @@
   </div>
 
   {{#if posts.length}}
-    <div class="table-scroll">
+    <!-- Desktop table -->
+    <div class="table-scroll blog-table-desktop">
       <table>
         <thead>
           <tr>
@@ -67,6 +50,46 @@
           {{/each}}
         </tbody>
       </table>
+    </div>
+
+    <!-- Mobile accordion -->
+    <div class="blog-accordion-mobile">
+      {{#each posts}}
+        <div class="blog-post-card">
+          <div class="blog-post-card-header" onclick="this.parentElement.classList.toggle('open')">
+            <span class="blog-post-card-title">{{this.title}}</span>
+            <div class="blog-post-card-right">
+              {{#if this.published}}
+                <span class="blog-status-published">Published</span>
+              {{else}}
+                <span class="blog-status-draft">Draft</span>
+              {{/if}}
+              <svg class="blog-post-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+            </div>
+          </div>
+          <div class="blog-post-card-body">
+            <div class="blog-post-card-row">
+              <span class="blog-post-card-label">Author</span>
+              <span>{{this.author}}</span>
+            </div>
+            <div class="blog-post-card-row">
+              <span class="blog-post-card-label">Date</span>
+              <span>{{formatDate this.createdAt}}</span>
+            </div>
+            <div class="blog-post-card-row">
+              <span class="blog-post-card-label">Tags</span>
+              <span>{{#each this.tags}}<span class="blog-tag-pill">{{this}}</span> {{/each}}{{#unless this.tags.length}}-{{/unless}}</span>
+            </div>
+            <div class="blog-post-card-row" style="padding-top:0.6rem;gap:0.5rem;">
+              <a href="/blog/{{this.slug}}" class="btn btn-admin btn-small" style="flex:1;text-align:center;">View</a>
+              <a href="/admin/blog/edit/{{this.id}}" class="btn btn-small" style="flex:1;text-align:center;">Edit</a>
+              <form method="POST" action="/admin/blog/delete/{{this.id}}" style="flex:1;" onsubmit="return confirm('Delete this post?');">
+                <button type="submit" class="btn btn-small btn-danger" style="width:100%;">Delete</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      {{/each}}
     </div>
   {{else}}
     <div class="empty-state">No blog posts yet. Create your first post!</div>

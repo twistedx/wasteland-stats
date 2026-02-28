@@ -1,23 +1,5 @@
 <section id="admin-section">
-  <h2>Admin</h2>
-  <div class="tab-bar">
-    <a href="/admin/analytics" class="tab">Analytics</a>
-    <a href="/admin/bans" class="tab">Ban List</a>
-    <a href="/admin/kills" class="tab active">Kill Log</a>
-    {{#if user.isWriteAdmin}}
-      <a href="/admin/money" class="tab">Add Money</a>
-      <a href="/admin/skins" class="tab">Skins</a>
-    {{/if}}
-    {{#if user.isBlogAdmin}}
-      <a href="/admin/blog" class="tab">Blog</a>
-    {{/if}}
-    <a href="/admin/servers" class="tab">Servers</a>
-    <a href="/admin/system" class="tab">System</a>
-    <div style="margin-left:auto;display:flex;gap:0.5rem;align-items:center;padding:0 0.5rem;">
-      <button type="button" id="open-unban-modal" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Unban Player</button>
-      <button type="button" id="open-ban-modal" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Ban Player</button>
-    </div>
-  </div>
+  {{> admin-nav}}
 
   <form class="filter-bar" method="GET" action="/admin/kills">
     <input
@@ -42,7 +24,8 @@
     <p class="result-count">{{playerCount}} player{{#unless (eq playerCount 1)}}s{{/unless}} found{{#if search}} for "{{search}}"{{/if}}</p>
 
     {{#if players.length}}
-      <div class="table-scroll">
+      <!-- Desktop table -->
+      <div class="table-scroll kills-table-desktop">
         <table id="kills-table">
           <thead>
             <tr>
@@ -77,6 +60,54 @@
           </tbody>
         </table>
       </div>
+
+      <!-- Mobile accordion -->
+      <div class="kills-accordion-mobile">
+        {{#each players}}
+          <div class="kill-card">
+            <div class="kill-card-header" onclick="this.parentElement.classList.toggle('open')">
+              <span class="kill-card-name">{{this.arma_username}}</span>
+              <div class="kill-card-right">
+                <span class="kill-card-kd">{{this.kdRatio}} K/D</span>
+                <svg class="kill-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+              </div>
+            </div>
+            <div class="kill-card-body">
+              <div class="kill-card-row">
+                <span class="kill-card-label">Killer ID</span>
+                <span class="guid">{{this.arma_id}}</span>
+              </div>
+              <div class="kill-card-row">
+                <span class="kill-card-label">Kills</span>
+                <span>{{this.kill_count}}</span>
+              </div>
+              <div class="kill-card-row">
+                <span class="kill-card-label">Deaths</span>
+                <span>{{this.deaths}}</span>
+              </div>
+              <div class="kill-card-row">
+                <span class="kill-card-label">K/D Ratio</span>
+                <span>{{this.kdRatio}}</span>
+              </div>
+              <div class="kill-card-row">
+                <span class="kill-card-label">Most Killed</span>
+                <span>{{this.mostKilled}} ({{this.mostKilledCount}})</span>
+              </div>
+              <div class="kill-card-row">
+                <span class="kill-card-label">Nemesis</span>
+                <span>{{this.mostKilledBy}} ({{this.mostKilledByCount}})</span>
+              </div>
+              <div class="kill-card-row" style="padding-top:0.6rem;">
+                <a
+                  href="/admin/kills?arma_id={{this.arma_id}}&username={{encodeURI this.arma_username}}"
+                  class="btn btn-admin btn-small"
+                  style="width:100%;text-align:center;"
+                >View Kills</a>
+              </div>
+            </div>
+          </div>
+        {{/each}}
+      </div>
     {{else}}
       <div class="empty-state">{{#if search}}No players match your search.{{else}}No kill data available.{{/if}}</div>
     {{/if}}
@@ -92,7 +123,8 @@
         <div class="error">Failed to load recent kills for this player.</div>
       {{else if recentKills.length}}
         <p class="result-count">{{recentKillCount}} incident{{#unless (eq recentKillCount 1)}}s{{/unless}} in last 7 days — page {{killPage}} of {{totalPages}}</p>
-        <div class="table-scroll">
+        <!-- Desktop table -->
+        <div class="table-scroll recent-kills-desktop">
           <table>
             <thead>
               <tr>
@@ -120,6 +152,44 @@
               {{/each}}
             </tbody>
           </table>
+        </div>
+
+        <!-- Mobile accordion -->
+        <div class="recent-kills-mobile">
+          {{#each recentKills}}
+            <div class="kill-card">
+              <div class="kill-card-header" onclick="this.parentElement.classList.toggle('open')">
+                <span class="kill-card-badge">
+                  {{#if (eq this.incident_role "killer")}}<span class="badge badge-kill">Kill</span>
+                  {{else if (eq this.incident_role "killed")}}<span class="badge badge-death">Death</span>
+                  {{else}}<span class="badge badge-both">Both</span>
+                  {{/if}}
+                </span>
+                <span class="kill-card-name">{{#if (eq this.incident_role "killer")}}{{fallback this.killed_name "-"}}{{else}}{{fallback this.killer_name "-"}}{{/if}}</span>
+                <div class="kill-card-right">
+                  <svg class="kill-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+                </div>
+              </div>
+              <div class="kill-card-body">
+                <div class="kill-card-row">
+                  <span class="kill-card-label">Killer</span>
+                  <span>{{fallback this.killer_name "-"}}</span>
+                </div>
+                <div class="kill-card-row">
+                  <span class="kill-card-label">Killed</span>
+                  <span>{{fallback this.killed_name "-"}}</span>
+                </div>
+                <div class="kill-card-row">
+                  <span class="kill-card-label">Server</span>
+                  <span>{{fallback this.server_info "-"}}</span>
+                </div>
+                <div class="kill-card-row">
+                  <span class="kill-card-label">Date</span>
+                  <span>{{formatDate this.time_stamp}}</span>
+                </div>
+              </div>
+            </div>
+          {{/each}}
         </div>
 
         {{#if (gt totalPages 1)}}

@@ -1,23 +1,5 @@
 <section id="admin-section">
-  <h2>Admin</h2>
-  <div class="tab-bar">
-    <a href="/admin/analytics" class="tab active">Analytics</a>
-    <a href="/admin/bans" class="tab">Ban List</a>
-    <a href="/admin/kills" class="tab">Kill Log</a>
-    {{#if user.isWriteAdmin}}
-      <a href="/admin/money" class="tab">Add Money</a>
-      <a href="/admin/skins" class="tab">Skins</a>
-    {{/if}}
-    {{#if user.isBlogAdmin}}
-      <a href="/admin/blog" class="tab">Blog</a>
-    {{/if}}
-    <a href="/admin/servers" class="tab">Servers</a>
-    <a href="/admin/system" class="tab">System</a>
-    <div style="margin-left:auto;display:flex;gap:0.5rem;align-items:center;padding:0 0.5rem;">
-      <button type="button" id="open-unban-modal" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Unban Player</button>
-      <button type="button" id="open-ban-modal" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Ban Player</button>
-    </div>
-  </div>
+  {{> admin-nav}}
 
   <!-- Visitor stat cards -->
   <div class="analytics-cards">
