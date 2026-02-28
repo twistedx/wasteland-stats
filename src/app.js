@@ -19,10 +19,7 @@ const fs = require("fs");
 const app = express();
 app.set("trust proxy", 1);
 
-// Use persistent disk on Render, local dir on Windows dev
-const SESSION_DIR = process.platform === "win32"
-  ? path.join(__dirname, "..", "sessions")
-  : "/var/data/sessions";
+const SESSION_DIR = path.join(__dirname, "..", "data", "sessions");
 if (!fs.existsSync(SESSION_DIR)) {
   fs.mkdirSync(SESSION_DIR, { recursive: true });
 }

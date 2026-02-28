@@ -3,7 +3,7 @@ const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 
-const DB_DIR = "/var/data";
+const DB_DIR = path.join(__dirname, "..", "data");
 const DB_FILE = path.join(DB_DIR, "blog.db");
 
 let db = null;

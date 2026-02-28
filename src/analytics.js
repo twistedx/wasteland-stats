@@ -3,7 +3,7 @@ const path = require("path");
 const crypto = require("crypto");
 const Database = require("better-sqlite3");
 
-const DB_DIR = "/var/data";
+const DB_DIR = path.join(__dirname, "..", "data");
 const DB_FILE = path.join(DB_DIR, "analytics.db");
 const OLD_DATA_DIR = path.join(__dirname, "..", "data");
 const OLD_DATA_FILE = path.join(OLD_DATA_DIR, "analytics.json");

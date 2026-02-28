@@ -4,9 +4,7 @@ const crypto = require("crypto");
 const Database = require("better-sqlite3");
 const bcrypt = require("bcrypt");
 
-const DB_DIR = process.platform === "win32"
-  ? path.join(__dirname, "..", "data")
-  : "/var/data";
+const DB_DIR = path.join(__dirname, "..", "data");
 const DB_FILE = path.join(DB_DIR, "admin-users.db");
 
 const SALT_ROUNDS = 12;
