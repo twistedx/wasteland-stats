@@ -1913,10 +1913,29 @@ footer a:hover { text-shadow: 0 0 10px var(--accent-dim); }
   outline: none;
   border-color: var(--accent);
 }
-.login-btn {
+.btn-login {
+  background: var(--accent);
+  color: var(--bg-primary);
   margin-top: 0.5rem;
   padding: 0.7rem;
   font-size: 0.95rem;
+  width: 100%;
+}
+.btn-login:hover {
+  background: var(--text-primary);
+}
+.login-register-link {
+  text-align: center;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+.login-register-link a {
+  color: var(--accent-secondary);
+  text-decoration: none;
+}
+.login-register-link a:hover {
+  text-decoration: underline;
 }
 .login-divider {
   display: flex;

@@ -285,17 +285,19 @@ async function fetchHomeData(req) {
     }
 
     // Build avatar URL
-    if (user.avatar) {
+    if (user.avatar && user.discord_id) {
       user.avatarUrl =
         "https://cdn.discordapp.com/avatars/" +
         user.discord_id +
         "/" +
         user.avatar +
         ".png?size=32";
-    } else {
+    } else if (user.discord_id) {
       const defaultIndex = Number(BigInt(user.discord_id) >> 22n) % 6;
       user.avatarUrl =
         "https://cdn.discordapp.com/embed/avatars/" + defaultIndex + ".png";
+    } else {
+      user.avatarUrl = "https://cdn.discordapp.com/embed/avatars/0.png";
     }
   }
 

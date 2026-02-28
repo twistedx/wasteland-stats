@@ -26,7 +26,7 @@ function init() {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       username TEXT NOT NULL,
-      is_admin INTEGER NOT NULL DEFAULT 1,
+      is_admin INTEGER NOT NULL DEFAULT 0,
       is_write_admin INTEGER NOT NULL DEFAULT 0,
       is_blog_admin INTEGER NOT NULL DEFAULT 0,
       discord_id TEXT,
@@ -39,6 +39,7 @@ function init() {
   console.log(`AdminUsers: ${count} accounts in database.`);
 }
 
+// CLI-only: create user with specific roles (for scripts/create-admin.js)
 async function createUser(email, password, username, roles = {}) {
   const hash = await bcrypt.hash(password, SALT_ROUNDS);
   db.prepare(`
@@ -48,10 +49,24 @@ async function createUser(email, password, username, roles = {}) {
     email.toLowerCase().trim(),
     hash,
     username,
-    roles.isAdmin ? 1 : 1,
+    roles.isAdmin ? 1 : 0,
     roles.isWriteAdmin ? 1 : 0,
     roles.isBlogAdmin ? 1 : 0,
     roles.discordId || null,
+    Date.now()
+  );
+}
+
+// Public registration — no admin roles
+async function register(email, password, username) {
+  const hash = await bcrypt.hash(password, SALT_ROUNDS);
+  db.prepare(`
+    INSERT INTO admin_users (email, password_hash, username, is_admin, is_write_admin, is_blog_admin, created_at)
+    VALUES (?, ?, ?, 0, 0, 0, ?)
+  `).run(
+    email.toLowerCase().trim(),
+    hash,
+    username.trim(),
     Date.now()
   );
 }
@@ -71,4 +86,4 @@ function getByEmail(email) {
   return db.prepare("SELECT * FROM admin_users WHERE email = ?").get(email.toLowerCase().trim()) || null;
 }
 
-module.exports = { init, createUser, authenticate, getByEmail };
+module.exports = { init, createUser, register, authenticate, getByEmail };

@@ -149,13 +149,13 @@ router.get("/login", (req, res) => {
   }
   res.render("login", {
     page: "login",
-    pageTitle: "Admin Login",
-    pageDescription: "Admin login for Arma Wasteland dashboard.",
+    pageTitle: "Sign In",
+    pageDescription: "Sign in to your Arma Wasteland account.",
     error: req.query.error || null,
   });
 });
 
-// Email/password login — admin fallback when Discord is down
+// Email/password login
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -166,7 +166,7 @@ router.post("/login", async (req, res) => {
   try {
     const user = await adminUsers.authenticate(email, password);
     if (!user) {
-      console.warn(`Admin login: failed attempt for ${email}`);
+      console.warn(`Login: failed attempt for ${email}`);
       return res.redirect("/auth/login?error=Invalid email or password.");
     }
 
@@ -175,21 +175,84 @@ router.post("/login", async (req, res) => {
       discord_id: user.discord_id || null,
       avatar: null,
       discriminator: null,
-      isAdmin: !!user.is_admin,
-      isWriteAdmin: !!user.is_write_admin,
-      isBlogAdmin: !!user.is_blog_admin,
+      isAdmin: false,
+      isWriteAdmin: false,
+      isBlogAdmin: false,
       authMethod: "email",
       connections: [],
       steamId: null,
     };
 
     req.session.save(() => {
-      console.log(`Admin login: ${user.username} (${email}) logged in via email`);
-      res.redirect("/admin/analytics");
+      console.log(`Login: ${user.username} (${email}) logged in via email`);
+      res.redirect("/");
     });
   } catch (err) {
-    console.error("Admin login error:", err.message);
+    console.error("Login error:", err.message);
     res.redirect("/auth/login?error=Login failed. Please try again.");
+  }
+});
+
+// Registration form
+router.get("/register", (req, res) => {
+  if (req.session.user) {
+    return res.redirect("/");
+  }
+  res.render("register", {
+    page: "register",
+    pageTitle: "Create Account",
+    pageDescription: "Create your Arma Wasteland account.",
+    error: req.query.error || null,
+  });
+});
+
+// Registration
+router.post("/register", async (req, res) => {
+  const { username, email, password } = req.body;
+
+  if (!username || !email || !password) {
+    return res.redirect("/auth/register?error=All fields are required.");
+  }
+
+  if (username.trim().length < 2 || username.trim().length > 32) {
+    return res.redirect("/auth/register?error=Display name must be 2-32 characters.");
+  }
+
+  if (password.length < 8) {
+    return res.redirect("/auth/register?error=Password must be at least 8 characters.");
+  }
+
+  try {
+    const existing = adminUsers.getByEmail(email);
+    if (existing) {
+      return res.redirect("/auth/register?error=An account with that email already exists.");
+    }
+
+    await adminUsers.register(email, password, username);
+
+    // Auto-login after registration
+    const user = await adminUsers.authenticate(email, password);
+
+    req.session.user = {
+      username: user.username,
+      discord_id: null,
+      avatar: null,
+      discriminator: null,
+      isAdmin: false,
+      isWriteAdmin: false,
+      isBlogAdmin: false,
+      authMethod: "email",
+      connections: [],
+      steamId: null,
+    };
+
+    req.session.save(() => {
+      console.log(`Register: ${user.username} (${email}) created account`);
+      res.redirect("/");
+    });
+  } catch (err) {
+    console.error("Registration error:", err.message);
+    res.redirect("/auth/register?error=Registration failed. Please try again.");
   }
 });
 
