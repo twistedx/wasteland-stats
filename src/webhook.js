@@ -43,17 +43,11 @@ async function processQueue() {
 }
 
 function sendWebhook(embed) {
-  if (!config.discordWebhookUrl) return;
-  queue.push({ embeds: [{ ...embed, timestamp: new Date().toISOString() }] });
-  processQueue();
+  console.log(`[Webhook] ${embed.title}: ${embed.description || ""}`);
 }
 
 function sendWebhookError(source, errorMessage) {
-  sendWebhook({
-    title: "Website Error",
-    description: `**${source}**\n\`\`\`${errorMessage}\`\`\``,
-    color: 0xFF3E3E,
-  });
+  console.error(`[Webhook Error] ${source}: ${errorMessage}`);
 }
 
 module.exports = { sendWebhook, sendWebhookError };
