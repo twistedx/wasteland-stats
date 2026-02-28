@@ -174,6 +174,7 @@ require("./steam-store").init();
 bm.init();
 metricsHistory.init();
 adminUsers.init();
+require("./discord-bot").init();
 
 // Background polling — collect metrics every 5 minutes
 async function collectMetrics() {

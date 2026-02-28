@@ -54,6 +54,7 @@ router.get("/discord/callback", async (req, res) => {
   }
 
   try {
+    console.log("Discord API: POST /oauth2/token (exchange code for access token)");
     const tokenRes = await axios.post(
       DISCORD_TOKEN_URL,
       new URLSearchParams({
@@ -68,6 +69,7 @@ router.get("/discord/callback", async (req, res) => {
 
     const { access_token } = tokenRes.data;
 
+    console.log("Discord API: GET /users/@me (fetch user profile)");
     const userRes = await axios.get(`${DISCORD_API}/users/@me`, {
       headers: { Authorization: `Bearer ${access_token}` },
     });
@@ -77,6 +79,7 @@ router.get("/discord/callback", async (req, res) => {
     // Fetch connected accounts (Steam, Xbox, etc.)
     let connections = [];
     try {
+      console.log("Discord API: GET /users/@me/connections (fetch linked accounts)");
       const connRes = await axios.get(`${DISCORD_API}/users/@me/connections`, {
         headers: { Authorization: `Bearer ${access_token}` },
       });
@@ -94,6 +97,7 @@ router.get("/discord/callback", async (req, res) => {
     let isWriteAdmin = false;
     let isBlogAdmin = false;
     try {
+      console.log(`Discord API: GET /guilds/${config.discordGuildId}/members/${discordUser.id} (fetch guild roles)`);
       const memberRes = await axios.get(
         `${DISCORD_API}/guilds/${config.discordGuildId}/members/${discordUser.id}`,
         { headers: { Authorization: `Bot ${config.discordBotToken}` } }
@@ -170,21 +174,48 @@ router.post("/login", async (req, res) => {
       return res.redirect("/auth/login?error=Invalid email or password.");
     }
 
+    // Fetch live Discord roles if account is linked
+    let isAdmin = false;
+    let isWriteAdmin = false;
+    let isBlogAdmin = false;
+    if (user.discord_id && !isRateLimited()) {
+      try {
+        console.log(`Discord API: GET /guilds/${config.discordGuildId}/members/${user.discord_id} (email login role check)`);
+        const memberRes = await axios.get(
+          `${DISCORD_API}/guilds/${config.discordGuildId}/members/${user.discord_id}`,
+          { headers: { Authorization: `Bot ${config.discordBotToken}` } }
+        );
+        const memberRoles = memberRes.data.roles || [];
+        isAdmin = memberRoles.some(r => config.adminRoleIds.includes(r));
+        isWriteAdmin = memberRoles.some(r => config.adminWriteRoleIds.includes(r));
+        isBlogAdmin = memberRoles.some(r => config.blogRoleIds.includes(r));
+      } catch (roleErr) {
+        if (!handleRateLimit(roleErr)) {
+          console.error("Email login role fetch error:", roleErr.response?.status, roleErr.message);
+        }
+        // Fall back to DB roles if Discord is unavailable
+        isAdmin = !!user.is_admin;
+        isWriteAdmin = !!user.is_write_admin;
+        isBlogAdmin = !!user.is_blog_admin;
+      }
+    }
+
     req.session.user = {
       username: user.username,
+      email: user.email,
       discord_id: user.discord_id || null,
       avatar: null,
       discriminator: null,
-      isAdmin: false,
-      isWriteAdmin: false,
-      isBlogAdmin: false,
+      isAdmin,
+      isWriteAdmin,
+      isBlogAdmin,
       authMethod: "email",
       connections: [],
       steamId: null,
     };
 
     req.session.save(() => {
-      console.log(`Login: ${user.username} (${email}) logged in via email`);
+      console.log(`Login: ${user.username} (${email}) logged in via email [admin=${isAdmin}]`);
       res.redirect("/");
     });
   } catch (err) {
@@ -235,12 +266,13 @@ router.post("/register", async (req, res) => {
 
     req.session.user = {
       username: user.username,
+      email: user.email,
       discord_id: null,
       avatar: null,
       discriminator: null,
-      isAdmin: false,
-      isWriteAdmin: false,
-      isBlogAdmin: false,
+      isAdmin: !!user.is_admin,
+      isWriteAdmin: !!user.is_write_admin,
+      isBlogAdmin: !!user.is_blog_admin,
       authMethod: "email",
       connections: [],
       steamId: null,
@@ -253,6 +285,112 @@ router.post("/register", async (req, res) => {
   } catch (err) {
     console.error("Registration error:", err.message);
     res.redirect("/auth/register?error=Registration failed. Please try again.");
+  }
+});
+
+// Account page — link Discord via /verify command
+router.get("/account", (req, res) => {
+  if (!req.session.user) {
+    return res.redirect("/auth/login");
+  }
+  const user = req.session.user;
+
+  // Build avatar URL for display
+  if (user.avatar && user.discord_id) {
+    user.avatarUrl = "https://cdn.discordapp.com/avatars/" + user.discord_id + "/" + user.avatar + ".png?size=64";
+  } else if (user.discord_id) {
+    const defaultIndex = Number(BigInt(user.discord_id) >> 22n) % 6;
+    user.avatarUrl = "https://cdn.discordapp.com/embed/avatars/" + defaultIndex + ".png";
+  } else {
+    user.avatarUrl = "https://cdn.discordapp.com/embed/avatars/0.png";
+  }
+
+  // Generate a verification code for unlinked email accounts
+  let verifyCode = null;
+  if (user.authMethod === "email" && !user.discord_id && user.email) {
+    verifyCode = adminUsers.generateVerifyCode(user.email);
+  }
+
+  res.render("account", {
+    page: "account",
+    pageTitle: "Account",
+    pageDescription: "Manage your account settings.",
+    user,
+    verifyCode,
+    success: req.query.success || null,
+    error: req.query.error || null,
+  });
+});
+
+// Update username
+router.post("/account/username", (req, res) => {
+  if (!req.session.user) return res.redirect("/auth/login");
+  const { username } = req.body;
+
+  if (!username || username.trim().length < 2 || username.trim().length > 32) {
+    return res.redirect("/auth/account?error=Display name must be 2-32 characters.");
+  }
+
+  // Email users — update in DB
+  if (req.session.user.email) {
+    adminUsers.updateUsername(req.session.user.email, username);
+  }
+  req.session.user.username = username.trim();
+  req.session.save(() => {
+    res.redirect("/auth/account?success=Display name updated.");
+  });
+});
+
+// Update email
+router.post("/account/email", (req, res) => {
+  if (!req.session.user) return res.redirect("/auth/login");
+  if (!req.session.user.email) {
+    return res.redirect("/auth/account?error=Discord-only accounts cannot change email.");
+  }
+
+  const { email } = req.body;
+  if (!email || !email.includes("@")) {
+    return res.redirect("/auth/account?error=Please enter a valid email address.");
+  }
+
+  const success = adminUsers.updateEmail(req.session.user.email, email);
+  if (!success) {
+    return res.redirect("/auth/account?error=That email is already in use.");
+  }
+  req.session.user.email = email.toLowerCase().trim();
+  req.session.save(() => {
+    res.redirect("/auth/account?success=Email updated.");
+  });
+});
+
+// Update password
+router.post("/account/password", async (req, res) => {
+  if (!req.session.user) return res.redirect("/auth/login");
+  if (!req.session.user.email) {
+    return res.redirect("/auth/account?error=Discord-only accounts cannot change password.");
+  }
+
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.redirect("/auth/account?error=All password fields are required.");
+  }
+  if (newPassword.length < 8) {
+    return res.redirect("/auth/account?error=New password must be at least 8 characters.");
+  }
+  if (newPassword !== confirmPassword) {
+    return res.redirect("/auth/account?error=New passwords do not match.");
+  }
+
+  try {
+    const success = await adminUsers.updatePassword(req.session.user.email, currentPassword, newPassword);
+    if (!success) {
+      return res.redirect("/auth/account?error=Current password is incorrect.");
+    }
+    res.redirect("/auth/account?success=Password updated.");
+  } catch (err) {
+    console.error("Password update error:", err.message);
+    res.redirect("/auth/account?error=Password update failed.");
   }
 });
 

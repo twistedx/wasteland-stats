@@ -1,0 +1,81 @@
+<div class="login-page">
+  <div class="login-card">
+    <div class="account-header">
+      <img src="{{user.avatarUrl}}" class="account-avatar" alt="avatar">
+      <div>
+        <h2>{{user.username}}</h2>
+        <p class="login-subtitle">{{#if user.email}}{{user.email}}{{else}}Discord account{{/if}}</p>
+      </div>
+    </div>
+
+    {{#if success}}
+      <div class="login-success">{{success}}</div>
+    {{/if}}
+    {{#if error}}
+      <div class="login-error">{{error}}</div>
+    {{/if}}
+
+    <div class="account-section">
+      <h3>Display Name</h3>
+      <form method="POST" action="/auth/account/username" class="login-form">
+        <div class="login-field">
+          <input type="text" name="username" value="{{user.username}}" required minlength="2" maxlength="32" placeholder="Display name">
+        </div>
+        <button type="submit" class="btn btn-login">Save Name</button>
+      </form>
+    </div>
+
+    {{#if user.email}}
+      <div class="account-section">
+        <h3>Email</h3>
+        <form method="POST" action="/auth/account/email" class="login-form">
+          <div class="login-field">
+            <input type="email" name="email" value="{{user.email}}" required placeholder="Email address">
+          </div>
+          <button type="submit" class="btn btn-login">Save Email</button>
+        </form>
+      </div>
+
+      <div class="account-section">
+        <h3>Password</h3>
+        <form method="POST" action="/auth/account/password" class="login-form">
+          <div class="login-field">
+            <input type="password" name="currentPassword" required placeholder="Current password" autocomplete="current-password">
+          </div>
+          <div class="login-field">
+            <input type="password" name="newPassword" required minlength="8" placeholder="New password" autocomplete="new-password">
+          </div>
+          <div class="login-field">
+            <input type="password" name="confirmPassword" required minlength="8" placeholder="Confirm new password" autocomplete="new-password">
+          </div>
+          <button type="submit" class="btn btn-login">Change Password</button>
+        </form>
+      </div>
+    {{/if}}
+
+    <div class="account-section">
+      <h3>Discord Link</h3>
+      {{#if user.discord_id}}
+        <p class="account-linked">Linked to Discord ID: <code>{{user.discord_id}}</code></p>
+      {{else if verifyCode}}
+        <p class="login-subtitle">Link your Discord to access game stats and admin features.</p>
+        <div class="verify-code-box">
+          <div class="verify-code-label">Your verification code</div>
+          <div class="verify-code">{{verifyCode}}</div>
+          <div class="verify-code-expiry">Expires in 10 minutes</div>
+        </div>
+        <div class="verify-steps">
+          <p><strong>How to link:</strong></p>
+          <ol>
+            <li>Go to the <a href="https://discord.gg/W8jNyvAnEp" target="_blank" rel="noopener">ArmaWasteland Discord</a></li>
+            <li>Type <code>/verify {{verifyCode}}</code> in any channel</li>
+            <li>Your Discord account and roles will be linked automatically</li>
+            <li>Log out and back in here to apply your permissions</li>
+          </ol>
+        </div>
+      {{else}}
+        <p class="login-subtitle">Log in with email to link your Discord account.</p>
+      {{/if}}
+    </div>
+  </div>
+</div>
