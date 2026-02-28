@@ -8,7 +8,7 @@ const config = require("./config");
 const { sendWebhookError } = require("./webhook");
 const analytics = require("./analytics");
 const amp = require("./amp");
-const bm = require("./battlemetrics");
+const bm = require("./armahq");
 const blog = require("./blog");
 const metricsHistory = require("./metrics-history");
 const { marked } = require("marked");
@@ -129,6 +129,31 @@ app.use(express.static(path.join(__dirname, "..", "public"), {
   },
 }));
 
+// Session validation — verify the cookie matches valid server-side session data
+app.use((req, res, next) => {
+  // Skip static assets and auth routes
+  if (req.path.startsWith("/css/") || req.path.startsWith("/js/") || req.path.startsWith("/img/") ||
+      req.path.startsWith("/favicon") || req.path.startsWith("/auth")) {
+    return next();
+  }
+
+  // If there's a session cookie but user data is missing or corrupt, clear it
+  if (req.sessionID && req.session && req.cookies && req.headers.cookie?.includes("connect.sid")) {
+    if (req.session.user) {
+      // Validate session has required fields
+      if (!req.session.user.discord_id || !req.session.user.username) {
+        console.log(`Session: invalid user data for session ${req.sessionID}, destroying`);
+        return req.session.destroy(() => {
+          res.clearCookie("connect.sid");
+          res.redirect("/auth/discord");
+        });
+      }
+    }
+  }
+
+  next();
+});
+
 analytics.init();
 blog.init();
 require("./steam-store").init();
@@ -215,17 +240,6 @@ async function fetchHomeData(req) {
       });
       stats = response.data;
 
-      // Send Discord webhook notification
-      if (config.discordWebhookUrl) {
-        axios.post(config.discordWebhookUrl, {
-          embeds: [{
-            title: "Stats Viewed",
-            description: `**${user.username}** pulled their stats on the website.`,
-            color: 0x5865F2,
-            timestamp: new Date().toISOString(),
-          }],
-        }).catch(() => {});
-      }
 
       miscStats = MISC_FIELDS.filter(
         (f) => stats[f.key] !== undefined && stats[f.key] !== null

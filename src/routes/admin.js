@@ -1,11 +1,11 @@
 const express = require("express");
 const axios = require("axios");
 const config = require("../config");
-const { sendWebhookError } = require("../webhook");
+const { sendWebhook, sendWebhookError } = require("../webhook");
 const analytics = require("../analytics");
 const blog = require("../blog");
 const amp = require("../amp");
-const bm = require("../battlemetrics");
+const bm = require("../armahq");
 const metricsHistory = require("../metrics-history");
 const router = express.Router();
 
@@ -15,14 +15,13 @@ const apiClient = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-// Admin auth middleware
+// Admin auth middleware — verify session has valid user with admin role
 router.use((req, res, next) => {
-  if (!req.session.user) {
-    return res.redirect("/");
+  if (!req.session.user || !req.session.user.discord_id) {
+    return res.redirect("/auth/discord");
   }
   if (!req.session.user.isAdmin) {
     console.warn(`Unauthorized admin access attempt by ${req.session.user.username} (${req.session.user.discord_id})`);
-    sendWebhookError("Unauthorized Admin Access", `**${req.session.user.username}** (${req.session.user.discord_id}) tried to access ${req.originalUrl}`);
     return res.redirect("/");
   }
   next();
@@ -176,18 +175,11 @@ router.post("/bans", async (req, res) => {
       },
     });
 
-    if (config.discordWebhookUrl) {
-      const safeId = String(arma_id).replace(/[`*_~|]/g, "");
-      const safeReason = String(reason).replace(/[`*_~|]/g, "");
-      axios.post(config.discordWebhookUrl, {
-        embeds: [{
-          title: "Player Banned",
-          description: `**${user.username}** banned \`${safeId}\`\n**Reason:** ${safeReason}\n**Duration:** ${hours === -1 ? "Permanent" : hours + "h"}`,
-          color: 0xff3e3e,
-          timestamp: new Date().toISOString(),
-        }],
-      }).catch(() => {});
-    }
+    sendWebhook({
+      title: "Player Banned",
+      description: `**${user.username}** banned \`${String(arma_id).replace(/[`*_~|]/g, "")}\`\n**Reason:** ${String(reason).replace(/[`*_~|]/g, "")}\n**Duration:** ${hours === -1 ? "Permanent" : hours + "h"}`,
+      color: 0xff3e3e,
+    });
 
     res.redirect("/admin/bans?success=" + encodeURIComponent("Player " + arma_id + " has been banned."));
   } catch (error) {
@@ -217,17 +209,11 @@ router.post("/bans/unban", async (req, res) => {
       },
     });
 
-    if (config.discordWebhookUrl) {
-      const safeId = String(arma_id).replace(/[`*_~|]/g, "");
-      axios.post(config.discordWebhookUrl, {
-        embeds: [{
-          title: "Player Unbanned",
-          description: `**${user.username}** unbanned \`${safeId}\``,
-          color: 0x22c55e,
-          timestamp: new Date().toISOString(),
-        }],
-      }).catch(() => {});
-    }
+    sendWebhook({
+      title: "Player Unbanned",
+      description: `**${user.username}** unbanned \`${String(arma_id).replace(/[`*_~|]/g, "")}\``,
+      color: 0x22c55e,
+    });
 
     res.redirect("/admin/bans?success=" + encodeURIComponent("Player " + arma_id + " has been unbanned."));
   } catch (error) {
@@ -352,17 +338,11 @@ router.post("/money", requireWriteAdmin, async (req, res) => {
     // Track deposit total
     analytics.recordDeposit(Number(amount));
 
-    // Log to Discord webhook
-    if (config.discordWebhookUrl) {
-      axios.post(config.discordWebhookUrl, {
-        embeds: [{
-          title: "Money Added",
-          description: `**${user.username}** added **$${Number(amount).toLocaleString()}** to player \`${arma_id}\``,
-          color: 0xF59E0B,
-          timestamp: new Date().toISOString(),
-        }],
-      }).catch(() => {});
-    }
+    sendWebhook({
+      title: "Money Added",
+      description: `**${user.username}** added **$${Number(amount).toLocaleString()}** to player \`${arma_id}\``,
+      color: 0xF59E0B,
+    });
 
     res.redirect(`/admin/money?success=Added $${Number(amount).toLocaleString()} to ${arma_id}`);
   } catch (error) {
@@ -423,17 +403,11 @@ router.post("/skins", requireWriteAdmin, async (req, res) => {
       { params: { token: config.backendToken } }
     );
 
-    // Log to Discord webhook
-    if (config.discordWebhookUrl) {
-      axios.post(config.discordWebhookUrl, {
-        embeds: [{
-          title: "Skin Assigned",
-          description: `**${user.username}** assigned **${item_name}** to Discord user \`${discord_id}\``,
-          color: 0x8B5CF6,
-          timestamp: new Date().toISOString(),
-        }],
-      }).catch(() => {});
-    }
+    sendWebhook({
+      title: "Skin Assigned",
+      description: `**${user.username}** assigned **${item_name}** to Discord user \`${discord_id}\``,
+      color: 0x8B5CF6,
+    });
 
     res.redirect(`/admin/skins?success=Assigned "${item_name}" to Discord user ${discord_id}`);
   } catch (error) {

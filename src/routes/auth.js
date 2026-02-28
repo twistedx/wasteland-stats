@@ -1,7 +1,6 @@
 const express = require("express");
 const axios = require("axios");
 const config = require("../config");
-const { sendWebhookError } = require("../webhook");
 const steamStore = require("../steam-store");
 const router = express.Router();
 
@@ -9,8 +8,29 @@ const DISCORD_AUTH_URL = "https://discord.com/api/oauth2/authorize";
 const DISCORD_TOKEN_URL = "https://discord.com/api/oauth2/token";
 const DISCORD_API = "https://discord.com/api/v10";
 
+// Track rate limit state — don't call Discord if we know we're blocked
+let rateLimitedUntil = 0;
+
+function isRateLimited() {
+  return Date.now() < rateLimitedUntil;
+}
+
+function handleRateLimit(error) {
+  if (error.response?.status === 429) {
+    const retryAfter = error.response.data?.retry_after || error.response.headers?.["retry-after"] || 60;
+    rateLimitedUntil = Date.now() + (retryAfter * 1000);
+    console.error(`Discord: rate limited, backing off for ${retryAfter}s`);
+    return true;
+  }
+  return false;
+}
+
 // Step 1: Redirect to Discord
 router.get("/discord", (req, res) => {
+  if (isRateLimited()) {
+    console.log("Discord: skipping auth redirect, rate limited");
+    return res.redirect("/?error=rate_limited");
+  }
   const params = new URLSearchParams({
     client_id: config.discord.clientId,
     redirect_uri: config.discord.redirectUri,
@@ -25,6 +45,11 @@ router.get("/discord/callback", async (req, res) => {
   const { code } = req.query;
   if (!code) {
     return res.redirect("/?error=no_code");
+  }
+
+  if (isRateLimited()) {
+    console.log("Discord: skipping callback, rate limited");
+    return res.redirect("/?error=rate_limited");
   }
 
   try {
@@ -58,7 +83,9 @@ router.get("/discord/callback", async (req, res) => {
         .filter(c => c.visibility === 1 || c.verified)
         .map(c => ({ type: c.type, name: c.name, id: c.id, verified: c.verified }));
     } catch (connErr) {
-      console.error("Connections fetch error:", connErr.response?.status, connErr.message);
+      if (!handleRateLimit(connErr)) {
+        console.error("Connections fetch error:", connErr.response?.status, connErr.message);
+      }
     }
 
     // Fetch guild member roles using bot token
@@ -71,13 +98,13 @@ router.get("/discord/callback", async (req, res) => {
         { headers: { Authorization: `Bot ${config.discordBotToken}` } }
       );
       const memberRoles = memberRes.data.roles || [];
-      console.log(`User ${discordUser.username} roles:`, memberRoles);
-      console.log("Admin role IDs:", config.adminRoleIds);
       isAdmin = memberRoles.some(r => config.adminRoleIds.includes(r));
       isWriteAdmin = memberRoles.some(r => config.adminWriteRoleIds.includes(r));
       isBlogAdmin = memberRoles.some(r => config.blogRoleIds.includes(r));
     } catch (roleErr) {
-      console.error("Role fetch error:", roleErr.response?.status, roleErr.response?.data || roleErr.message);
+      if (!handleRateLimit(roleErr)) {
+        console.error("Role fetch error:", roleErr.response?.status, roleErr.response?.data || roleErr.message);
+      }
     }
 
     // Store Steam link if available
@@ -102,11 +129,14 @@ router.get("/discord/callback", async (req, res) => {
       res.redirect("/?login=success");
     });
   } catch (error) {
+    if (handleRateLimit(error)) {
+      return res.redirect("/?error=rate_limited");
+    }
     const errMsg = error.response?.data
       ? JSON.stringify(error.response.data)
       : error.message;
     console.error("Discord OAuth error:", errMsg);
-    sendWebhookError("Discord OAuth", errMsg);
+    // Don't send a webhook about Discord errors — it would hit Discord again
     res.redirect("/?error=auth_failed");
   }
 });
