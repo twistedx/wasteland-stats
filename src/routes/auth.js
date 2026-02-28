@@ -178,7 +178,14 @@ router.post("/login", async (req, res) => {
     let isAdmin = false;
     let isWriteAdmin = false;
     let isBlogAdmin = false;
-    if (user.discord_id && !isRateLimited()) {
+    if (!user.discord_id) {
+      console.log(`Login: ${email} has no linked discord_id, skipping role fetch`);
+    } else if (isRateLimited()) {
+      console.log(`Login: ${email} discord_id=${user.discord_id}, but rate limited — using DB roles`);
+      isAdmin = !!user.is_admin;
+      isWriteAdmin = !!user.is_write_admin;
+      isBlogAdmin = !!user.is_blog_admin;
+    } else {
       try {
         console.log(`Discord API: GET /guilds/${config.discordGuildId}/members/${user.discord_id} (email login role check)`);
         const memberRes = await axios.get(
@@ -186,17 +193,21 @@ router.post("/login", async (req, res) => {
           { headers: { Authorization: `Bot ${config.discordBotToken}` } }
         );
         const memberRoles = memberRes.data.roles || [];
+        console.log(`Login: ${email} discord roles: [${memberRoles.join(",")}]`);
+        console.log(`Login: config adminRoleIds=[${config.adminRoleIds.join(",")}] writeRoleIds=[${config.adminWriteRoleIds.join(",")}] blogRoleIds=[${config.blogRoleIds.join(",")}]`);
         isAdmin = memberRoles.some(r => config.adminRoleIds.includes(r));
         isWriteAdmin = memberRoles.some(r => config.adminWriteRoleIds.includes(r));
         isBlogAdmin = memberRoles.some(r => config.blogRoleIds.includes(r));
+        console.log(`Login: resolved isAdmin=${isAdmin} isWriteAdmin=${isWriteAdmin} isBlogAdmin=${isBlogAdmin}`);
       } catch (roleErr) {
         if (!handleRateLimit(roleErr)) {
-          console.error("Email login role fetch error:", roleErr.response?.status, roleErr.message);
+          console.error("Email login role fetch error:", roleErr.response?.status, roleErr.response?.data || roleErr.message);
         }
         // Fall back to DB roles if Discord is unavailable
         isAdmin = !!user.is_admin;
         isWriteAdmin = !!user.is_write_admin;
         isBlogAdmin = !!user.is_blog_admin;
+        console.log(`Login: fell back to DB roles — isAdmin=${isAdmin} isWriteAdmin=${isWriteAdmin} isBlogAdmin=${isBlogAdmin}`);
       }
     }
 
