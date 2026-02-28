@@ -7,6 +7,7 @@ const blog = require("../blog");
 const amp = require("../amp");
 const bm = require("../armahq");
 const metricsHistory = require("../metrics-history");
+const systemStats = require("../system-stats");
 const router = express.Router();
 
 const apiClient = axios.create({
@@ -793,6 +794,22 @@ router.get("/servers", async (req, res) => {
 router.get("/servers/history", (req, res) => {
   const hours = Math.min(Math.max(parseInt(req.query.hours) || 6, 1), 720);
   res.json(metricsHistory.getHistory(hours));
+});
+
+// GET /admin/system — VPS health dashboard
+router.get("/system", (req, res) => {
+  const user = req.session.user;
+  buildAvatarUrl(user);
+
+  const stats = systemStats.getStats();
+
+  res.render("admin-system", {
+    page: "admin",
+    pageTitle: "System",
+    pageDescription: "VPS health and system metrics.",
+    user,
+    ...stats,
+  });
 });
 
 module.exports = router;

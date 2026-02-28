@@ -1,0 +1,142 @@
+<section id="admin-section">
+  <h2>Admin</h2>
+  <div class="tab-bar">
+    <a href="/admin/analytics" class="tab">Analytics</a>
+    <a href="/admin/bans" class="tab">Ban List</a>
+    <a href="/admin/kills" class="tab">Kill Log</a>
+    {{#if user.isWriteAdmin}}
+      <a href="/admin/money" class="tab">Add Money</a>
+      <a href="/admin/skins" class="tab">Skins</a>
+    {{/if}}
+    {{#if user.isBlogAdmin}}
+      <a href="/admin/blog" class="tab">Blog</a>
+    {{/if}}
+    <a href="/admin/servers" class="tab">Servers</a>
+    <a href="/admin/system" class="tab active">System</a>
+    <div style="margin-left:auto;display:flex;gap:0.5rem;align-items:center;padding:0 0.5rem;">
+      <button type="button" id="open-unban-modal" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Unban Player</button>
+      <button type="button" id="open-ban-modal" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Ban Player</button>
+    </div>
+  </div>
+
+  <!-- System overview cards -->
+  <div class="analytics-cards">
+    <div class="stat-card primary">
+      <div class="stat-value">{{osUptime}}</div>
+      <div class="stat-label">Server Uptime</div>
+    </div>
+    <div class="stat-card primary">
+      <div class="stat-value">{{processUptime}}</div>
+      <div class="stat-label">App Uptime</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{cpuUsage}}%</div>
+      <div class="stat-label">CPU Usage</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{memPercent}}%</div>
+      <div class="stat-label">Memory Usage</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{heapPercent}}%</div>
+      <div class="stat-label">Node Heap Usage</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{dataSize}}</div>
+      <div class="stat-label">Data Directory</div>
+    </div>
+  </div>
+
+  <div class="dash-grid">
+    <!-- System Info -->
+    <div class="dash-panel">
+      <div class="dash-panel-header">Server Info</div>
+      <table>
+        <tbody>
+          <tr><td style="color:var(--text-secondary);">Hostname</td><td>{{hostname}}</td></tr>
+          <tr><td style="color:var(--text-secondary);">Platform</td><td>{{platform}}</td></tr>
+          <tr><td style="color:var(--text-secondary);">Architecture</td><td>{{arch}}</td></tr>
+          <tr><td style="color:var(--text-secondary);">Node.js</td><td>{{nodeVersion}}</td></tr>
+          <tr><td style="color:var(--text-secondary);">PID</td><td>{{pid}}</td></tr>
+          <tr><td style="color:var(--text-secondary);">App Started</td><td>{{formatDate appStartedAt}}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- CPU -->
+    <div class="dash-panel">
+      <div class="dash-panel-header">CPU</div>
+      <div class="server-metric" style="margin-bottom:1rem;">
+        <div class="server-metric-header">
+          <span>Usage</span>
+          <span class="server-metric-value">{{cpuUsage}}%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill progress-cpu" style="width: {{cpuUsage}}%"></div>
+        </div>
+      </div>
+      <table>
+        <tbody>
+          <tr><td style="color:var(--text-secondary);">Model</td><td style="font-size:0.8rem;">{{cpuModel}}</td></tr>
+          <tr><td style="color:var(--text-secondary);">Cores</td><td>{{cpuCores}}</td></tr>
+          <tr><td style="color:var(--text-secondary);">Load Avg (1m)</td><td>{{loadAvg.one}}</td></tr>
+          <tr><td style="color:var(--text-secondary);">Load Avg (5m)</td><td>{{loadAvg.five}}</td></tr>
+          <tr><td style="color:var(--text-secondary);">Load Avg (15m)</td><td>{{loadAvg.fifteen}}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Memory -->
+    <div class="dash-panel">
+      <div class="dash-panel-header">Memory</div>
+      <div class="server-metric" style="margin-bottom:1rem;">
+        <div class="server-metric-header">
+          <span>System RAM</span>
+          <span class="server-metric-value">{{memUsed}} / {{memTotal}}</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill progress-ram" style="width: {{memPercent}}%"></div>
+        </div>
+      </div>
+      <div class="server-metric" style="margin-bottom:1rem;">
+        <div class="server-metric-header">
+          <span>Node Heap</span>
+          <span class="server-metric-value">{{heapUsed}} / {{heapTotal}}</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill progress-players" style="width: {{heapPercent}}%"></div>
+        </div>
+      </div>
+      <table>
+        <tbody>
+          <tr><td style="color:var(--text-secondary);">RSS</td><td>{{rss}}</td></tr>
+          <tr><td style="color:var(--text-secondary);">Free Memory</td><td>{{memFree}}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Disk -->
+    {{#if disk}}
+    <div class="dash-panel">
+      <div class="dash-panel-header">Disk ({{disk.mount}})</div>
+      <div class="server-metric" style="margin-bottom:1rem;">
+        <div class="server-metric-header">
+          <span>Usage</span>
+          <span class="server-metric-value">{{disk.used}} / {{disk.total}}</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: {{disk.usedPercent}}%; background: {{#if (gt disk.usedPercent 90)}}var(--danger){{else}}{{#if (gt disk.usedPercent 75)}}#F59E0B{{else}}#22c55e{{/if}}{{/if}};"></div>
+        </div>
+      </div>
+      <table>
+        <tbody>
+          <tr><td style="color:var(--text-secondary);">Available</td><td>{{disk.available}}</td></tr>
+          <tr><td style="color:var(--text-secondary);">Used %</td><td>{{disk.usedPercent}}%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    {{/if}}
+  </div>
+</section>
+
+{{> ban-modal}}
