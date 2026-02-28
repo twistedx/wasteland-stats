@@ -48,30 +48,32 @@ async function init() {
     const discordId = interaction.user.id;
     console.log(`DiscordBot: /verify called by ${interaction.user.username} (${discordId}) with code=${code}`);
 
-    // If this Discord ID is already linked, unlink it first so they can re-verify
-    const existingLink = adminUsers.getByDiscordId(discordId);
-    if (existingLink) {
-      console.log(`DiscordBot: ${discordId} was linked to ${existingLink.email}, unlinking to re-verify`);
-      adminUsers.unlinkDiscord(discordId);
-    }
+    // Acknowledge immediately so Discord doesn't time out
+    await interaction.deferReply({ flags: 64 }); // 64 = ephemeral
 
-    // Redeem the verification code
-    const email = adminUsers.redeemVerifyCode(code);
-    if (!email) {
-      console.log(`DiscordBot: code ${code} is invalid or expired`);
-      return interaction.reply({
-        content: "Invalid or expired verification code. Go to your account page to get a new one.",
-        ephemeral: true,
-      });
-    }
-    console.log(`DiscordBot: code ${code} redeemed for email=${email}`);
-
-    // Link the Discord ID
-    adminUsers.linkDiscord(email, discordId);
-    console.log(`DiscordBot: linked ${email} -> discord ${discordId}`);
-
-    // Fetch guild member roles and set permissions
     try {
+      // If this Discord ID is already linked, unlink it first so they can re-verify
+      const existingLink = adminUsers.getByDiscordId(discordId);
+      if (existingLink) {
+        console.log(`DiscordBot: ${discordId} was linked to ${existingLink.email}, unlinking to re-verify`);
+        adminUsers.unlinkDiscord(discordId);
+      }
+
+      // Redeem the verification code
+      const email = adminUsers.redeemVerifyCode(code);
+      if (!email) {
+        console.log(`DiscordBot: code ${code} is invalid or expired`);
+        return interaction.editReply({
+          content: "Invalid or expired verification code. Go to your account page to get a new one.",
+        });
+      }
+      console.log(`DiscordBot: code ${code} redeemed for email=${email}`);
+
+      // Link the Discord ID
+      adminUsers.linkDiscord(email, discordId);
+      console.log(`DiscordBot: linked ${email} -> discord ${discordId}`);
+
+      // Fetch guild member roles and set permissions
       console.log(`DiscordBot: Discord API: GET /guilds/${interaction.guild.id}/members/${discordId} (fetch member roles)`);
       const member = await interaction.guild.members.fetch(discordId);
       const memberRoles = member.roles.cache.map(r => r.id);
@@ -97,17 +99,13 @@ async function init() {
 
       console.log(`DiscordBot: verified ${email} -> ${discordId} (${interaction.user.username}) roles=[${roleLabels.join(",")}]`);
 
-      return interaction.reply({
+      return interaction.editReply({
         content: `Account linked successfully! Your Discord is now connected to **${email}**.${rolesText}\n\nLog out and back in on the website to apply changes.`,
-        ephemeral: true,
       });
     } catch (err) {
-      console.error("DiscordBot: role fetch error:", err.message);
-      // Link succeeded but roles failed — still linked
-      console.log(`DiscordBot: link succeeded but role fetch failed for ${email} -> ${discordId}`);
-      return interaction.reply({
-        content: `Account linked to **${email}**, but couldn't fetch your roles. Try logging in via Discord on the website to pick up permissions.`,
-        ephemeral: true,
+      console.error("DiscordBot: /verify error:", err.message);
+      return interaction.editReply({
+        content: `Something went wrong: ${err.message}. Your account may still have been linked — try logging out and back in.`,
       });
     }
   });
