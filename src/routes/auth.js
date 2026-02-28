@@ -179,7 +179,11 @@ router.post("/login", async (req, res) => {
     let isWriteAdmin = false;
     let isBlogAdmin = false;
     if (!user.discord_id) {
-      console.log(`Login: ${email} has no linked discord_id, skipping role fetch`);
+      console.log(`Login: ${email} has no linked discord_id, using DB roles`);
+      isAdmin = !!user.is_admin;
+      isWriteAdmin = !!user.is_write_admin;
+      isBlogAdmin = !!user.is_blog_admin;
+      console.log(`Login: DB roles — isAdmin=${isAdmin} isWriteAdmin=${isWriteAdmin} isBlogAdmin=${isBlogAdmin}`);
     } else if (isRateLimited()) {
       console.log(`Login: ${email} discord_id=${user.discord_id}, but rate limited — using DB roles`);
       isAdmin = !!user.is_admin;

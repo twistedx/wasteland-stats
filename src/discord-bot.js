@@ -22,6 +22,7 @@ async function init() {
     );
 
   try {
+    console.log(`DiscordBot: Discord API: PUT /applications/${config.discord.clientId}/guilds/${config.discordGuildId}/commands (register /verify)`);
     await rest.put(
       Routes.applicationGuildCommands(config.discord.clientId, config.discordGuildId),
       { body: [command.toJSON()] }
@@ -33,6 +34,7 @@ async function init() {
   }
 
   // Start the bot
+  console.log("DiscordBot: connecting to Discord gateway with intents [Guilds, GuildMembers]...");
   client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
 
   client.on("ready", () => {
@@ -46,14 +48,11 @@ async function init() {
     const discordId = interaction.user.id;
     console.log(`DiscordBot: /verify called by ${interaction.user.username} (${discordId}) with code=${code}`);
 
-    // Check if this Discord ID is already linked
+    // If this Discord ID is already linked, unlink it first so they can re-verify
     const existingLink = adminUsers.getByDiscordId(discordId);
     if (existingLink) {
-      console.log(`DiscordBot: ${discordId} already linked to ${existingLink.email}, rejecting`);
-      return interaction.reply({
-        content: `Your Discord account is already linked to **${existingLink.username}** (${existingLink.email}).`,
-        ephemeral: true,
-      });
+      console.log(`DiscordBot: ${discordId} was linked to ${existingLink.email}, unlinking to re-verify`);
+      adminUsers.unlinkDiscord(discordId);
     }
 
     // Redeem the verification code
@@ -73,6 +72,7 @@ async function init() {
 
     // Fetch guild member roles and set permissions
     try {
+      console.log(`DiscordBot: Discord API: GET /guilds/${interaction.guild.id}/members/${discordId} (fetch member roles)`);
       const member = await interaction.guild.members.fetch(discordId);
       const memberRoles = member.roles.cache.map(r => r.id);
       console.log(`DiscordBot: ${discordId} guild roles: [${memberRoles.join(",")}]`);
@@ -113,6 +113,7 @@ async function init() {
   });
 
   try {
+    console.log("DiscordBot: Discord API: POST /auth/login (bot login)");
     await client.login(config.discordBotToken);
   } catch (err) {
     console.error("DiscordBot: login failed:", err.message);

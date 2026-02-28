@@ -107,6 +107,11 @@ function linkDiscord(email, discordId) {
   db.prepare("UPDATE admin_users SET discord_id = ? WHERE email = ?").run(discordId, email.toLowerCase().trim());
 }
 
+function unlinkDiscord(discordId) {
+  db.prepare("UPDATE admin_users SET discord_id = NULL WHERE discord_id = ?").run(discordId);
+  console.log(`AdminUsers: unlinked discord ${discordId}`);
+}
+
 function setRoles(email, roles) {
   db.prepare(`
     UPDATE admin_users SET is_admin = ?, is_write_admin = ?, is_blog_admin = ? WHERE email = ?
@@ -182,7 +187,7 @@ function redeemVerifyCode(code) {
 
 module.exports = {
   init, createUser, register, authenticate,
-  getByEmail, getByDiscordId, linkDiscord, setRoles,
+  getByEmail, getByDiscordId, linkDiscord, unlinkDiscord, setRoles,
   updateUsername, updateEmail, updatePassword,
   generateVerifyCode, redeemVerifyCode,
 };
