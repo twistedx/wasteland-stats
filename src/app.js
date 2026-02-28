@@ -13,8 +13,18 @@ const blog = require("./blog");
 const metricsHistory = require("./metrics-history");
 const { marked } = require("marked");
 
+const fs = require("fs");
+
 const app = express();
 app.set("trust proxy", 1);
+
+// Use persistent disk on Render, local dir on Windows dev
+const SESSION_DIR = process.platform === "win32"
+  ? path.join(__dirname, "..", "sessions")
+  : "/var/data/sessions";
+if (!fs.existsSync(SESSION_DIR)) {
+  fs.mkdirSync(SESSION_DIR, { recursive: true });
+}
 
 const apiClient = axios.create({
   baseURL: config.apiBaseUrl,
@@ -102,16 +112,16 @@ app.set("views", path.join(__dirname, "..", "views"));
 app.use(
   session({
     store: new FileStore({
-      path: "/var/data/sessions",
+      path: SESSION_DIR,
       ttl: 7 * 86400,
-      retries: 2,
+      retries: 0,
       reapInterval: 3600,
     }),
     secret: config.sessionSecret,
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: true,
+      secure: process.env.NODE_ENV === "production",
       httpOnly: true,
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
