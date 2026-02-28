@@ -28,10 +28,6 @@ function handleRateLimit(error) {
 
 // Step 1: Redirect to Discord
 router.get("/discord", (req, res) => {
-  if (isRateLimited()) {
-    console.log("Discord: skipping auth redirect, rate limited");
-    return res.redirect("/?error=rate_limited");
-  }
   const params = new URLSearchParams({
     client_id: config.discord.clientId,
     redirect_uri: config.discord.redirectUri,
@@ -46,11 +42,6 @@ router.get("/discord/callback", async (req, res) => {
   const { code } = req.query;
   if (!code) {
     return res.redirect("/?error=no_code");
-  }
-
-  if (isRateLimited()) {
-    console.log("Discord: skipping callback, rate limited");
-    return res.redirect("/?error=rate_limited");
   }
 
   try {
@@ -134,9 +125,7 @@ router.get("/discord/callback", async (req, res) => {
       res.redirect("/?login=success");
     });
   } catch (error) {
-    if (handleRateLimit(error)) {
-      return res.redirect("/?error=rate_limited");
-    }
+    handleRateLimit(error);
     const errMsg = error.response?.data
       ? JSON.stringify(error.response.data)
       : error.message;
