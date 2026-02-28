@@ -17,8 +17,8 @@ const apiClient = axios.create({
 
 // Admin auth middleware — verify session has valid user with admin role
 router.use((req, res, next) => {
-  if (!req.session.user || !req.session.user.discord_id) {
-    return res.redirect("/auth/discord");
+  if (!req.session.user || (!req.session.user.discord_id && req.session.user.authMethod !== "email")) {
+    return res.redirect("/auth/login");
   }
   if (!req.session.user.isAdmin) {
     console.warn(`Unauthorized admin access attempt by ${req.session.user.username} (${req.session.user.discord_id})`);

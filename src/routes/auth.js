@@ -2,6 +2,7 @@ const express = require("express");
 const axios = require("axios");
 const config = require("../config");
 const steamStore = require("../steam-store");
+const adminUsers = require("../admin-users");
 const router = express.Router();
 
 const DISCORD_AUTH_URL = "https://discord.com/api/oauth2/authorize";
@@ -138,6 +139,57 @@ router.get("/discord/callback", async (req, res) => {
     console.error("Discord OAuth error:", errMsg);
     // Don't send a webhook about Discord errors — it would hit Discord again
     res.redirect("/?error=auth_failed");
+  }
+});
+
+// Email/password login form
+router.get("/login", (req, res) => {
+  if (req.session.user) {
+    return res.redirect("/");
+  }
+  res.render("login", {
+    page: "login",
+    pageTitle: "Admin Login",
+    pageDescription: "Admin login for Arma Wasteland dashboard.",
+    error: req.query.error || null,
+  });
+});
+
+// Email/password login — admin fallback when Discord is down
+router.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.redirect("/auth/login?error=Email and password are required.");
+  }
+
+  try {
+    const user = await adminUsers.authenticate(email, password);
+    if (!user) {
+      console.warn(`Admin login: failed attempt for ${email}`);
+      return res.redirect("/auth/login?error=Invalid email or password.");
+    }
+
+    req.session.user = {
+      username: user.username,
+      discord_id: user.discord_id || null,
+      avatar: null,
+      discriminator: null,
+      isAdmin: !!user.is_admin,
+      isWriteAdmin: !!user.is_write_admin,
+      isBlogAdmin: !!user.is_blog_admin,
+      authMethod: "email",
+      connections: [],
+      steamId: null,
+    };
+
+    req.session.save(() => {
+      console.log(`Admin login: ${user.username} (${email}) logged in via email`);
+      res.redirect("/admin/analytics");
+    });
+  } catch (err) {
+    console.error("Admin login error:", err.message);
+    res.redirect("/auth/login?error=Login failed. Please try again.");
   }
 });
 

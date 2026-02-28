@@ -11,6 +11,7 @@ const amp = require("./amp");
 const bm = require("./armahq");
 const blog = require("./blog");
 const metricsHistory = require("./metrics-history");
+const adminUsers = require("./admin-users");
 const { marked } = require("marked");
 
 const fs = require("fs");
@@ -150,12 +151,15 @@ app.use((req, res, next) => {
   // If there's a session cookie but user data is missing or corrupt, clear it
   if (req.sessionID && req.session && req.cookies && req.headers.cookie?.includes("connect.sid")) {
     if (req.session.user) {
-      // Validate session has required fields
-      if (!req.session.user.discord_id || !req.session.user.username) {
+      // Validate session has required fields — Discord users need discord_id, email users need authMethod
+      const u = req.session.user;
+      const validDiscord = u.discord_id && u.username;
+      const validEmail = u.authMethod === "email" && u.username;
+      if (!validDiscord && !validEmail) {
         console.log(`Session: invalid user data for session ${req.sessionID}, destroying`);
         return req.session.destroy(() => {
           res.clearCookie("connect.sid");
-          res.redirect("/auth/discord");
+          res.redirect("/auth/login");
         });
       }
     }
@@ -169,6 +173,7 @@ blog.init();
 require("./steam-store").init();
 bm.init();
 metricsHistory.init();
+adminUsers.init();
 
 // Background polling — collect metrics every 5 minutes
 async function collectMetrics() {
