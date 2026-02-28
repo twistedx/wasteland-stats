@@ -1371,6 +1371,13 @@ details.misc-stats .stats-grid { padding: 1rem; }
   font-weight: 500;
 }
 
+.server-queue {
+  font-size: 0.8rem;
+  color: #F59E0B;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
 .server-bar-track {
   width: 100%;
   height: 4px;

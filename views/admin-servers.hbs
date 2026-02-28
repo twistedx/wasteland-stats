@@ -18,8 +18,8 @@
     </div>
   </div>
 
-  {{#if ampError}}
-    <div class="alert alert-error">Failed to load server data from AMP.</div>
+  {{#if serversError}}
+    <div class="alert alert-error">Failed to load server data.</div>
   {{/if}}
 
   <!-- Summary cards -->
@@ -28,9 +28,15 @@
       <div class="stat-value">{{totalPlayers}} / {{totalMax}}</div>
       <div class="stat-label">Total Players Online</div>
     </div>
+    {{#if totalQueue}}
+      <div class="stat-card">
+        <div class="stat-value" style="color:#F59E0B;">{{totalQueue}}</div>
+        <div class="stat-label">In Queue</div>
+      </div>
+    {{/if}}
     <div class="stat-card">
-      <div class="stat-value">{{instanceCount}}</div>
-      <div class="stat-label">Game Instances</div>
+      <div class="stat-value">{{serverCount}}</div>
+      <div class="stat-label">Servers</div>
     </div>
     {{#if fetchedAt}}
       <div class="stat-card">
@@ -42,27 +48,37 @@
 
   <!-- Server cards -->
   <div class="server-grid">
-    {{#each instances}}
-      <div class="server-card {{#if running}}server-online{{else}}server-offline{{/if}}">
+    {{#each servers}}
+      <div class="server-card {{#if (eq this.status 'online')}}server-online{{else}}server-offline{{/if}}">
         <div class="server-card-header">
-          <div class="server-name">{{friendlyName}}</div>
-          <div class="server-status-badge {{#if running}}badge-online{{else}}badge-offline{{/if}}">
-            {{#if running}}Online{{else}}Offline{{/if}}
+          <div class="server-name">{{this.label}}</div>
+          <div class="server-status-badge {{#if (eq this.status 'online')}}badge-online{{else}}badge-offline{{/if}}">
+            {{#if (eq this.status 'online')}}Online{{else}}Offline{{/if}}
           </div>
         </div>
 
-        <div class="server-card-subtitle">{{targetName}}</div>
+        <div class="server-card-subtitle">{{this.name}}</div>
 
         <!-- Players -->
         <div class="server-metric">
           <div class="server-metric-header">
             <span>Players</span>
-            <span class="server-metric-value">{{players.current}} / {{players.max}}</span>
+            <span class="server-metric-value">{{this.players}} / {{this.maxPlayers}}</span>
           </div>
           <div class="progress-bar">
-            <div class="progress-fill progress-players" style="width: {{players.percent}}%"></div>
+            <div class="progress-fill progress-players" style="width: {{percent this.players this.maxPlayers}}%"></div>
           </div>
         </div>
+
+        <!-- Queue -->
+        {{#if this.queue}}
+          <div class="server-metric">
+            <div class="server-metric-header">
+              <span>Queue</span>
+              <span class="server-metric-value" style="color:#F59E0B;">{{this.queue}} waiting</span>
+            </div>
+          </div>
+        {{/if}}
 
         <!-- CPU -->
         <div class="server-metric">
@@ -86,17 +102,29 @@
           </div>
         </div>
 
-        <div class="server-card-footer">
-          <span>{{instanceName}}</span>
-          <span>AMP {{ampVersion}}</span>
-        </div>
+        <!-- Peak -->
+        {{#if this.peak}}
+          <div class="server-metric">
+            <div class="server-metric-header">
+              <span>Daily Peak</span>
+              <span class="server-metric-value">{{this.peak}}</span>
+            </div>
+          </div>
+        {{/if}}
+
+        {{#if this.instanceName}}
+          <div class="server-card-footer">
+            <span>{{this.instanceName}}</span>
+            <span>AMP {{this.ampVersion}}</span>
+          </div>
+        {{/if}}
       </div>
     {{/each}}
   </div>
 
-  {{#unless instances.length}}
-    {{#unless ampError}}
-      <div class="empty-state">No game server instances found.</div>
+  {{#unless servers.length}}
+    {{#unless serversError}}
+      <div class="empty-state">No servers found.</div>
     {{/unless}}
   {{/unless}}
 
@@ -133,11 +161,6 @@
 (function() {
   var colors = ['#5865F2', '#22c55e', '#F59E0B', '#ef4444', '#8B5CF6', '#06b6d4'];
   var chartData = window.__chartData || {};
-
-  function formatTime(ts) {
-    var d = new Date(ts);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
 
   function buildChart(elId, dataKey, yLabel, unit) {
     var el = document.getElementById(elId);

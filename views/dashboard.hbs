@@ -17,6 +17,9 @@
             <span class="server-label">{{this.label}}</span>
           </div>
           <div class="server-players">{{this.players}}<span class="server-max">/{{this.maxPlayers}}</span></div>
+          {{#if this.queue}}
+            <div class="server-queue">{{this.queue}} in queue</div>
+          {{/if}}
           <div class="server-bar-track">
             <div class="server-bar-fill" style="width: {{percent this.players this.maxPlayers}}%;"></div>
           </div>
@@ -85,5 +88,74 @@
 
 {{> leaderboard}}
 
+<section>
+  <h2>Ban Activity</h2>
+  <div class="dash-grid">
+    <div class="dash-panel dash-panel-wide">
+      <div class="dash-panel-header">Bans Over Time</div>
+      <div id="chart-bans" class="dash-chart"></div>
+    </div>
+  </div>
+</section>
+
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script src="/js/dashboard.js"></script>
+<script>
+(function() {
+  var ACCENT = '#9a9a9a';
+  var GRID = 'rgba(255,255,255,0.06)';
+  var BG = '#161616';
+
+  fetch('/api/stats')
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      var bans = data.bans || [];
+      var el = document.getElementById('chart-bans');
+      if (!el || !bans.length) return;
+
+      var months = {};
+      bans.forEach(function(b) {
+        if (!b.time_stamp) return;
+        var d = new Date(b.time_stamp);
+        var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        months[key] = (months[key] || 0) + 1;
+      });
+
+      var sorted = Object.keys(months).sort();
+      var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      var labels = sorted.map(function(k) {
+        var parts = k.split('-');
+        return monthNames[parseInt(parts[1], 10) - 1] + ' ' + parts[0].slice(2);
+      });
+      var values = sorted.map(function(k) { return months[k]; });
+
+      var chart = echarts.init(el);
+      chart.setOption({
+        backgroundColor: 'transparent',
+        textStyle: { fontFamily: 'Rajdhani, sans-serif', color: ACCENT },
+        grid: { left: '3%', right: '4%', bottom: '3%', top: '12%', containLabel: true },
+        tooltip: { trigger: 'axis', backgroundColor: BG, borderColor: GRID, textStyle: { color: '#e8e8e8' } },
+        xAxis: { type: 'category', data: labels, axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: ACCENT, fontSize: 11 }, boundaryGap: false },
+        yAxis: { type: 'value', axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: ACCENT }, splitLine: { lineStyle: { color: GRID } } },
+        series: [{
+          type: 'line',
+          data: values,
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 6,
+          lineStyle: { color: '#ee6666', width: 2 },
+          itemStyle: { color: '#ee6666' },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: 'rgba(238,102,102,0.35)' },
+              { offset: 1, color: 'rgba(238,102,102,0.02)' }
+            ])
+          }
+        }]
+      });
+
+      window.addEventListener('resize', function() { chart.resize(); });
+    })
+    .catch(function(err) { console.error('Ban chart error:', err); });
+})();
+</script>

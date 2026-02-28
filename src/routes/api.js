@@ -3,6 +3,7 @@ const axios = require("axios");
 const config = require("../config");
 const { sendWebhookError } = require("../webhook");
 const analytics = require("../analytics");
+const metricsHistory = require("../metrics-history");
 const router = express.Router();
 
 const apiClient = axios.create({
@@ -134,6 +135,12 @@ router.get("/stats", async (req, res) => {
     sendWebhookError("Stats API", error.message);
     res.status(500).json({ error: "Failed to fetch stats" });
   }
+});
+
+// GET /api/server-history — public endpoint for player/CPU/memory charts
+router.get("/server-history", (req, res) => {
+  const hours = Math.min(Math.max(parseInt(req.query.hours) || 6, 1), 720);
+  res.json(metricsHistory.getHistory(hours));
 });
 
 module.exports = router;

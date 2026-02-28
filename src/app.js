@@ -10,6 +10,7 @@ const analytics = require("./analytics");
 const amp = require("./amp");
 const bm = require("./battlemetrics");
 const blog = require("./blog");
+const metricsHistory = require("./metrics-history");
 const { marked } = require("marked");
 
 const app = express();
@@ -132,6 +133,40 @@ analytics.init();
 blog.init();
 require("./steam-store").init();
 bm.init();
+metricsHistory.init();
+
+// Background polling — collect metrics every 5 minutes
+async function collectMetrics() {
+  try {
+    const [status, bmStatus] = await Promise.all([
+      amp.getFreshStatus(),
+      bm.getFreshStatus(),
+    ]);
+
+    // Filter to active Wasteland instances
+    const wasteland = status.instances.filter(i =>
+      i.running && i.appState >= 5 && i.friendlyName.toLowerCase().includes("wasteland")
+    );
+
+    // Overlay ArmaHQ player counts onto AMP instances
+    for (let i = 0; i < bmStatus.servers.length && i < wasteland.length; i++) {
+      const srv = bmStatus.servers[i];
+      wasteland[i].players.current = srv.players;
+      wasteland[i].players.max = srv.maxPlayers;
+      wasteland[i].players.percent = srv.maxPlayers ? Math.round((srv.players / srv.maxPlayers) * 100) : 0;
+    }
+
+    metricsHistory.record(wasteland, bmStatus.servers);
+    console.log(`MetricsHistory: recorded ${wasteland.length} instances`);
+  } catch (err) {
+    console.error("MetricsHistory: collection error:", err.message);
+  }
+}
+
+// Collect immediately on startup, then every 5 minutes
+collectMetrics();
+setInterval(collectMetrics, 5 * 60 * 1000);
+
 app.use(analytics.middleware);
 
 app.use("/auth", require("./routes/auth"));
@@ -199,10 +234,8 @@ async function fetchHomeData(req) {
       // Fetch ATM balance if we have arma_id
       if (stats.arma_id) {
         try {
-          const cashRes = await apiClient({
-            method: "GET",
-            url: "/user/getUserCash/",
-            data: { arma_id: stats.arma_id, token: config.apiToken },
+          const cashRes = await apiClient.get("/user/getUserCash/", {
+            params: { arma_id: stats.arma_id, token: config.apiToken },
           });
           atmBalance = cashRes.data?.cash ?? cashRes.data?.data?.cash ?? cashRes.data?.amount ?? null;
           if (atmBalance === null && cashRes.data?.data !== undefined) {
@@ -249,6 +282,7 @@ app.get("/", async (req, res) => {
     name: srv.name,
     players: srv.players,
     maxPlayers: srv.maxPlayers,
+    queue: srv.queue || 0,
     status: srv.status === "online" ? "online" : "offline",
     peak: srv.peak || 0,
   }));

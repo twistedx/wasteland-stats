@@ -6,6 +6,7 @@ const analytics = require("../analytics");
 const blog = require("../blog");
 const amp = require("../amp");
 const bm = require("../battlemetrics");
+const metricsHistory = require("../metrics-history");
 const router = express.Router();
 
 const apiClient = axios.create({
@@ -313,16 +314,14 @@ router.get("/money/balance", requireWriteAdmin, async (req, res) => {
   const armaId = (req.query.arma_id || "").trim();
   if (!armaId) return res.json({ balance: null });
   try {
-    const cashRes = await apiClient({
-      method: "GET",
-      url: "/user/getUserCash/",
-      data: { arma_id: armaId, token: config.apiToken },
+    const cashRes = await apiClient.get("/user/getUserCash/", {
+      params: { arma_id: armaId, token: config.apiToken },
     });
+    console.log("[Money Balance]", armaId, JSON.stringify(cashRes.data));
     let balance = cashRes.data?.cash ?? cashRes.data?.data?.cash ?? cashRes.data?.amount ?? null;
     if (balance === null && cashRes.data?.data !== undefined) {
       balance = cashRes.data.data;
     }
-    console.log("[Money Balance]", armaId, cashRes.data);
     res.json({ balance });
   } catch (error) {
     console.error("Balance fetch error:", error.message);
@@ -754,55 +753,70 @@ router.post("/blog/delete/:id", requireBlogAdmin, (req, res) => {
   res.redirect("/admin/blog?success=Post deleted.");
 });
 
-// GET /admin/servers — AMP server status dashboard
+// GET /admin/servers — server status dashboard (ArmaHQ + AMP)
 router.get("/servers", async (req, res) => {
   const user = req.session.user;
   buildAvatarUrl(user);
 
-  const [status, bmStatus] = await Promise.all([
-    amp.getFreshStatus(),
-    bm.getFreshStatus(),
-  ]);
+  let servers = [];
+  let serversError = false;
 
-  // Filter out idle/stopped instances and non-Wasteland servers (e.g. Rust)
-  const activeInstances = status.instances.filter(i => {
-    if (!i.running || i.appState < 5) {
-      console.log(`AMP: hiding "${i.friendlyName}" (not running: running=${i.running}, appState=${i.appState})`);
-      return false;
-    }
-    if (!i.friendlyName.toLowerCase().includes("wasteland")) {
-      console.log(`AMP: hiding "${i.friendlyName}" (not a Wasteland server)`);
-      return false;
-    }
-    return true;
-  });
+  try {
+    const [ampStatus, ahqStatus] = await Promise.all([
+      amp.getFreshStatus(),
+      bm.getFreshStatus(),
+    ]);
 
-  // Overlay real-time BattleMetrics player counts onto AMP instances
-  // Match by order: Server 1 = first Wasteland instance, Server 2 = second
-  const wastelandInstances = activeInstances.filter(i => i.friendlyName.toLowerCase().includes("wasteland"));
-  for (let i = 0; i < bmStatus.servers.length && i < wastelandInstances.length; i++) {
-    const srv = bmStatus.servers[i];
-    wastelandInstances[i].players.current = srv.players;
-    wastelandInstances[i].players.max = srv.maxPlayers;
-    wastelandInstances[i].players.percent = srv.maxPlayers ? Math.round((srv.players / srv.maxPlayers) * 100) : 0;
+    // Build server list from ArmaHQ data, overlay AMP CPU/memory
+    const wastelandInstances = ampStatus.instances.filter(i =>
+      i.running && i.appState >= 5 && i.friendlyName.toLowerCase().includes("wasteland")
+    );
+
+    servers = ahqStatus.servers.map((srv, i) => {
+      const ampInst = wastelandInstances[i] || null;
+      return {
+        label: srv.label,
+        name: srv.name,
+        players: srv.players,
+        maxPlayers: srv.maxPlayers,
+        queue: srv.queue || 0,
+        peak: srv.peak || 0,
+        status: srv.status,
+        cpu: ampInst ? ampInst.cpu : { value: 0, max: 100, percent: 0, units: "%" },
+        memory: ampInst ? ampInst.memory : { value: 0, max: 0, percent: 0, units: "MB" },
+        instanceName: ampInst ? ampInst.instanceName : "",
+        ampVersion: ampInst ? ampInst.ampVersion : "",
+      };
+    });
+  } catch (err) {
+    console.error("Admin servers error:", err.message);
+    serversError = true;
   }
 
-  const totalPlayers = activeInstances.reduce((sum, i) => sum + i.players.current, 0);
-  const totalMax = activeInstances.reduce((sum, i) => sum + i.players.max, 0);
+  const totalPlayers = servers.reduce((sum, s) => sum + s.players, 0);
+  const totalMax = servers.reduce((sum, s) => sum + s.maxPlayers, 0);
+  const totalQueue = servers.reduce((sum, s) => sum + s.queue, 0);
 
   res.render("admin-servers", {
     page: "admin",
     pageTitle: "Servers",
-    pageDescription: "Live server performance metrics from AMP.",
+    pageDescription: "Live server performance metrics.",
     user,
-    instances: activeInstances,
+    servers,
     totalPlayers,
     totalMax,
-    instanceCount: activeInstances.length,
-    fetchedAt: status.fetchedAt,
-    ampError: !status.fetchedAt && status.instances.length === 0,
-    chartDataJson: JSON.stringify({}),
+    totalQueue,
+    serverCount: servers.length,
+    fetchedAt: new Date().toISOString(),
+    serversError,
+    chartDataJson: JSON.stringify(metricsHistory.getHistory(6)),
   });
+});
+
+// GET /admin/servers/history — JSON endpoint for chart time range
+router.get("/servers/history", (req, res) => {
+  const hours = Math.min(Math.max(parseInt(req.query.hours) || 6, 1), 720);
+  res.json(metricsHistory.getHistory(hours));
 });
 
 module.exports = router;
