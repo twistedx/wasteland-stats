@@ -11,6 +11,7 @@
   <div class="admin-form-card blog-edit-card">
     <h3>{{#if isNew}}New Post{{else}}Edit Post{{/if}}</h3>
     <form method="POST" action="{{#if isNew}}/admin/blog{{else}}/admin/blog/edit/{{post.id}}{{/if}}">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
       <div class="form-group">
         <label class="form-label" for="title">Title</label>
         <input type="text" id="title" name="title" class="filter-input blog-input-full" value="{{#if post}}{{post.title}}{{/if}}" required />

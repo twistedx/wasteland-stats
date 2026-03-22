@@ -4,6 +4,11 @@ const session = require("express-session");
 const FileStore = require("session-file-store")(session);
 const { engine } = require("express-handlebars");
 const axios = require("axios");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+const { csrfSync } = require("csrf-sync");
+const { JSDOM } = require("jsdom");
+const createDOMPurify = require("dompurify");
 const config = require("./config");
 const { sendWebhookError } = require("./webhook");
 const analytics = require("./analytics");
@@ -16,8 +21,30 @@ const { marked } = require("marked");
 
 const fs = require("fs");
 
+// DOMPurify for sanitizing markdown HTML output
+const window = new JSDOM("").window;
+const DOMPurify = createDOMPurify(window);
+
 const app = express();
 app.set("trust proxy", 1);
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "https://cdn.discordapp.com", "data:"],
+      connectSrc: ["'self'"],
+      frameSrc: ["'self'", "https://www.youtube.com"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
 
 const SESSION_DIR = path.join(__dirname, "..", "data", "sessions");
 if (!fs.existsSync(SESSION_DIR)) {
@@ -59,6 +86,7 @@ app.engine(
     partialsDir: path.join(__dirname, "..", "views", "partials"),
     helpers: {
       eq: (a, b) => a === b,
+      or: (a, b) => a || b,
       gt: (a, b) => a > b,
       lt: (a, b) => a < b,
       add: (a, b) => a + b,
@@ -81,7 +109,7 @@ app.engine(
       },
       markdown: (val) => {
         if (!val) return "";
-        return marked(val);
+        return DOMPurify.sanitize(marked(val));
       },
       joinTags: (arr) => {
         if (!arr || !Array.isArray(arr)) return "";
@@ -136,6 +164,54 @@ app.use(express.static(path.join(__dirname, "..", "public"), {
     }
   },
 }));
+
+// CSRF protection
+const { csrfSynchronisedProtection, generateToken } = csrfSync({
+  getTokenFromRequest: (req) => req.body._csrf || req.headers["x-csrf-token"],
+  getTokenFromState: (req) => req.session?.csrfToken,
+  storeTokenInState: (req, token) => { req.session.csrfToken = token; },
+  size: 64,
+});
+
+// Make CSRF token available in all views
+app.use((req, res, next) => {
+  if (req.session) {
+    res.locals.csrfToken = generateToken(req, true);
+  }
+  next();
+});
+
+// Apply CSRF protection to all POST/PUT/DELETE (skip API JSON endpoints)
+app.use((req, res, next) => {
+  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") {
+    return next();
+  }
+  // Skip CSRF for JSON API endpoints (they use API tokens)
+  if (req.path.startsWith("/api/")) {
+    return next();
+  }
+  csrfSynchronisedProtection(req, res, next);
+});
+
+// Rate limiters
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  message: "Too many login attempts. Please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Export limiters for use in routes
+app.set("loginLimiter", loginLimiter);
+app.set("apiLimiter", apiLimiter);
 
 // Session validation — verify the cookie matches valid server-side session data
 app.use((req, res, next) => {
@@ -209,7 +285,7 @@ app.use(analytics.middleware);
 
 app.use("/auth", require("./routes/auth"));
 app.use("/admin", require("./routes/admin"));
-app.use("/api", require("./routes/api"));
+app.use("/api", apiLimiter, require("./routes/api"));
 app.use("/blog", require("./routes/blog"));
 
 async function fetchHomeData(req) {

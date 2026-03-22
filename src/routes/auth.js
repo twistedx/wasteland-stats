@@ -3,11 +3,51 @@ const axios = require("axios");
 const config = require("../config");
 const steamStore = require("../steam-store");
 const adminUsers = require("../admin-users");
+const bm = require("../armahq");
 const router = express.Router();
 
 const DISCORD_AUTH_URL = "https://discord.com/api/oauth2/authorize";
 const DISCORD_TOKEN_URL = "https://discord.com/api/oauth2/token";
 const DISCORD_API = "https://discord.com/api/v10";
+
+// Check if a user is watchlisted and send a Discord webhook alert
+async function checkWatchlist(user) {
+  if (!config.watchlistWebhookUrl || !config.adminApiToken) return;
+  const discordId = user.discord_id;
+  if (!discordId) return;
+
+  try {
+    const res = await axios.get(`${config.apiBaseUrl}/admin/watchlist`, {
+      params: { token: config.adminApiToken, discord_id: discordId },
+      timeout: 10000,
+    });
+    if (!res.data?.is_watchlisted) return;
+
+    // Determine which server(s) they might be on from cached ArmaHQ data
+    const status = bm.getStatus();
+    const serverInfo = status.servers
+      .filter(s => s.players > 0)
+      .map(s => `${s.label}: ${s.players}/${s.maxPlayers}`)
+      .join(", ") || "No active servers";
+
+    await axios.post(config.watchlistWebhookUrl, {
+      embeds: [{
+        title: "Watchlisted Player Login",
+        description: `**${user.username}** has logged into the dashboard.`,
+        color: 0xf59e0b,
+        fields: [
+          { name: "Discord ID", value: discordId, inline: true },
+          { name: "Servers Online", value: serverInfo, inline: false },
+        ],
+        timestamp: new Date().toISOString(),
+      }],
+    }, { timeout: 10000 });
+
+    console.log(`[Watchlist] Alert sent for ${user.username} (${discordId})`);
+  } catch (err) {
+    console.error("[Watchlist] Check/webhook error:", err.message);
+  }
+}
 
 // Track rate limit state — don't call Discord if we know we're blocked
 let rateLimitedUntil = 0;
@@ -109,7 +149,7 @@ router.get("/discord/callback", async (req, res) => {
       steamStore.upsert(discordUser.id, discordUser.username, steamConn.id, steamConn.name);
     }
 
-    req.session.user = {
+    const userData = {
       discord_id: discordUser.id,
       username: discordUser.username,
       avatar: discordUser.avatar,
@@ -121,8 +161,17 @@ router.get("/discord/callback", async (req, res) => {
       steamId: steamConn?.id || null,
     };
 
-    req.session.save(() => {
-      res.redirect("/?login=success");
+    // Regenerate session to prevent session fixation
+    req.session.regenerate((err) => {
+      if (err) console.error("Session regenerate error:", err.message);
+      req.session.user = userData;
+
+      // Check watchlist in background (don't block login)
+      checkWatchlist(req.session.user);
+
+      req.session.save(() => {
+        res.redirect("/?login=success");
+      });
     });
   } catch (error) {
     handleRateLimit(error);
@@ -148,8 +197,12 @@ router.get("/login", (req, res) => {
   });
 });
 
-// Email/password login
-router.post("/login", async (req, res) => {
+// Email/password login (rate limited)
+router.post("/login", (req, res, next) => {
+  const limiter = req.app.get("loginLimiter");
+  if (limiter) return limiter(req, res, next);
+  next();
+}, async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -204,7 +257,7 @@ router.post("/login", async (req, res) => {
       }
     }
 
-    req.session.user = {
+    const userData = {
       username: user.username,
       email: user.email,
       discord_id: user.discord_id || null,
@@ -218,9 +271,18 @@ router.post("/login", async (req, res) => {
       steamId: null,
     };
 
-    req.session.save(() => {
-      console.log(`Login: ${user.username} (${email}) logged in via email [admin=${isAdmin}]`);
-      res.redirect("/");
+    // Regenerate session to prevent session fixation
+    req.session.regenerate((err) => {
+      if (err) console.error("Session regenerate error:", err.message);
+      req.session.user = userData;
+
+      // Check watchlist in background (don't block login)
+      checkWatchlist(req.session.user);
+
+      req.session.save(() => {
+        console.log(`Login: ${user.username} (${email}) logged in via email [admin=${isAdmin}]`);
+        res.redirect("/");
+      });
     });
   } catch (err) {
     console.error("Login error:", err.message);
@@ -241,12 +303,23 @@ router.get("/register", (req, res) => {
   });
 });
 
-// Registration
-router.post("/register", async (req, res) => {
+// Email validation helper
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Registration (rate limited)
+router.post("/register", (req, res, next) => {
+  const limiter = req.app.get("loginLimiter");
+  if (limiter) return limiter(req, res, next);
+  next();
+}, async (req, res) => {
   const { username, email, password } = req.body;
 
   if (!username || !email || !password) {
     return res.redirect("/auth/register?error=All fields are required.");
+  }
+
+  if (!EMAIL_REGEX.test(email)) {
+    return res.redirect("/auth/register?error=Please enter a valid email address.");
   }
 
   if (username.trim().length < 2 || username.trim().length > 32) {
@@ -268,7 +341,7 @@ router.post("/register", async (req, res) => {
     // Auto-login after registration
     const user = await adminUsers.authenticate(email, password);
 
-    req.session.user = {
+    const userData = {
       username: user.username,
       email: user.email,
       discord_id: null,
@@ -282,9 +355,13 @@ router.post("/register", async (req, res) => {
       steamId: null,
     };
 
-    req.session.save(() => {
-      console.log(`Register: ${user.username} (${email}) created account`);
-      res.redirect("/");
+    req.session.regenerate((err) => {
+      if (err) console.error("Session regenerate error:", err.message);
+      req.session.user = userData;
+      req.session.save(() => {
+        console.log(`Register: ${user.username} (${email}) created account`);
+        res.redirect("/");
+      });
     });
   } catch (err) {
     console.error("Registration error:", err.message);
@@ -353,7 +430,7 @@ router.post("/account/email", (req, res) => {
   }
 
   const { email } = req.body;
-  if (!email || !email.includes("@")) {
+  if (!email || !EMAIL_REGEX.test(email)) {
     return res.redirect("/auth/account?error=Please enter a valid email address.");
   }
 

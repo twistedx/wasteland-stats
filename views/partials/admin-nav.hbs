@@ -5,12 +5,32 @@
   </button>
   <div class="admin-tabs" id="admin-tabs">
     <a href="/admin/analytics" class="tab {{#if (eq activeTab 'analytics')}}active{{/if}}">Analytics</a>
-    <a href="/admin/bans" class="tab {{#if (eq activeTab 'bans')}}active{{/if}}">Ban List</a>
-    <a href="/admin/kills" class="tab {{#if (eq activeTab 'kills')}}active{{/if}}">Kill Log</a>
+
+    <!-- Moderation dropdown -->
+    <div class="admin-dropdown">
+      <button class="tab admin-dropdown-toggle {{#if (or (or (eq activeTab 'bans') (eq activeTab 'kills')) (eq activeTab 'watchlist'))}}active{{/if}}">
+        Moderation <span class="dropdown-arrow">&#9662;</span>
+      </button>
+      <div class="admin-dropdown-menu">
+        <a href="/admin/bans" class="admin-dropdown-item {{#if (eq activeTab 'bans')}}active{{/if}}">Ban List</a>
+        <a href="/admin/kills" class="admin-dropdown-item {{#if (eq activeTab 'kills')}}active{{/if}}">Kill Log</a>
+        <a href="/admin/watchlist" class="admin-dropdown-item {{#if (eq activeTab 'watchlist')}}active{{/if}}">Watchlist</a>
+      </div>
+    </div>
+
     {{#if user.isWriteAdmin}}
-      <a href="/admin/money" class="tab {{#if (eq activeTab 'money')}}active{{/if}}">Add Money</a>
-      <a href="/admin/skins" class="tab {{#if (eq activeTab 'skins')}}active{{/if}}">Skins</a>
+    <!-- Utilities dropdown -->
+    <div class="admin-dropdown">
+      <button class="tab admin-dropdown-toggle {{#if (or (eq activeTab 'money') (eq activeTab 'skins'))}}active{{/if}}">
+        Utilities <span class="dropdown-arrow">&#9662;</span>
+      </button>
+      <div class="admin-dropdown-menu">
+        <a href="/admin/money" class="admin-dropdown-item {{#if (eq activeTab 'money')}}active{{/if}}">Add Money</a>
+        <a href="/admin/skins" class="admin-dropdown-item {{#if (eq activeTab 'skins')}}active{{/if}}">Skins</a>
+      </div>
+    </div>
     {{/if}}
+
     {{#if user.isBlogAdmin}}
       <a href="/admin/blog" class="tab {{#if (eq activeTab 'blog')}}active{{/if}}">Blog</a>
     {{/if}}
@@ -34,14 +54,37 @@ document.addEventListener('DOMContentLoaded', function() {
     tabs.classList.toggle('open');
   });
   // Close menu when a tab is clicked
-  tabs.querySelectorAll('.tab').forEach(function(tab) {
+  tabs.querySelectorAll('.tab:not(.admin-dropdown-toggle)').forEach(function(tab) {
     tab.addEventListener('click', function() {
       btn.classList.remove('open');
       tabs.classList.remove('open');
     });
   });
-  // Close menu when clicking outside
+  tabs.querySelectorAll('.admin-dropdown-item').forEach(function(item) {
+    item.addEventListener('click', function() {
+      btn.classList.remove('open');
+      tabs.classList.remove('open');
+    });
+  });
+
+  // Dropdown toggle logic
+  document.querySelectorAll('.admin-dropdown-toggle').forEach(function(toggle) {
+    toggle.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var dropdown = this.closest('.admin-dropdown');
+      var wasOpen = dropdown.classList.contains('open');
+      // Close all dropdowns first
+      document.querySelectorAll('.admin-dropdown').forEach(function(d) { d.classList.remove('open'); });
+      if (!wasOpen) dropdown.classList.add('open');
+    });
+  });
+
+  // Close dropdowns when clicking outside
   document.addEventListener('click', function(e) {
+    if (!e.target.closest('.admin-dropdown')) {
+      document.querySelectorAll('.admin-dropdown').forEach(function(d) { d.classList.remove('open'); });
+    }
     if (!btn.contains(e.target) && !tabs.contains(e.target)) {
       btn.classList.remove('open');
       tabs.classList.remove('open');

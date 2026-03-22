@@ -128,7 +128,7 @@ function generateVerifyCode(email) {
   // Clean expired codes
   db.prepare("DELETE FROM verify_codes WHERE created_at < ?").run(Date.now() - CODE_EXPIRY);
 
-  const code = crypto.randomBytes(3).toString("hex").toUpperCase(); // e.g. "A3F1B2"
+  const code = crypto.randomBytes(5).toString("hex").toUpperCase(); // e.g. "A3F1B2C9D0" (40-bit entropy)
   db.prepare("INSERT INTO verify_codes (code, email, created_at) VALUES (?, ?, ?)").run(
     code, email.toLowerCase().trim(), Date.now()
   );

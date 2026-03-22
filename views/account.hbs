@@ -18,6 +18,7 @@
     <div class="account-section">
       <h3>Display Name</h3>
       <form method="POST" action="/auth/account/username" class="login-form">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
         <div class="login-field">
           <input type="text" name="username" value="{{user.username}}" required minlength="2" maxlength="32" placeholder="Display name">
         </div>
@@ -29,6 +30,7 @@
       <div class="account-section">
         <h3>Email</h3>
         <form method="POST" action="/auth/account/email" class="login-form">
+          <input type="hidden" name="_csrf" value="{{csrfToken}}">
           <div class="login-field">
             <input type="email" name="email" value="{{user.email}}" required placeholder="Email address">
           </div>
@@ -39,6 +41,7 @@
       <div class="account-section">
         <h3>Password</h3>
         <form method="POST" action="/auth/account/password" class="login-form">
+          <input type="hidden" name="_csrf" value="{{csrfToken}}">
           <div class="login-field">
             <input type="password" name="currentPassword" required placeholder="Current password" autocomplete="current-password">
           </div>

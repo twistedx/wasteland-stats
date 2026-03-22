@@ -1,0 +1,143 @@
+<section id="admin-section">
+  {{> admin-nav}}
+
+  {{#if successMessage}}
+    <div class="notice success-notice">
+      <strong>Success</strong>
+      <p>{{successMessage}}</p>
+    </div>
+  {{/if}}
+
+  {{#if errorMessage}}
+    <div class="error">{{errorMessage}}</div>
+  {{/if}}
+
+  <form class="filter-bar" method="GET" action="/admin/watchlist">
+    <input
+      type="text"
+      name="search"
+      class="filter-input"
+      placeholder="Search players by username..."
+      value="{{search}}"
+    >
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-admin">Search</button>
+    </div>
+  </form>
+
+  {{#if watchlistError}}
+    <div class="error">Failed to search players. Please try again.</div>
+  {{else if search}}
+    <p class="result-count">{{playerCount}} player{{#unless (eq playerCount 1)}}s{{/unless}} found</p>
+
+    {{#if players.length}}
+      <!-- Desktop table -->
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Arma ID</th>
+              <th>Status</th>
+              <th>Web Notes</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each players}}
+              <tr>
+                <td class="player-name">{{this.arma_username}}</td>
+                <td><code>{{this.arma_id}}</code></td>
+                <td>
+                  {{#if this.isWatchlisted}}
+                    <span class="badge badge-danger">Watchlisted</span>
+                  {{else}}
+                    <span class="badge badge-neutral">Not Watched</span>
+                  {{/if}}
+                </td>
+                <td class="web-notes-cell">
+                  <form method="POST" action="/admin/watchlist/notes" class="notes-inline-form">
+                    <input type="hidden" name="_csrf" value="{{../csrfToken}}">
+                    <input type="hidden" name="arma_id" value="{{this.arma_id}}">
+                    <input type="text" name="web_notes" class="filter-input notes-input" value="{{this.webNotes}}" placeholder="Add notes...">
+                    <button type="submit" class="btn btn-admin btn-small">Save</button>
+                  </form>
+                </td>
+                <td>
+                  {{#if this.isWatchlisted}}
+                    <form method="POST" action="/admin/watchlist" style="display:inline;">
+                      <input type="hidden" name="_csrf" value="{{../csrfToken}}">
+                      <input type="hidden" name="arma_id" value="{{this.arma_id}}">
+                      <input type="hidden" name="action" value="remove">
+                      <button type="submit" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Remove</button>
+                    </form>
+                  {{else}}
+                    <form method="POST" action="/admin/watchlist" style="display:inline;">
+                      <input type="hidden" name="_csrf" value="{{../csrfToken}}">
+                      <input type="hidden" name="arma_id" value="{{this.arma_id}}">
+                      <input type="hidden" name="action" value="add">
+                      <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Add to Watchlist</button>
+                    </form>
+                  {{/if}}
+                </td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile cards -->
+      <div class="mobile-cards">
+        {{#each players}}
+          <div class="mobile-card">
+            <div class="mobile-card-header">
+              <span class="player-name">{{this.arma_username}}</span>
+              {{#if this.isWatchlisted}}
+                <span class="badge badge-danger">Watchlisted</span>
+              {{else}}
+                <span class="badge badge-neutral">Not Watched</span>
+              {{/if}}
+            </div>
+            <div class="mobile-card-row">
+              <span class="mobile-label">Arma ID</span>
+              <code>{{this.arma_id}}</code>
+            </div>
+            <div class="mobile-card-row">
+              <span class="mobile-label">Notes</span>
+              <span>{{fallback this.webNotes "-"}}</span>
+            </div>
+            <div class="mobile-card-row" style="margin-top:0.5rem;">
+              <form method="POST" action="/admin/watchlist/notes" style="display:flex;gap:0.5rem;width:100%;">
+                <input type="hidden" name="_csrf" value="{{../csrfToken}}">
+                <input type="hidden" name="arma_id" value="{{this.arma_id}}">
+                <input type="text" name="web_notes" class="filter-input notes-input" value="{{this.webNotes}}" placeholder="Add notes..." style="flex:1;">
+                <button type="submit" class="btn btn-admin btn-small">Save</button>
+              </form>
+            </div>
+            <div class="mobile-card-actions">
+              {{#if this.isWatchlisted}}
+                <form method="POST" action="/admin/watchlist">
+                  <input type="hidden" name="_csrf" value="{{../csrfToken}}">
+                  <input type="hidden" name="arma_id" value="{{this.arma_id}}">
+                  <input type="hidden" name="action" value="remove">
+                  <button type="submit" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;width:100%;">Remove from Watchlist</button>
+                </form>
+              {{else}}
+                <form method="POST" action="/admin/watchlist">
+                  <input type="hidden" name="_csrf" value="{{../csrfToken}}">
+                  <input type="hidden" name="arma_id" value="{{this.arma_id}}">
+                  <input type="hidden" name="action" value="add">
+                  <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;width:100%;">Add to Watchlist</button>
+                </form>
+              {{/if}}
+            </div>
+          </div>
+        {{/each}}
+      </div>
+    {{else}}
+      <p class="result-count" style="text-align:center;padding:2rem 0;color:var(--text-secondary);">No players found for "{{search}}"</p>
+    {{/if}}
+  {{else}}
+    <p class="result-count" style="text-align:center;padding:2rem 0;color:var(--text-secondary);">Search for a player by username to view or update their watchlist status.</p>
+  {{/if}}
+</section>

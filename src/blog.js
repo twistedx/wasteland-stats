@@ -153,7 +153,9 @@ function updatePost(id, { title, description, content, tags, published }) {
   if (tags !== undefined) updates.tags = JSON.stringify(parseTags(tags));
   if (published !== undefined) updates.published = published ? 1 : 0;
 
-  const setClauses = Object.keys(updates).map((k) => `${k} = @${k}`).join(", ");
+  const ALLOWED_COLUMNS = ["title", "slug", "description", "content", "tags", "published", "updatedAt"];
+  const safeKeys = Object.keys(updates).filter((k) => ALLOWED_COLUMNS.includes(k));
+  const setClauses = safeKeys.map((k) => `${k} = @${k}`).join(", ");
   db.prepare(`UPDATE posts SET ${setClauses} WHERE id = @id`).run({ id, ...updates });
 
   return getPostById(id);

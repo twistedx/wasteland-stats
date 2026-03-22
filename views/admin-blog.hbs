@@ -43,6 +43,7 @@
               <td class="blog-actions">
                 <a href="/admin/blog/edit/{{this.id}}" class="btn btn-small">Edit</a>
                 <form method="POST" action="/admin/blog/delete/{{this.id}}" style="display:inline;" onsubmit="return confirm('Delete this post?');">
+                  <input type="hidden" name="_csrf" value="{{../csrfToken}}">
                   <button type="submit" class="btn btn-small btn-danger">Delete</button>
                 </form>
               </td>
@@ -84,6 +85,7 @@
               <a href="/blog/{{this.slug}}" class="btn btn-admin btn-small" style="flex:1;text-align:center;">View</a>
               <a href="/admin/blog/edit/{{this.id}}" class="btn btn-small" style="flex:1;text-align:center;">Edit</a>
               <form method="POST" action="/admin/blog/delete/{{this.id}}" style="flex:1;" onsubmit="return confirm('Delete this post?');">
+                <input type="hidden" name="_csrf" value="{{../csrfToken}}">
                 <button type="submit" class="btn btn-small btn-danger" style="width:100%;">Delete</button>
               </form>
             </div>

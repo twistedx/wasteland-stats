@@ -22,6 +22,7 @@
       </div>
 
       <form id="modal-form" method="POST" action="/admin/bans" class="money-form">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
         <div class="form-group">
           <label class="form-label">Player Arma ID</label>
           <input

@@ -25,6 +25,8 @@ const config = {
     password: process.env.AMP_PASSWORD || "",
   },
   armaHqApiKey: process.env.ARMAHQ_API_KEY || "",
+  adminApiToken: process.env.ADMIN_API_TOKEN || "",
+  watchlistWebhookUrl: process.env.WATCHLISTWH || "",
 };
 
 const required = ["apiBaseUrl", "apiToken", "sessionSecret", "discordBotToken", "discordGuildId"];

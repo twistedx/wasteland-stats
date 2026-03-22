@@ -62,6 +62,7 @@
   <div class="admin-form-card">
     <h3>Add Money</h3>
     <form method="POST" action="/admin/money" class="money-form">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
       <div class="form-group">
         <label class="form-label">Player Arma ID</label>
         <input

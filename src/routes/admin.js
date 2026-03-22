@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const express = require("express");
 const axios = require("axios");
 const config = require("../config");
@@ -188,7 +189,7 @@ router.post("/bans", async (req, res) => {
     console.error("Ban player error:", error.message);
     const apiMsg = error.response?.data?.message || error.message;
     sendWebhookError("Ban Player", apiMsg);
-    res.redirect("/admin/bans?error=" + encodeURIComponent("Failed to ban player. " + apiMsg));
+    res.redirect("/admin/bans?error=" + encodeURIComponent("Failed to ban player. Please try again."));
   }
 });
 
@@ -222,12 +223,16 @@ router.post("/bans/unban", async (req, res) => {
     console.error("Unban player error:", error.message);
     const apiMsg = error.response?.data?.message || error.message;
     sendWebhookError("Unban Player", apiMsg);
-    res.redirect("/admin/bans?error=" + encodeURIComponent("Failed to unban player. " + apiMsg));
+    res.redirect("/admin/bans?error=" + encodeURIComponent("Failed to unban player. Please try again."));
   }
 });
 
 function csvEscape(val) {
-  const str = String(val);
+  let str = String(val);
+  // Prevent CSV formula injection (Excel treats =, +, -, @ as formulas)
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = "'" + str;
+  }
   if (str.includes(",") || str.includes('"') || str.includes("\n")) {
     return '"' + str.replace(/"/g, '""') + '"';
   }
@@ -357,7 +362,7 @@ router.post("/money", requireWriteAdmin, async (req, res) => {
       console.error("Response data:", JSON.stringify(error.response.data));
     }
     sendWebhookError("Add Money", error.message);
-    res.redirect("/admin/money?error=Failed to add money. " + error.message);
+    res.redirect("/admin/money?error=Failed to add money. Please try again.");
   }
 });
 
@@ -420,7 +425,223 @@ router.post("/skins", requireWriteAdmin, async (req, res) => {
     console.error("Skin assign error:", error.message);
     const apiMsg = error.response?.data?.message || error.message;
     sendWebhookError("Skin Assign", apiMsg);
-    res.redirect("/admin/skins?error=" + encodeURIComponent("Failed to assign skin. " + apiMsg));
+    res.redirect("/admin/skins?error=" + encodeURIComponent("Failed to assign skin. Please try again."));
+  }
+});
+
+// POST /admin/skins/tebex — simulate Tebex webhook to add skin to database
+router.post("/skins/tebex", requireWriteAdmin, async (req, res) => {
+  const { discord_id, package_name } = req.body;
+  const adminUser = req.session.user;
+
+  if (!discord_id || !package_name) {
+    return res.redirect("/admin/skins?error=All fields are required.");
+  }
+
+  const txId = "tbx-manual-" + Date.now().toString(36);
+  const payload = {
+    id: crypto.randomUUID(),
+    type: "payment.completed",
+    date: new Date().toISOString(),
+    subject: {
+      transaction_id: txId,
+      status: { id: 1, description: "Complete" },
+      payment_sequence: "oneoff",
+      created_at: new Date().toISOString(),
+      price: { amount: 0, currency: "USD", base_currency: "USD", base_currency_price: 0 },
+      price_paid: { amount: 0, currency: "USD", base_currency: "USD", base_currency_price: 0 },
+      payment_method: { name: "Manual", refundable: false },
+      fees: {
+        tax: { amount: 0, currency: "USD", base_currency: "USD", base_currency_price: 0 },
+        gateway: { amount: 0, currency: "USD", base_currency: "USD", base_currency_price: 0 },
+      },
+      customer: {
+        first_name: "Manual",
+        last_name: "Admin",
+        email: "admin@manual.local",
+        ip: "127.0.0.1",
+        username: { id: "0", username: "Manual" },
+        marketing_consent: false,
+        country: "US",
+        postal_code: null,
+      },
+      products: [
+        {
+          id: Date.now(),
+          name: package_name,
+          type: null,
+          quantity: 1,
+          base_price: { amount: 0, currency: "USD", base_currency: "USD", base_currency_price: 0 },
+          paid_price: { amount: 0, currency: "USD", base_currency: "USD", base_currency_price: 0 },
+          variables: [{ identifier: "discord_id", option: discord_id }],
+          expires_at: null,
+          custom: null,
+          username: { id: "0", username: "Manual" },
+          servers: [],
+        },
+      ],
+      coupons: [],
+      gift_cards: [],
+      recurring_payment_reference: null,
+      custom: {},
+      revenue_share: [],
+      decline_reason: null,
+      creator_code: null,
+      settled_at: new Date().toISOString(),
+    },
+  };
+
+  try {
+    await apiClient.post(
+      `/itemsUser/updateDiscordUserItem`,
+      payload,
+      { params: { token: config.backendToken } }
+    );
+
+    sendWebhook({
+      title: "Skin Added (Tebex Payload)",
+      description: `**${adminUser.username}** added **${package_name}** to Discord user \`${discord_id}\``,
+      color: 0x8B5CF6,
+    });
+
+    res.redirect(`/admin/skins?success=Added "${package_name}" to Discord user ${discord_id}`);
+  } catch (error) {
+    console.error("Tebex skin add error:", error.message);
+    const apiMsg = error.response?.data?.message || error.message;
+    sendWebhookError("Tebex Skin Add", apiMsg);
+    res.redirect("/admin/skins?error=" + encodeURIComponent("Failed to add skin. Please try again."));
+  }
+});
+
+// ── Watchlist ──
+
+// Admin API client (uses new admin token)
+const adminApiClient = axios.create({
+  baseURL: config.apiBaseUrl,
+  timeout: 30000,
+  headers: { "Content-Type": "application/json" },
+});
+
+// GET /admin/watchlist
+router.get("/watchlist", async (req, res) => {
+  const user = req.session.user;
+  buildAvatarUrl(user);
+
+  const search = (req.query.search || "").trim();
+  let players = [];
+  let watchlistError = false;
+
+  if (search) {
+    try {
+      const searchRes = await apiClient({
+        method: "GET",
+        url: "/user/searchUsersByUsername/",
+        data: { search, token: config.apiToken },
+      });
+      const data = searchRes.data?.users || searchRes.data?.data || searchRes.data;
+      const matchList = Array.isArray(data) ? data : [];
+
+      // Check watchlist status for each matched player
+      const checks = matchList.slice(0, 20).map(async (p) => {
+        let isWatchlisted = false;
+        let webNotes = "";
+        try {
+          const wlRes = await adminApiClient.get("/admin/watchlist", {
+            params: { token: config.adminApiToken, arma_id: p.arma_id },
+          });
+          isWatchlisted = !!wlRes.data?.is_watchlisted;
+        } catch {}
+        try {
+          const notesRes = await adminApiClient.get("/admin/bans/webNotes", {
+            params: { token: config.adminApiToken, arma_id: p.arma_id },
+          });
+          webNotes = notesRes.data?.web_notes || "";
+        } catch {}
+        return {
+          arma_id: p.arma_id || "-",
+          arma_username: p.arma_username || "Unknown",
+          isWatchlisted,
+          webNotes,
+        };
+      });
+      players = await Promise.all(checks);
+    } catch (error) {
+      console.error("Watchlist search error:", error.message);
+      watchlistError = true;
+    }
+  }
+
+  res.render("admin-watchlist", {
+    page: "admin",
+    pageTitle: "Watchlist",
+    pageDescription: "Manage the player watchlist.",
+    activeTab: "watchlist",
+    user,
+    search,
+    players,
+    playerCount: players.length,
+    watchlistError,
+    successMessage: req.query.success || null,
+    errorMessage: req.query.error || null,
+  });
+});
+
+// POST /admin/watchlist — toggle watchlist status
+router.post("/watchlist", async (req, res) => {
+  const { arma_id, action } = req.body;
+  const user = req.session.user;
+
+  if (!arma_id) {
+    return res.redirect("/admin/watchlist?error=Arma ID is required.");
+  }
+
+  const isWatchlisted = action === "add";
+
+  try {
+    await adminApiClient.post("/admin/watchlist", {
+      token: config.adminApiToken,
+      arma_id,
+      is_watchlisted: isWatchlisted,
+    });
+
+    sendWebhook({
+      title: isWatchlisted ? "Player Added to Watchlist" : "Player Removed from Watchlist",
+      description: `**${user.username}** ${isWatchlisted ? "added" : "removed"} \`${String(arma_id).replace(/[`*_~|]/g, "")}\` ${isWatchlisted ? "to" : "from"} the watchlist`,
+      color: isWatchlisted ? 0xf59e0b : 0x22c55e,
+    });
+
+    res.redirect("/admin/watchlist?success=" + encodeURIComponent(
+      `Player ${arma_id} has been ${isWatchlisted ? "added to" : "removed from"} the watchlist.`
+    ));
+  } catch (error) {
+    console.error("Watchlist update error:", error.message);
+    const apiMsg = error.response?.data?.message || error.message;
+    sendWebhookError("Watchlist Update", apiMsg);
+    res.redirect("/admin/watchlist?error=" + encodeURIComponent("Failed to update watchlist. Please try again."));
+  }
+});
+
+// POST /admin/watchlist/notes — update web notes for a player
+router.post("/watchlist/notes", async (req, res) => {
+  const { arma_id, web_notes } = req.body;
+
+  if (!arma_id) {
+    return res.redirect("/admin/watchlist?error=Arma ID is required.");
+  }
+
+  try {
+    await adminApiClient.post("/admin/bans/webNotes", {
+      token: config.adminApiToken,
+      arma_id,
+      web_notes: web_notes || "",
+    });
+
+    res.redirect("/admin/watchlist?success=" + encodeURIComponent("Notes updated for " + arma_id + "."));
+  } catch (error) {
+    console.error("Web notes update error:", error.message);
+    const apiMsg = error.response?.data?.message || error.message;
+    sendWebhookError("Web Notes Update", apiMsg);
+    res.redirect("/admin/watchlist?error=" + encodeURIComponent("Failed to update notes. Please try again."));
   }
 });
 
