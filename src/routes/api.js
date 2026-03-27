@@ -51,7 +51,6 @@ async function buildStats() {
     leaderboardAllTime: [],
     bans: [],
     detailedStats: [],
-    serverTotals: {},
     fetchedAt: new Date().toISOString(),
   };
 
@@ -85,40 +84,6 @@ async function buildStats() {
       return null;
     })
     .filter(Boolean);
-
-  // Aggregate server totals from detailed stats
-  let totalKills = 0, totalDeaths = 0, totalShots = 0, totalGrenades = 0;
-  let totalAiKills = 0, totalRoadkills = 0;
-  let totalDistWalked = 0, totalDistDriven = 0;
-  let totalBandages = 0, totalMorphine = 0, totalVehicleDeaths = 0;
-
-  for (const s of results.detailedStats) {
-    totalKills += Number(s.kill_count) || 0;
-    totalDeaths += Number(s.deaths) || 0;
-    totalShots += Number(s.shots_fired) || 0;
-    totalGrenades += Number(s.grenades_thrown) || 0;
-    totalAiKills += Number(s.ai_kills) || 0;
-    totalRoadkills += Number(s.roadkills) || 0;
-    totalDistWalked += Number(s.distance_walked) || 0;
-    totalDistDriven += Number(s.distance_driven) || 0;
-    totalBandages += (Number(s.bandage_self) || 0) + (Number(s.bandage_friendlies) || 0);
-    totalMorphine += (Number(s.morphine_self) || 0) + (Number(s.morphine_friendlies) || 0);
-    totalVehicleDeaths += Number(s.players_died_in_vehicle) || 0;
-  }
-
-  results.serverTotals = {
-    kills: totalKills,
-    deaths: totalDeaths,
-    shotsFired: totalShots,
-    grenades: totalGrenades,
-    aiKills: totalAiKills,
-    roadkills: totalRoadkills,
-    vehicleDeaths: totalVehicleDeaths,
-    distanceWalkedKm: Math.round(totalDistWalked / 1000),
-    distanceDrivenKm: Math.round(totalDistDriven / 1000),
-    bandagesUsed: totalBandages,
-    morphineUsed: totalMorphine,
-  };
 
   cachedStats = results;
   cacheTimestamp = now;

@@ -8,25 +8,27 @@
 
     <!-- Moderation dropdown -->
     <div class="admin-dropdown">
-      <button class="tab admin-dropdown-toggle {{#if (or (or (eq activeTab 'bans') (eq activeTab 'kills')) (eq activeTab 'watchlist'))}}active{{/if}}">
+      <button class="tab admin-dropdown-toggle {{#if (or (or (or (eq activeTab 'bans') (eq activeTab 'kills')) (eq activeTab 'watchlist')) (eq activeTab 'kd-report'))}}active{{/if}}">
         Moderation <span class="dropdown-arrow">&#9662;</span>
       </button>
       <div class="admin-dropdown-menu">
         <a href="/admin/bans" class="admin-dropdown-item {{#if (eq activeTab 'bans')}}active{{/if}}">Ban List</a>
         <a href="/admin/kills" class="admin-dropdown-item {{#if (eq activeTab 'kills')}}active{{/if}}">Kill Log</a>
         <a href="/admin/watchlist" class="admin-dropdown-item {{#if (eq activeTab 'watchlist')}}active{{/if}}">Watchlist</a>
+        <a href="/admin/kd-report" class="admin-dropdown-item {{#if (eq activeTab 'kd-report')}}active{{/if}}">K/D Report</a>
       </div>
     </div>
 
     {{#if user.isWriteAdmin}}
     <!-- Utilities dropdown -->
     <div class="admin-dropdown">
-      <button class="tab admin-dropdown-toggle {{#if (or (eq activeTab 'money') (eq activeTab 'skins'))}}active{{/if}}">
+      <button class="tab admin-dropdown-toggle {{#if (or (or (eq activeTab 'money') (eq activeTab 'skins')) (eq activeTab 'items'))}}active{{/if}}">
         Utilities <span class="dropdown-arrow">&#9662;</span>
       </button>
       <div class="admin-dropdown-menu">
         <a href="/admin/money" class="admin-dropdown-item {{#if (eq activeTab 'money')}}active{{/if}}">Add Money</a>
         <a href="/admin/skins" class="admin-dropdown-item {{#if (eq activeTab 'skins')}}active{{/if}}">Skins</a>
+        <a href="/admin/items" class="admin-dropdown-item {{#if (eq activeTab 'items')}}active{{/if}}">Create Skins</a>
       </div>
     </div>
     {{/if}}

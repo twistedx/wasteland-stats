@@ -21,6 +21,12 @@
       <div class="stat-value">{{serverCount}}</div>
       <div class="stat-label">Servers</div>
     </div>
+    <div class="stat-card">
+      <div class="stat-value" style="color:{{#if (eq backendHealth 'online')}}#22c55e{{else}}var(--danger){{/if}};">
+        {{#if (eq backendHealth 'online')}}Online{{else}}Offline{{/if}}
+      </div>
+      <div class="stat-label">Backend API</div>
+    </div>
     {{#if fetchedAt}}
       <div class="stat-card">
         <div class="stat-value" style="font-size:0.9rem;">{{formatDate fetchedAt}}</div>

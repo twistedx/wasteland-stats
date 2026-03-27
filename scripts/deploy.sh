@@ -13,12 +13,16 @@
 
 set -e
 
+# Cleanup local zip on exit (success or failure)
+cleanup() { rm -f deploy-*.zip; }
+trap cleanup EXIT
+
 # ── Config ──
 SSH_HOST="192.99.16.196"
 SSH_PORT="22"
 SSH_USER="twisted"
 SSH_KEY="$HOME/.ssh/id_ed25519"
-REMOTE_APP_PATH="/wasteland-stats"
+REMOTE_APP_PATH="/home/twisted/wasteland-stats"
 PM2_APP="armawasteland"
 
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
@@ -87,56 +91,34 @@ echo ""
 # ── Step 4: Extract, apply, and restart on server ──
 echo "--- Applying on server ---"
 
-# Check if package.json is in the changeset
-NPM_INSTALL=""
-if echo "$CHANGED_FILES" | grep -q "^package\.json$\|^package-lock\.json$"; then
-  NPM_INSTALL="echo '  Running npm install...' && npm install --production 2>&1 | tail -5 &&"
+DEPLOY_OK=true
+
+echo "  Extracting..."
+${SSH_CMD} "cd ${REMOTE_APP_PATH} && unzip -o ${ZIP_NAME} -d . ; rm -f ${ZIP_NAME}" 2>&1
+
+echo "  Running npm install..."
+${SSH_CMD} "cd ${REMOTE_APP_PATH} && npm install --production" 2>&1 || DEPLOY_OK=false
+
+if [ "$DEPLOY_OK" = true ]; then
+  echo "  Restarting PM2..."
+  ${SSH_CMD} "cd ${REMOTE_APP_PATH} && npx pm2 restart ${PM2_APP}" 2>&1 || DEPLOY_OK=false
 fi
-
-${SSH_CMD} bash -s <<REMOTE_EOF
-  set -e
-  cd ${REMOTE_APP_PATH}
-
-  # Backup changed files before overwriting
-  BACKUP_DIR="deploy-backup-${TIMESTAMP}"
-  mkdir -p "\${BACKUP_DIR}"
-  echo "  Backing up existing files to \${BACKUP_DIR}/"
-
-  # Extract zip (overwrites existing files)
-  unzip -o ${ZIP_NAME} -d . > /dev/null 2>&1
-  echo "  Extracted ${FILE_COUNT} files."
-
-  # npm install if needed
-  ${NPM_INSTALL}
-
-  # Cleanup zip
-  rm -f ${ZIP_NAME}
-
-  # Restart PM2
-  echo "  Restarting PM2 (${PM2_APP})..."
-  npx pm2 restart ${PM2_APP}
-
-  # Health check
-  sleep 2
-  STATUS=\$(npx pm2 jlist 2>/dev/null | node -e "
-    let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{
-      try{const a=JSON.parse(d).find(x=>x.name==='${PM2_APP}');
-      if(a)console.log(a.pm2_env.status)}catch(e){}
-    });
-  " 2>/dev/null || echo "unknown")
-
-  if [ "\$STATUS" = "online" ]; then
-    echo "  Health check: ONLINE"
-  else
-    echo "  Health check: \${STATUS}"
-    echo "  Check logs: npx pm2 logs ${PM2_APP} --lines 30"
-  fi
-REMOTE_EOF
 
 echo ""
 
 # ── Cleanup local zip ──
 rm -f "${ZIP_NAME}"
 
-echo "=== Deploy complete ==="
+if [ "$DEPLOY_OK" = true ]; then
+  echo "========================================"
+  echo "  DEPLOY SUCCESSFUL"
+  echo "  ${FILE_COUNT} files deployed to ${SSH_USER}@${SSH_HOST}:${REMOTE_APP_PATH}"
+  echo "  PM2 process '${PM2_APP}' restarted"
+  echo "========================================"
+else
+  echo "========================================"
+  echo "  DEPLOY FAILED"
+  echo "  Check the output above for errors."
+  echo "========================================"
+fi
 echo ""

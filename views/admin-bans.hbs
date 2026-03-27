@@ -51,6 +51,7 @@
               <th>Banned By</th>
               <th>Reason</th>
               <th>Duration</th>
+              <th>Notes</th>
             </tr>
           </thead>
           <tbody>
@@ -63,6 +64,20 @@
                 <td>{{fallback this.admin_name "-"}}</td>
                 <td class="reason-cell">{{fallback this.reason "-"}}</td>
                 <td>{{#if (eq this.duration_hours -1)}}Permanent{{else}}{{this.duration_hours}}h{{/if}}</td>
+                <td>
+                  <button class="btn btn-admin btn-small ban-notes-btn" data-arma-id="{{this.user_id_banned}}" title="View/Edit Notes">Notes</button>
+                </td>
+              </tr>
+              <tr class="ban-notes-row" data-arma-id="{{this.user_id_banned}}" style="display:none;">
+                <td colspan="8">
+                  <div class="ban-notes-editor">
+                    <textarea class="ban-notes-textarea" rows="3" placeholder="Add notes about this player..."></textarea>
+                    <div class="ban-notes-actions">
+                      <button class="btn btn-admin btn-small ban-notes-save" data-arma-id="{{this.user_id_banned}}">Save</button>
+                      <span class="ban-notes-status"></span>
+                    </div>
+                  </div>
+                </td>
               </tr>
             {{/each}}
           </tbody>
@@ -101,6 +116,16 @@
                 <span class="ban-card-label">Reason</span>
                 <span class="ban-card-reason">{{fallback this.reason "-"}}</span>
               </div>
+              <div class="ban-card-row ban-card-notes-section" style="flex-direction:column;align-items:stretch;gap:0.5rem;">
+                <button class="btn btn-admin btn-small ban-notes-btn" data-arma-id="{{this.user_id_banned}}" style="align-self:flex-start;">Notes</button>
+                <div class="ban-notes-editor" data-arma-id="{{this.user_id_banned}}" style="display:none;">
+                  <textarea class="ban-notes-textarea" rows="3" placeholder="Add notes about this player..."></textarea>
+                  <div class="ban-notes-actions">
+                    <button class="btn btn-admin btn-small ban-notes-save" data-arma-id="{{this.user_id_banned}}">Save</button>
+                    <span class="ban-notes-status"></span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         {{/each}}
@@ -113,3 +138,101 @@
 </section>
 
 {{> ban-modal}}
+
+<script>
+(function() {
+  var csrfToken = '{{csrfToken}}';
+  var loadedNotes = {};
+
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.ban-notes-btn');
+    if (!btn) return;
+
+    var armaId = btn.getAttribute('data-arma-id');
+    if (!armaId) return;
+
+    var isMobile = !!btn.closest('.bans-accordion-mobile');
+
+    if (isMobile) {
+      // Mobile: toggle the inline editor
+      var editorDiv = btn.closest('.ban-card-notes-section').querySelector('.ban-notes-editor');
+      if (editorDiv) {
+        var isVisible = editorDiv.style.display !== 'none';
+        editorDiv.style.display = isVisible ? 'none' : 'block';
+        if (!isVisible && !loadedNotes[armaId]) {
+          fetchNotes(armaId, editorDiv.querySelector('.ban-notes-textarea'));
+        }
+      }
+    } else {
+      // Desktop: toggle the notes row
+      var notesRow = document.querySelector('tr.ban-notes-row[data-arma-id="' + armaId + '"]');
+      if (notesRow) {
+        var isVisible2 = notesRow.style.display !== 'none';
+        notesRow.style.display = isVisible2 ? 'none' : 'table-row';
+        if (!isVisible2 && !loadedNotes[armaId]) {
+          fetchNotes(armaId, notesRow.querySelector('.ban-notes-textarea'));
+        }
+      }
+    }
+  });
+
+  function fetchNotes(armaId, textarea) {
+    if (!textarea) return;
+    textarea.value = 'Loading...';
+    textarea.disabled = true;
+
+    fetch('/admin/bans/notes?arma_id=' + encodeURIComponent(armaId))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        textarea.value = data.web_notes || '';
+        textarea.disabled = false;
+        loadedNotes[armaId] = true;
+      })
+      .catch(function() {
+        textarea.value = '';
+        textarea.disabled = false;
+      });
+  }
+
+  document.addEventListener('click', function(e) {
+    var saveBtn = e.target.closest('.ban-notes-save');
+    if (!saveBtn) return;
+
+    var armaId = saveBtn.getAttribute('data-arma-id');
+    var container = saveBtn.closest('.ban-notes-editor');
+    var textarea = container.querySelector('.ban-notes-textarea');
+    var status = container.querySelector('.ban-notes-status');
+
+    saveBtn.disabled = true;
+    status.textContent = 'Saving...';
+    status.style.color = 'var(--text-secondary)';
+
+    fetch('/admin/bans/notes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken
+      },
+      body: JSON.stringify({ arma_id: armaId, web_notes: textarea.value })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      saveBtn.disabled = false;
+      if (data.success) {
+        status.textContent = 'Saved!';
+        status.style.color = '#22c55e';
+      } else {
+        status.textContent = data.error || 'Error';
+        status.style.color = 'var(--danger)';
+      }
+      setTimeout(function() { status.textContent = ''; }, 3000);
+    })
+    .catch(function() {
+      saveBtn.disabled = false;
+      status.textContent = 'Failed to save';
+      status.style.color = 'var(--danger)';
+      setTimeout(function() { status.textContent = ''; }, 3000);
+    });
+  });
+})();
+</script>

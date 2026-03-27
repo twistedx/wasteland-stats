@@ -1304,6 +1304,66 @@ details.misc-stats .stats-grid { padding: 1rem; }
   white-space: nowrap;
 }
 
+.ban-notes-row td {
+  padding: 0 !important;
+}
+
+.ban-notes-editor {
+  padding: 0.5rem 1rem;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.ban-notes-textarea {
+  width: 100%;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.5rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  resize: vertical;
+}
+
+.ban-notes-textarea:focus {
+  outline: none;
+  border-color: #f59e0b;
+}
+
+.ban-notes-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.4rem;
+}
+
+.ban-notes-status {
+  font-size: 0.8rem;
+}
+
+.ban-notes-btn {
+  font-size: 0.7rem !important;
+  padding: 0.2rem 0.5rem !important;
+}
+
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+}
+
+th.sortable:hover {
+  color: #f59e0b;
+}
+
+th.sortable.sort-active {
+  color: #f59e0b;
+}
+
+.sort-arrow {
+  font-size: 0.7rem;
+}
+
 .empty-state {
   text-align: center;
   color: var(--text-secondary);
@@ -1389,7 +1449,7 @@ details.misc-stats .stats-grid { padding: 1rem; }
   color: #f59e0b;
 }
 
-/* Admin hamburger menu */
+/* Admin nav bar */
 .admin-tab-bar {
   align-items: center;
   position: relative;
@@ -1435,13 +1495,14 @@ details.misc-stats .stats-grid { padding: 1rem; }
 }
 
 .admin-tabs {
-  display: contents;
+  display: flex;
+  align-items: center;
+  gap: 0;
 }
 
 /* Admin dropdown menus */
 .admin-dropdown {
   position: relative;
-  display: inline-flex;
 }
 
 .admin-dropdown-toggle {
@@ -1449,6 +1510,8 @@ details.misc-stats .stats-grid { padding: 1rem; }
   align-items: center;
   gap: 0.3rem;
   cursor: pointer;
+  background: none;
+  border: none;
 }
 
 .dropdown-arrow {
@@ -1488,6 +1551,7 @@ details.misc-stats .stats-grid { padding: 1rem; }
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  white-space: nowrap;
   transition: all 0.15s;
 }
 
@@ -1574,6 +1638,7 @@ details.misc-stats .stats-grid { padding: 1rem; }
     border-radius: 0 0 6px 6px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     flex-direction: column;
+    align-items: stretch;
     z-index: 100;
     padding: 0.5rem 0;
   }
@@ -1614,8 +1679,6 @@ details.misc-stats .stats-grid { padding: 1rem; }
 
   /* Admin dropdown mobile */
   .admin-dropdown {
-    display: flex;
-    flex-direction: column;
     width: 100%;
   }
 

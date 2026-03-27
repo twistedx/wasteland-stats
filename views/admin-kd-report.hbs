@@ -1,0 +1,143 @@
+<section id="admin-section">
+  {{> admin-nav}}
+
+  <form class="filter-bar" method="GET" action="/admin/kd-report">
+    <label style="color:var(--text-secondary);font-size:0.85rem;">K/D Threshold</label>
+    <input type="number" name="threshold" class="filter-input" style="max-width:100px;" value="{{threshold}}" step="0.5" min="1">
+    <label style="color:var(--text-secondary);font-size:0.85rem;">Min Kills</label>
+    <input type="number" name="min_kills" class="filter-input" style="max-width:100px;" value="{{minKills}}" min="1">
+    <button type="submit" class="btn btn-admin">Filter</button>
+  </form>
+
+  {{#if kdError}}
+    <div class="error">Failed to load K/D report. Please try again.</div>
+  {{else}}
+    <p class="result-count">{{playerCount}} player{{#unless (eq playerCount 1)}}s{{/unless}} with K/D &ge; {{threshold}} and &ge; {{minKills}} kills</p>
+
+    {{#if players.length}}
+      <div class="table-scroll bans-table-desktop">
+        <table id="kd-table">
+          <thead>
+            <tr>
+              <th class="sortable" data-col="0" data-type="string">Username <span class="sort-arrow"></span></th>
+              <th class="sortable" data-col="1" data-type="string">Discord <span class="sort-arrow"></span></th>
+              <th class="sortable" data-col="2" data-type="number">Kills <span class="sort-arrow"></span></th>
+              <th class="sortable" data-col="3" data-type="number">Deaths <span class="sort-arrow"></span></th>
+              <th class="sortable" data-col="4" data-type="number">K/D Ratio <span class="sort-arrow"></span></th>
+              <th class="sortable" data-col="5" data-type="string">Banned <span class="sort-arrow"></span></th>
+              <th class="sortable" data-col="6" data-type="string">Watchlisted <span class="sort-arrow"></span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each players}}
+              <tr>
+                <td class="player-name">{{fallback this.arma_username "Unknown"}}</td>
+                <td>{{fallback this.discord_username "-"}}</td>
+                <td>{{this.total_kills}}</td>
+                <td>{{this.total_deaths}}</td>
+                <td style="color:{{#if (gt this.kd_ratio 10)}}var(--danger){{else}}{{#if (gt this.kd_ratio 5)}}#F59E0B{{else}}#22c55e{{/if}}{{/if}};font-weight:600;">{{this.kd_ratio}}</td>
+                <td>{{#if this.is_banned}}<span style="color:var(--danger);">Yes</span>{{else}}-{{/if}}</td>
+                <td>{{#if this.is_watchlisted}}<span style="color:var(--danger);">Yes</span>{{else}}-{{/if}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile cards -->
+      <div class="bans-accordion-mobile">
+        {{#each players}}
+          <div class="ban-card">
+            <div class="ban-card-header" onclick="this.parentElement.classList.toggle('open')">
+              <span class="ban-card-name">{{fallback this.arma_username "Unknown"}}</span>
+              <div class="ban-card-right">
+                <span style="color:{{#if (gt this.kd_ratio 10)}}var(--danger){{else}}{{#if (gt this.kd_ratio 5)}}#F59E0B{{else}}#22c55e{{/if}}{{/if}};font-weight:600;">{{this.kd_ratio}} K/D</span>
+                <svg class="ban-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+              </div>
+            </div>
+            <div class="ban-card-body">
+              <div class="ban-card-row">
+                <span class="ban-card-label">Discord</span>
+                <span>{{fallback this.discord_username "-"}}</span>
+              </div>
+              <div class="ban-card-row">
+                <span class="ban-card-label">Kills</span>
+                <span>{{this.total_kills}}</span>
+              </div>
+              <div class="ban-card-row">
+                <span class="ban-card-label">Deaths</span>
+                <span>{{this.total_deaths}}</span>
+              </div>
+              <div class="ban-card-row">
+                <span class="ban-card-label">Banned</span>
+                <span>{{#if this.is_banned}}<span style="color:var(--danger);">Yes</span>{{else}}No{{/if}}</span>
+              </div>
+              <div class="ban-card-row">
+                <span class="ban-card-label">Watchlisted</span>
+                <span>{{#if this.is_watchlisted}}<span style="color:var(--danger);">Yes</span>{{else}}No{{/if}}</span>
+              </div>
+            </div>
+          </div>
+        {{/each}}
+      </div>
+    {{else}}
+      <div class="empty-state">No players match this threshold.</div>
+    {{/if}}
+  {{/if}}
+</section>
+
+<script>
+(function() {
+  var table = document.getElementById('kd-table');
+  if (!table) return;
+  var tbody = table.querySelector('tbody');
+  var headers = table.querySelectorAll('th.sortable');
+  var currentCol = -1;
+  var asc = true;
+
+  headers.forEach(function(th) {
+    th.addEventListener('click', function() {
+      var col = parseInt(this.getAttribute('data-col'));
+      var type = this.getAttribute('data-type');
+
+      if (currentCol === col) {
+        asc = !asc;
+      } else {
+        currentCol = col;
+        asc = true;
+      }
+
+      // Update arrows
+      headers.forEach(function(h) {
+        h.querySelector('.sort-arrow').textContent = '';
+        h.classList.remove('sort-active');
+      });
+      this.querySelector('.sort-arrow').textContent = asc ? ' \u25B2' : ' \u25BC';
+      this.classList.add('sort-active');
+
+      // Sort rows
+      var rows = Array.from(tbody.querySelectorAll('tr'));
+      rows.sort(function(a, b) {
+        var aVal = a.cells[col].textContent.trim();
+        var bVal = b.cells[col].textContent.trim();
+
+        if (type === 'number') {
+          aVal = parseFloat(aVal) || 0;
+          bVal = parseFloat(bVal) || 0;
+        } else {
+          aVal = aVal.toLowerCase();
+          bVal = bVal.toLowerCase();
+        }
+
+        if (aVal < bVal) return asc ? -1 : 1;
+        if (aVal > bVal) return asc ? 1 : -1;
+        return 0;
+      });
+
+      rows.forEach(function(row) { tbody.appendChild(row); });
+    });
+  });
+})();
+</script>
+
+{{> ban-modal}}

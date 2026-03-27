@@ -1,0 +1,55 @@
+<section id="admin-section">
+  {{> admin-nav}}
+
+  {{#if successMessage}}
+    <div class="notice success-notice">
+      <strong>Success</strong>
+      <p>{{successMessage}}</p>
+    </div>
+  {{/if}}
+
+  {{#if errorMessage}}
+    <div class="error">{{errorMessage}}</div>
+  {{/if}}
+
+  <div class="dash-grid">
+    <!-- Create new item -->
+    <div class="admin-form-card">
+      <h3>Create New Skin</h3>
+      <form method="POST" action="/admin/items" class="money-form">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <div class="form-group">
+          <label class="form-label">Item Name</label>
+          <input type="text" name="name" class="filter-input" placeholder="e.g. skin_viper" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <input type="text" name="description" class="filter-input" placeholder="e.g. Viper camo skin">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Skin Class Name</label>
+          <input type="text" name="skin_classname" class="filter-input" placeholder="e.g. viper_camo">
+        </div>
+        <button type="submit" class="btn btn-admin">Create Skin</button>
+      </form>
+    </div>
+
+    <!-- Item registry list -->
+    <div class="admin-form-card">
+      <h3>Skin Registry ({{itemCount}})</h3>
+      {{#if itemsError}}
+        <div class="error">Failed to load items.</div>
+      {{else if items.length}}
+        <div class="skin-list">
+          {{#each items}}
+            <span class="skin-tag">{{this}}</span>
+          {{/each}}
+        </div>
+      {{else}}
+        <div class="empty-state">No items in the registry.</div>
+      {{/if}}
+    </div>
+  </div>
+</section>
+
+{{> ban-modal}}

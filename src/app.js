@@ -264,7 +264,8 @@ require("./discord-bot").init();
 app.use(analytics.middleware);
 
 app.use("/auth", require("./routes/auth"));
-app.use("/admin", require("./routes/admin"));
+const adminLimiter = rateLimit({ windowMs: 60000, max: 60, standardHeaders: true, legacyHeaders: false });
+app.use("/admin", adminLimiter, require("./routes/admin"));
 app.use("/api", apiLimiter, require("./routes/api"));
 app.use("/blog", require("./routes/blog"));
 
@@ -374,6 +375,18 @@ app.get("/", async (req, res) => {
   const totalPlayers = bmStatus.totalPlayers;
   const totalMaxPlayers = bmStatus.totalMax;
 
+  // Fetch cash rollup from admin API
+  let cashRollup = null;
+  try {
+    const cashRes = await axios.get(`${config.apiBaseUrl}/admin/cash-rollup`, {
+      params: { token: config.adminApiToken },
+      timeout: 10000,
+    });
+    cashRollup = cashRes.data || null;
+  } catch (err) {
+    console.error("Cash rollup fetch error:", err.message);
+  }
+
   res.render("dashboard", {
     page: "home",
     pageTitle: "Server Dashboard",
@@ -382,6 +395,7 @@ app.get("/", async (req, res) => {
     serverStatus,
     totalPlayers,
     totalMaxPlayers,
+    cashRollup,
   });
 });
 

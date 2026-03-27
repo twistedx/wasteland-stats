@@ -17,6 +17,12 @@ const apiClient = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+const adminApiClient = axios.create({
+  baseURL: config.apiBaseUrl,
+  timeout: 30000,
+  headers: { "Content-Type": "application/json" },
+});
+
 // Admin auth middleware — verify session has valid user with admin role
 router.use((req, res, next) => {
   if (!req.session.user || (!req.session.user.discord_id && req.session.user.authMethod !== "email")) {
@@ -93,6 +99,39 @@ router.get("/bans", async (req, res) => {
     successMessage: req.query.success || null,
     errorMessage: req.query.error || null,
   });
+});
+
+// GET /admin/bans/notes — fetch web notes for a player (AJAX)
+router.get("/bans/notes", async (req, res) => {
+  const armaId = (req.query.arma_id || "").trim();
+  if (!armaId) return res.json({ web_notes: "" });
+
+  try {
+    const notesRes = await adminApiClient.get("/admin/bans/webNotes", {
+      params: { token: config.adminApiToken, arma_id: armaId },
+    });
+    res.json({ web_notes: notesRes.data?.web_notes || "" });
+  } catch {
+    res.json({ web_notes: "" });
+  }
+});
+
+// POST /admin/bans/notes — save web notes for a player (AJAX)
+router.post("/bans/notes", async (req, res) => {
+  const { arma_id, web_notes } = req.body;
+  if (!arma_id) return res.status(400).json({ error: "Arma ID is required." });
+
+  try {
+    await adminApiClient.post("/admin/bans/webNotes", {
+      token: config.adminApiToken,
+      arma_id,
+      web_notes: web_notes || "",
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Ban notes update error:", error.message);
+    res.status(500).json({ error: "Failed to save notes." });
+  }
 });
 
 // GET /admin/bans/search-players — JSON endpoint for modal player search
@@ -513,14 +552,72 @@ router.post("/skins/tebex", requireWriteAdmin, async (req, res) => {
   }
 });
 
+// GET /admin/items — item/skin registry
+router.get("/items", requireWriteAdmin, async (req, res) => {
+  const user = req.session.user;
+  buildAvatarUrl(user);
+
+  let items = [];
+  let itemsError = false;
+
+  try {
+    const response = await adminApiClient.get("/admin/items", {
+      params: { token: config.adminApiToken },
+    });
+    items = Array.isArray(response.data?.items) ? response.data.items : [];
+  } catch (error) {
+    console.error("Items fetch error:", error.message);
+    itemsError = true;
+  }
+
+  res.render("admin-items", {
+    page: "admin",
+    pageTitle: "Create Skins",
+    pageDescription: "Manage the skin registry.",
+    activeTab: "items",
+    user,
+    items,
+    itemCount: items.length,
+    itemsError,
+    successMessage: req.query.success || null,
+    errorMessage: req.query.error || null,
+  });
+});
+
+// POST /admin/items — create a new item
+router.post("/items", requireWriteAdmin, async (req, res) => {
+  const { name, description, skin_classname } = req.body;
+  const user = req.session.user;
+
+  if (!name) {
+    return res.redirect("/admin/items?error=Skin name is required.");
+  }
+
+  try {
+    await adminApiClient.post("/admin/items", {
+      token: config.adminApiToken,
+      name,
+      description: description || "",
+      misc_data: skin_classname ? { skin: skin_classname } : {},
+    });
+
+    sendWebhook({
+      title: "Skin Created",
+      description: `**${user.username}** created skin **${name}**`,
+      color: 0x8B5CF6,
+    });
+
+    res.redirect("/admin/items?success=" + encodeURIComponent(`Skin "${name}" created successfully.`));
+  } catch (error) {
+    console.error("Item create error:", error.message);
+    sendWebhookError("Skin Create", error.message);
+    res.redirect("/admin/items?error=" + encodeURIComponent("Failed to create skin. Please try again."));
+  }
+});
+
 // ── Watchlist ──
 
-// Admin API client (uses new admin token)
-const adminApiClient = axios.create({
-  baseURL: config.apiBaseUrl,
-  timeout: 30000,
-  headers: { "Content-Type": "application/json" },
-});
+// (adminApiClient declared at top of file)
 
 // GET /admin/watchlist
 router.get("/watchlist", async (req, res) => {
@@ -645,6 +742,50 @@ router.post("/watchlist/notes", async (req, res) => {
     sendWebhookError("Web Notes Update", apiMsg);
     res.redirect("/admin/watchlist?error=" + encodeURIComponent("Failed to update notes. Please try again.") + searchParam);
   }
+});
+
+// GET /admin/kd-report — suspicious K/D ratio report
+router.get("/kd-report", async (req, res) => {
+  const user = req.session.user;
+  buildAvatarUrl(user);
+
+  const threshold = Math.max(1, Math.min(100, parseFloat(req.query.threshold) || 3.0));
+  const minKills = Math.max(1, Math.min(1000, parseInt(req.query.min_kills) || 10));
+  let players = [];
+  let kdError = false;
+  let playerCount = 0;
+
+  try {
+    const [kdRes, bansRes] = await Promise.all([
+      adminApiClient.get("/admin/kd-report", {
+        params: { token: config.adminApiToken, threshold, min_kills: minKills },
+      }),
+      apiClient({ method: "GET", url: "/user/getAllUserBans/", data: { token: config.apiToken } }),
+    ]);
+
+    players = Array.isArray(kdRes.data?.players) ? kdRes.data.players : [];
+    playerCount = kdRes.data?.count || players.length;
+
+    const bans = Array.isArray(bansRes.data?.data) ? bansRes.data.data : [];
+    const bannedIds = new Set(bans.map(b => b.user_id_banned));
+    players.forEach(p => { p.is_banned = bannedIds.has(p.arma_id); });
+  } catch (error) {
+    console.error("K/D report error:", error.message);
+    kdError = true;
+  }
+
+  res.render("admin-kd-report", {
+    page: "admin",
+    pageTitle: "K/D Report",
+    pageDescription: "Players with suspicious kill/death ratios.",
+    activeTab: "kd-report",
+    user,
+    players,
+    playerCount,
+    threshold,
+    minKills,
+    kdError,
+  });
 });
 
 // GET /admin/kills
@@ -968,6 +1109,18 @@ router.get("/servers", async (req, res) => {
 
   let servers = [];
   let serversError = false;
+  let backendHealth = null;
+
+  // Check backend API health
+  try {
+    const healthRes = await adminApiClient.get("/admin/health/ping", {
+      params: { token: config.adminApiToken },
+      timeout: 5000,
+    });
+    backendHealth = healthRes.data?.success ? "online" : "offline";
+  } catch {
+    backendHealth = "offline";
+  }
 
   try {
     const [ampStatus, ahqStatus] = await Promise.all([
@@ -1029,7 +1182,8 @@ router.get("/servers", async (req, res) => {
     serverCount: servers.length,
     fetchedAt: new Date().toISOString(),
     serversError,
-    chartDataJson: JSON.stringify(metricsHistory.getHistory(6)),
+    backendHealth,
+    chartDataJson: JSON.stringify(metricsHistory.getHistory(6)).replace(/</g, "\\u003c"),
   });
 });
 
@@ -1117,7 +1271,7 @@ router.post("/system/restart-pm2", async (req, res) => {
   } catch (err) {
     console.error("PM2 restart error:", err.message);
     sendWebhookError("PM2 Restart", err.message);
-    res.redirect("/admin/system?error=" + encodeURIComponent("PM2 restart failed: " + err.message));
+    res.redirect("/admin/system?error=" + encodeURIComponent("PM2 restart failed. Check server logs for details."));
   }
 });
 
@@ -1150,7 +1304,7 @@ router.post("/system/deploy", async (req, res) => {
   } catch (err) {
     console.error("Deploy error:", err.message);
     sendWebhookError("Deploy", err.message);
-    res.redirect("/admin/system?error=" + encodeURIComponent("Deploy failed: " + err.message));
+    res.redirect("/admin/system?error=" + encodeURIComponent("Deploy failed. Check server logs for details."));
   }
 });
 

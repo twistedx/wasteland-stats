@@ -12,26 +12,6 @@
     grid: { left: "3%", right: "4%", bottom: "3%", top: "12%", containLabel: true },
   };
 
-  // --- Counter animation ---
-  function abbreviate(n) {
-    if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
-    if (n >= 10000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "K";
-    return Number(n).toLocaleString();
-  }
-
-  function animateCounter(el, target, suffix) {
-    var duration = 1800;
-    var start = performance.now();
-    function tick(now) {
-      var elapsed = now - start;
-      var progress = Math.min(elapsed / duration, 1);
-      var ease = 1 - Math.pow(1 - progress, 3);
-      el.textContent = abbreviate(Math.round(target * ease)) + (suffix || "");
-      if (progress < 1) requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
-  }
-
   // --- Chart rendering ---
   var homeCharts = [];
   var chartsRendered = false;
@@ -173,17 +153,6 @@
     .then(function (res) { return res.json(); })
     .then(function (data) {
       cachedApiData = data;
-
-      // Animate counters
-      if (data.serverTotals) {
-        document.querySelectorAll("[data-target]").forEach(function (el) {
-          var key = el.getAttribute("data-target");
-          var suffix = el.getAttribute("data-suffix") || "";
-          if (data.serverTotals[key] !== undefined) {
-            animateCounter(el, data.serverTotals[key], suffix);
-          }
-        });
-      }
 
       // If graph view is already visible, render immediately
       if (graphPane && graphPane.style.display !== "none") {

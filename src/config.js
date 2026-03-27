@@ -51,4 +51,8 @@ for (const key of requiredDiscord) {
   }
 }
 
+if (config.ssh.pm2AppName && !/^[a-zA-Z0-9_-]+$/.test(config.ssh.pm2AppName)) {
+  throw new Error("SSH_PM2_APP_NAME contains invalid characters (only alphanumeric, hyphens, underscores allowed)");
+}
+
 module.exports = config;
