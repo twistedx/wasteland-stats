@@ -219,7 +219,7 @@ router.post("/bans", async (req, res) => {
 
     sendWebhook({
       title: "Player Banned",
-      description: `**${user.username}** banned \`${String(arma_id).replace(/[`*_~|]/g, "")}\`\n**Reason:** ${String(reason).replace(/[`*_~|]/g, "")}\n**Duration:** ${hours === -1 ? "Permanent" : hours + "h"}`,
+      description: `<@${user.discord_id}> banned \`${String(arma_id).replace(/[`*_~|]/g, "")}\`\n**Reason:** ${String(reason).replace(/[`*_~|]/g, "")}\n**Duration:** ${hours === -1 ? "Permanent" : hours + "h"}`,
       color: 0xff3e3e,
     });
 
@@ -253,7 +253,7 @@ router.post("/bans/unban", async (req, res) => {
 
     sendWebhook({
       title: "Player Unbanned",
-      description: `**${user.username}** unbanned \`${String(arma_id).replace(/[`*_~|]/g, "")}\``,
+      description: `<@${user.discord_id}> unbanned \`${String(arma_id).replace(/[`*_~|]/g, "")}\``,
       color: 0x22c55e,
     });
 
@@ -389,7 +389,7 @@ router.post("/money", requireWriteAdmin, async (req, res) => {
 
     sendWebhook({
       title: "Money Added",
-      description: `**${user.username}** added **$${Number(amount).toLocaleString()}** to player \`${arma_id}\``,
+      description: `<@${user.discord_id}> added **$${Number(amount).toLocaleString()}** to player \`${arma_id}\``,
       color: 0xF59E0B,
     });
 
@@ -455,7 +455,7 @@ router.post("/skins", requireWriteAdmin, async (req, res) => {
 
     sendWebhook({
       title: "Skin Assigned",
-      description: `**${user.username}** assigned **${item_name}** to Discord user \`${discord_id}\``,
+      description: `<@${user.discord_id}> assigned **${item_name}** to Discord user <@${discord_id}>`,
       color: 0x8B5CF6,
     });
 
@@ -539,7 +539,7 @@ router.post("/skins/tebex", requireWriteAdmin, async (req, res) => {
 
     sendWebhook({
       title: "Skin Added (Tebex Payload)",
-      description: `**${adminUser.username}** added **${package_name}** to Discord user \`${discord_id}\``,
+      description: `<@${adminUser.discord_id}> added **${package_name}** to Discord user <@${discord_id}>`,
       color: 0x8B5CF6,
     });
 
@@ -603,7 +603,7 @@ router.post("/items", requireWriteAdmin, async (req, res) => {
 
     sendWebhook({
       title: "Skin Created",
-      description: `**${user.username}** created skin **${name}**`,
+      description: `<@${user.discord_id}> created skin **${name}**`,
       color: 0x8B5CF6,
     });
 
@@ -704,7 +704,7 @@ router.post("/watchlist", async (req, res) => {
 
     sendWebhook({
       title: isWatchlisted ? "Player Added to Watchlist" : "Player Removed from Watchlist",
-      description: `**${user.username}** ${isWatchlisted ? "added" : "removed"} \`${String(arma_id).replace(/[`*_~|]/g, "")}\` ${isWatchlisted ? "to" : "from"} the watchlist`,
+      description: `<@${user.discord_id}> ${isWatchlisted ? "added" : "removed"} \`${String(arma_id).replace(/[`*_~|]/g, "")}\` ${isWatchlisted ? "to" : "from"} the watchlist`,
       color: isWatchlisted ? 0xf59e0b : 0x22c55e,
     });
 
@@ -1263,7 +1263,7 @@ router.post("/system/restart-pm2", async (req, res) => {
 
     sendWebhook({
       title: "PM2 Restarted",
-      description: `**${user.username}** restarted \`${pm2App}\` via SSH.`,
+      description: `<@${user.discord_id}> restarted \`${pm2App}\` via SSH.`,
       color: 0xF59E0B,
     });
 
@@ -1296,7 +1296,7 @@ router.post("/system/deploy", async (req, res) => {
 
     sendWebhook({
       title: "Deployed via SSH",
-      description: `**${user.username}** deployed latest changes to production and restarted \`${config.ssh.pm2AppName}\`.`,
+      description: `<@${user.discord_id}> deployed latest changes to production and restarted \`${config.ssh.pm2AppName}\`.`,
       color: 0x22c55e,
     });
 

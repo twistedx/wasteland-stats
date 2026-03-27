@@ -22,13 +22,12 @@
     {{#if user.isWriteAdmin}}
     <!-- Utilities dropdown -->
     <div class="admin-dropdown">
-      <button class="tab admin-dropdown-toggle {{#if (or (or (eq activeTab 'money') (eq activeTab 'skins')) (eq activeTab 'items'))}}active{{/if}}">
+      <button class="tab admin-dropdown-toggle {{#if (or (eq activeTab 'money') (eq activeTab 'skins'))}}active{{/if}}">
         Utilities <span class="dropdown-arrow">&#9662;</span>
       </button>
       <div class="admin-dropdown-menu">
         <a href="/admin/money" class="admin-dropdown-item {{#if (eq activeTab 'money')}}active{{/if}}">Add Money</a>
         <a href="/admin/skins" class="admin-dropdown-item {{#if (eq activeTab 'skins')}}active{{/if}}">Skins</a>
-        <a href="/admin/items" class="admin-dropdown-item {{#if (eq activeTab 'items')}}active{{/if}}">Create Skins</a>
       </div>
     </div>
     {{/if}}
