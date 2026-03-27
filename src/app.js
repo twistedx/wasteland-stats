@@ -173,10 +173,13 @@ const { csrfSynchronisedProtection, generateToken } = csrfSync({
   size: 64,
 });
 
-// Make CSRF token available in all views
+// Make CSRF token available in all views — reuse existing token per session
 app.use((req, res, next) => {
   if (req.session) {
-    res.locals.csrfToken = generateToken(req, true);
+    if (!req.session.csrfToken) {
+      generateToken(req, true);
+    }
+    res.locals.csrfToken = req.session.csrfToken;
   }
   next();
 });
@@ -198,8 +201,15 @@ app.use((req, res, next) => {
     if (err) {
       console.warn(`CSRF validation failed: ${req.method} ${req.path} — ${err.message}`);
       // Redirect back with error instead of crashing
-      const referer = req.headers.referer || "/";
-      return res.redirect(referer + (referer.includes("?") ? "&" : "?") + "error=Form+expired.+Please+try+again.");
+      const referer = req.headers.referer;
+      if (referer) {
+        try {
+          const url = new URL(referer);
+          url.searchParams.set("error", "Form expired. Please try again.");
+          return res.redirect(url.pathname + url.search);
+        } catch {}
+      }
+      return res.redirect(req.path + "?error=Form+expired.+Please+try+again.");
     }
     next();
   });

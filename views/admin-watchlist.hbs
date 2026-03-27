@@ -89,57 +89,6 @@
         </table>
       </div>
 
-      <!-- Mobile cards -->
-      <div class="mobile-cards">
-        {{#each players}}
-          <div class="mobile-card">
-            <div class="mobile-card-header">
-              <span class="player-name">{{this.arma_username}}</span>
-              {{#if this.isWatchlisted}}
-                <span class="badge badge-danger">Watchlisted</span>
-              {{else}}
-                <span class="badge badge-neutral">Not Watched</span>
-              {{/if}}
-            </div>
-            <div class="mobile-card-row">
-              <span class="mobile-label">Arma ID</span>
-              <code>{{this.arma_id}}</code>
-            </div>
-            <div class="mobile-card-row">
-              <span class="mobile-label">Notes</span>
-              <span>{{fallback this.webNotes "-"}}</span>
-            </div>
-            <div class="mobile-card-row" style="margin-top:0.5rem;">
-              <form method="POST" action="/admin/watchlist/notes" style="display:flex;gap:0.5rem;width:100%;">
-                <input type="hidden" name="_csrf" value="{{../csrfToken}}">
-                <input type="hidden" name="search" value="{{../search}}">
-                <input type="hidden" name="arma_id" value="{{this.arma_id}}">
-                <input type="text" name="web_notes" class="filter-input notes-input" value="{{this.webNotes}}" placeholder="Add notes..." style="flex:1;">
-                <button type="submit" class="btn btn-admin btn-small">Save</button>
-              </form>
-            </div>
-            <div class="mobile-card-actions">
-              {{#if this.isWatchlisted}}
-                <form method="POST" action="/admin/watchlist">
-                  <input type="hidden" name="_csrf" value="{{../csrfToken}}">
-                  <input type="hidden" name="search" value="{{../search}}">
-                  <input type="hidden" name="arma_id" value="{{this.arma_id}}">
-                  <input type="hidden" name="action" value="remove">
-                  <button type="submit" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;width:100%;">Remove from Watchlist</button>
-                </form>
-              {{else}}
-                <form method="POST" action="/admin/watchlist">
-                  <input type="hidden" name="_csrf" value="{{../csrfToken}}">
-                  <input type="hidden" name="search" value="{{../search}}">
-                  <input type="hidden" name="arma_id" value="{{this.arma_id}}">
-                  <input type="hidden" name="action" value="add">
-                  <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;width:100%;">Add to Watchlist</button>
-                </form>
-              {{/if}}
-            </div>
-          </div>
-        {{/each}}
-      </div>
     {{else}}
       <p class="result-count" style="text-align:center;padding:2rem 0;color:var(--text-secondary);">No players found for "{{search}}"</p>
     {{/if}}
