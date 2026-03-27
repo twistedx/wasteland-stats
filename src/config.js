@@ -27,6 +27,14 @@ const config = {
   armaHqApiKey: process.env.ARMAHQ_API_KEY || "",
   adminApiToken: process.env.ADMIN_API_TOKEN || "",
   watchlistWebhookUrl: process.env.WATCHLISTWH || "",
+  ssh: {
+    host: process.env.SSH_HOST || "",
+    port: parseInt(process.env.SSH_PORT || "22", 10),
+    username: process.env.SSH_USERNAME || "",
+    privateKeyPath: process.env.SSH_PRIVATE_KEY_PATH || "",
+    appPath: process.env.SSH_APP_PATH || "",
+    pm2AppName: process.env.SSH_PM2_APP_NAME || "armawasteland",
+  },
 };
 
 const required = ["apiBaseUrl", "apiToken", "sessionSecret", "discordBotToken", "discordGuildId"];

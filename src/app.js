@@ -190,7 +190,19 @@ app.use((req, res, next) => {
   if (req.path.startsWith("/api/")) {
     return next();
   }
-  csrfSynchronisedProtection(req, res, next);
+  // Guard: if no session exists yet, reject the POST
+  if (!req.session) {
+    return res.status(403).send("Session required.");
+  }
+  csrfSynchronisedProtection(req, res, (err) => {
+    if (err) {
+      console.warn(`CSRF validation failed: ${req.method} ${req.path} — ${err.message}`);
+      // Redirect back with error instead of crashing
+      const referer = req.headers.referer || "/";
+      return res.redirect(referer + (referer.includes("?") ? "&" : "?") + "error=Form+expired.+Please+try+again.");
+    }
+    next();
+  });
 });
 
 // Rate limiters
@@ -248,38 +260,6 @@ bm.init();
 metricsHistory.init();
 adminUsers.init();
 require("./discord-bot").init();
-
-// Background polling — collect metrics every 5 minutes
-async function collectMetrics() {
-  try {
-    const [status, bmStatus] = await Promise.all([
-      amp.getFreshStatus(),
-      bm.getFreshStatus(),
-    ]);
-
-    // Filter to active Wasteland instances
-    const wasteland = status.instances.filter(i =>
-      i.running && i.appState >= 5 && i.friendlyName.toLowerCase().includes("wasteland")
-    );
-
-    // Overlay ArmaHQ player counts onto AMP instances
-    for (let i = 0; i < bmStatus.servers.length && i < wasteland.length; i++) {
-      const srv = bmStatus.servers[i];
-      wasteland[i].players.current = srv.players;
-      wasteland[i].players.max = srv.maxPlayers;
-      wasteland[i].players.percent = srv.maxPlayers ? Math.round((srv.players / srv.maxPlayers) * 100) : 0;
-    }
-
-    metricsHistory.record(wasteland, bmStatus.servers);
-    console.log(`MetricsHistory: recorded ${wasteland.length} instances`);
-  } catch (err) {
-    console.error("MetricsHistory: collection error:", err.message);
-  }
-}
-
-// Collect immediately on startup, then every 5 minutes
-collectMetrics();
-setInterval(collectMetrics, 5 * 60 * 1000);
 
 app.use(analytics.middleware);
 

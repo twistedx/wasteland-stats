@@ -1,6 +1,17 @@
 <section id="admin-section">
   {{> admin-nav}}
 
+  {{#if successMessage}}
+    <div class="notice success-notice">
+      <strong>Success</strong>
+      <p>{{successMessage}}</p>
+    </div>
+  {{/if}}
+
+  {{#if errorMessage}}
+    <div class="error">{{errorMessage}}</div>
+  {{/if}}
+
   <!-- System overview cards -->
   <div class="analytics-cards">
     <div class="stat-card primary">
@@ -118,6 +129,23 @@
       </table>
     </div>
     {{/if}}
+
+    <!-- Commands -->
+    <div class="dash-panel">
+      <div class="dash-panel-header">Commands</div>
+      <form method="POST" action="/admin/system/deploy" onsubmit="return confirm('This will pack, upload, and deploy changes to the server. Continue?')">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">
+          Deploy to Server
+        </button>
+      </form>
+      <form method="POST" action="/admin/system/restart-pm2" onsubmit="return confirm('Are you sure you want to restart PM2?')" style="margin-top:0.5rem;">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <button type="submit" class="btn btn-danger" style="width:100%;">
+          Restart PM2
+        </button>
+      </form>
+    </div>
   </div>
 </section>
 

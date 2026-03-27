@@ -588,11 +588,12 @@ router.get("/watchlist", async (req, res) => {
 
 // POST /admin/watchlist — toggle watchlist status
 router.post("/watchlist", async (req, res) => {
-  const { arma_id, action } = req.body;
+  const { arma_id, action, search } = req.body;
   const user = req.session.user;
+  const searchParam = search ? "&search=" + encodeURIComponent(search) : "";
 
   if (!arma_id) {
-    return res.redirect("/admin/watchlist?error=Arma ID is required.");
+    return res.redirect("/admin/watchlist?error=Arma ID is required." + searchParam);
   }
 
   const isWatchlisted = action === "add";
@@ -612,21 +613,22 @@ router.post("/watchlist", async (req, res) => {
 
     res.redirect("/admin/watchlist?success=" + encodeURIComponent(
       `Player ${arma_id} has been ${isWatchlisted ? "added to" : "removed from"} the watchlist.`
-    ));
+    ) + searchParam);
   } catch (error) {
     console.error("Watchlist update error:", error.message);
     const apiMsg = error.response?.data?.message || error.message;
     sendWebhookError("Watchlist Update", apiMsg);
-    res.redirect("/admin/watchlist?error=" + encodeURIComponent("Failed to update watchlist. Please try again."));
+    res.redirect("/admin/watchlist?error=" + encodeURIComponent("Failed to update watchlist. Please try again.") + searchParam);
   }
 });
 
 // POST /admin/watchlist/notes — update web notes for a player
 router.post("/watchlist/notes", async (req, res) => {
-  const { arma_id, web_notes } = req.body;
+  const { arma_id, web_notes, search } = req.body;
+  const searchParam = search ? "&search=" + encodeURIComponent(search) : "";
 
   if (!arma_id) {
-    return res.redirect("/admin/watchlist?error=Arma ID is required.");
+    return res.redirect("/admin/watchlist?error=Arma ID is required." + searchParam);
   }
 
   try {
@@ -636,12 +638,12 @@ router.post("/watchlist/notes", async (req, res) => {
       web_notes: web_notes || "",
     });
 
-    res.redirect("/admin/watchlist?success=" + encodeURIComponent("Notes updated for " + arma_id + "."));
+    res.redirect("/admin/watchlist?success=" + encodeURIComponent("Notes updated for " + arma_id + ".") + searchParam);
   } catch (error) {
     console.error("Web notes update error:", error.message);
     const apiMsg = error.response?.data?.message || error.message;
     sendWebhookError("Web Notes Update", apiMsg);
-    res.redirect("/admin/watchlist?error=" + encodeURIComponent("Failed to update notes. Please try again."));
+    res.redirect("/admin/watchlist?error=" + encodeURIComponent("Failed to update notes. Please try again.") + searchParam);
   }
 });
 
@@ -994,6 +996,17 @@ router.get("/servers", async (req, res) => {
         ampVersion: ampInst ? ampInst.ampVersion : "",
       };
     });
+    // Record metrics for history charts
+    const wasteland = ampStatus.instances.filter(i =>
+      i.running && i.appState >= 5 && i.friendlyName.toLowerCase().includes("wasteland")
+    );
+    for (let i = 0; i < ahqStatus.servers.length && i < wasteland.length; i++) {
+      const srv = ahqStatus.servers[i];
+      wasteland[i].players.current = srv.players;
+      wasteland[i].players.max = srv.maxPlayers;
+      wasteland[i].players.percent = srv.maxPlayers ? Math.round((srv.players / srv.maxPlayers) * 100) : 0;
+    }
+    metricsHistory.record(wasteland, ahqStatus.servers);
   } catch (err) {
     console.error("Admin servers error:", err.message);
     serversError = true;
@@ -1040,7 +1053,105 @@ router.get("/system", (req, res) => {
     activeTab: "system",
     user,
     ...stats,
+    successMessage: req.query.success || null,
+    errorMessage: req.query.error || null,
   });
+});
+
+// SSH helper — run a command on the remote server
+function sshExec(command) {
+  const { Client } = require("ssh2");
+  const fs = require("fs");
+
+  return new Promise((resolve, reject) => {
+    if (!config.ssh.host || !config.ssh.username || !config.ssh.privateKeyPath) {
+      return reject(new Error("SSH not configured. Set SSH_HOST, SSH_USERNAME, and SSH_PRIVATE_KEY_PATH in .env"));
+    }
+
+    const conn = new Client();
+    let stdout = "";
+    let stderr = "";
+
+    conn.on("ready", () => {
+      conn.exec(command, (err, stream) => {
+        if (err) { conn.end(); return reject(err); }
+        stream.on("data", (data) => { stdout += data.toString(); });
+        stream.stderr.on("data", (data) => { stderr += data.toString(); });
+        stream.on("close", (code) => {
+          conn.end();
+          if (code !== 0) {
+            return reject(new Error(stderr || `Command exited with code ${code}`));
+          }
+          resolve(stdout);
+        });
+      });
+    });
+
+    conn.on("error", (err) => reject(err));
+
+    conn.connect({
+      host: config.ssh.host,
+      port: config.ssh.port,
+      username: config.ssh.username,
+      privateKey: fs.readFileSync(config.ssh.privateKeyPath),
+    });
+  });
+}
+
+// POST /admin/system/restart-pm2 — restart PM2 via SSH
+router.post("/system/restart-pm2", async (req, res) => {
+  const user = req.session.user;
+  const pm2App = config.ssh.pm2AppName;
+
+  try {
+    const output = await sshExec(`npx pm2 restart ${pm2App}`);
+    console.log("PM2 restart output:", output);
+
+    sendWebhook({
+      title: "PM2 Restarted",
+      description: `**${user.username}** restarted \`${pm2App}\` via SSH.`,
+      color: 0xF59E0B,
+    });
+
+    res.redirect("/admin/system?success=" + encodeURIComponent(`PM2 process "${pm2App}" restarted successfully.`));
+  } catch (err) {
+    console.error("PM2 restart error:", err.message);
+    sendWebhookError("PM2 Restart", err.message);
+    res.redirect("/admin/system?error=" + encodeURIComponent("PM2 restart failed: " + err.message));
+  }
+});
+
+// POST /admin/system/deploy — full deploy via deploy.sh
+router.post("/system/deploy", async (req, res) => {
+  const user = req.session.user;
+  const { exec } = require("child_process");
+  const path = require("path");
+
+  try {
+    const output = await new Promise((resolve, reject) => {
+      exec("bash scripts/deploy.sh", {
+        cwd: path.resolve(__dirname, "../.."),
+        timeout: 120000,
+      }, (err, stdout, stderr) => {
+        if (err) return reject(new Error(stderr || stdout || err.message));
+        resolve(stdout);
+      });
+    });
+
+    console.log("Deploy output:", output);
+
+    sendWebhook({
+      title: "Deployed via SSH",
+      description: `**${user.username}** deployed latest changes to production and restarted \`${config.ssh.pm2AppName}\`.`,
+      color: 0x22c55e,
+    });
+
+    res.redirect("/admin/system?success=" + encodeURIComponent("Deploy completed successfully. Changes are live."));
+  } catch (err) {
+    console.error("Deploy error:", err.message);
+    sendWebhookError("Deploy", err.message);
+    res.redirect("/admin/system?error=" + encodeURIComponent("Deploy failed: " + err.message));
+  }
 });
 
 module.exports = router;
