@@ -10,6 +10,7 @@ const bm = require("../armahq");
 const metricsHistory = require("../metrics-history");
 const systemStats = require("../system-stats");
 const store = require("../store");
+const auditLog = require("../audit-log");
 const multer = require("multer");
 const sharp = require("sharp");
 const path = require("path");
@@ -245,6 +246,7 @@ router.post("/bans", async (req, res) => {
       },
     });
 
+    auditLog.log("moderation", "Player Banned", `Arma ID: ${arma_id}, Reason: ${reason}, Duration: ${hours === -1 ? "Permanent" : hours + "h"}`, user);
     sendWebhook({
       title: "Player Banned",
       description: `<@${user.discord_id}> banned \`${String(arma_id).replace(/[`*_~|]/g, "")}\`\n**Reason:** ${String(reason).replace(/[`*_~|]/g, "")}\n**Duration:** ${hours === -1 ? "Permanent" : hours + "h"}`,
@@ -279,6 +281,7 @@ router.post("/bans/unban", async (req, res) => {
       },
     });
 
+    auditLog.log("moderation", "Player Unbanned", `Arma ID: ${arma_id}`, user);
     sendWebhook({
       title: "Player Unbanned",
       description: `<@${user.discord_id}> unbanned \`${String(arma_id).replace(/[`*_~|]/g, "")}\``,
@@ -414,6 +417,7 @@ router.post("/money", requireWriteAdmin, async (req, res) => {
 
     // Track deposit total
     analytics.recordDeposit(Number(amount));
+    auditLog.log("economy", "Money Added", `$${Number(amount).toLocaleString()} to Arma ID: ${arma_id}`, user);
 
     sendWebhook({
       title: "Money Added",
@@ -485,6 +489,7 @@ router.post("/skins", requireWriteAdmin, async (req, res) => {
       { params: { token: config.backendToken } }
     );
 
+    auditLog.log("skins", "Skin Assigned", `${item_name} to Discord user ${discord_id}`, user);
     sendWebhook({
       title: "Skin Assigned",
       description: `<@${user.discord_id}> assigned **${item_name}** to Discord user <@${discord_id}>`,
@@ -578,6 +583,7 @@ router.post("/skins/tebex", requireWriteAdmin, async (req, res) => {
 
     console.log("Skin add response:", response.status, JSON.stringify(response.data));
 
+    auditLog.log("skins", "Skin Added to DB", `${item_name} (skin=${cleanKey})`, adminUser);
     sendWebhook({
       title: "Skin Created",
       description: `<@${adminUser.discord_id}> added **${item_name}** (skin=${cleanKey}) to the database`,
@@ -643,6 +649,7 @@ router.post("/items", requireWriteAdmin, async (req, res) => {
       misc_data: skin_classname ? { skin: skin_classname } : {},
     });
 
+    auditLog.log("skins", "Skin Created", `${name}${skin_classname ? " (skin=" + skin_classname + ")" : ""}`, user);
     sendWebhook({
       title: "Skin Created",
       description: `<@${user.discord_id}> created skin **${name}**`,
@@ -744,6 +751,7 @@ router.post("/watchlist", async (req, res) => {
       is_watchlisted: isWatchlisted,
     });
 
+    auditLog.log("moderation", isWatchlisted ? "Added to Watchlist" : "Removed from Watchlist", `Arma ID: ${arma_id}`, user);
     sendWebhook({
       title: isWatchlisted ? "Player Added to Watchlist" : "Player Removed from Watchlist",
       description: `<@${user.discord_id}> ${isWatchlisted ? "added" : "removed"} \`${String(arma_id).replace(/[`*_~|]/g, "")}\` ${isWatchlisted ? "to" : "from"} the watchlist`,
@@ -1018,8 +1026,10 @@ router.get("/analytics", async (req, res) => {
   const discord = await discordStats.getStats();
   const onlineHistory = discordStats.getOnlineHistory(7);
 
-  // Store stats (admin only)
+  // Store stats and audit log (admin only)
   const storeStats = user.isAdmin ? store.getStoreStats() : null;
+  const auditEntries = user.isAdmin ? (auditLog.getEntries({ limit: 50 }) || []) : null;
+  const auditStats = user.isAdmin ? (auditLog.getStats() || { total: 0, today: 0, byCat: [], byAdmin: [] }) : null;
 
   res.render("admin-analytics", {
     page: "admin",
@@ -1034,6 +1044,8 @@ router.get("/analytics", async (req, res) => {
     onlineHistoryJson: JSON.stringify(onlineHistory || []),
     storeStats,
     storeStatsJson: JSON.stringify(storeStats || {}),
+    auditEntries,
+    auditStats,
   });
 });
 
@@ -1262,6 +1274,7 @@ router.post("/servers/restart/:instanceId", requireWriteAdmin, async (req, res) 
 
   try {
     await amp.restartInstance(instanceId);
+    auditLog.log("servers", "Game Server Restarted", `Instance: ${instanceId}`, user);
 
     sendWebhook({
       title: "Game Server Restarted",
@@ -1344,6 +1357,7 @@ router.post("/system/restart-pm2", async (req, res) => {
   try {
     const output = await sshExec(`npx pm2 restart ${pm2App}`);
     console.log("PM2 restart output:", output);
+    auditLog.log("servers", "PM2 Restarted", `App: ${pm2App}`, user);
 
     sendWebhook({
       title: "PM2 Restarted",
@@ -1377,6 +1391,7 @@ router.post("/system/deploy", async (req, res) => {
     });
 
     console.log("Deploy output:", output);
+    auditLog.log("servers", "Deployed via SSH", `App: ${config.ssh.pm2AppName}`, user);
 
     sendWebhook({
       title: "Deployed via SSH",
@@ -1448,6 +1463,7 @@ router.post("/store", requireWriteAdmin, storeUpload.single("image_file"), async
     sort_order: parseInt(sort_order) || 0,
   });
 
+  auditLog.log("store", "Product Added", `${name} ($${price}) in ${category}`, req.session.user);
   res.redirect("/admin/store?success=" + encodeURIComponent(`"${name}" added to store.`));
 });
 
@@ -1483,6 +1499,7 @@ router.post("/store/edit/:id", requireWriteAdmin, storeUpload.single("image_file
     sort_order: parseInt(sort_order) || 0,
   });
 
+  auditLog.log("store", "Product Updated", `${name}${sale_price ? " (sale: $" + sale_price + ")" : ""}`, req.session.user);
   res.redirect("/admin/store?success=" + encodeURIComponent(`"${name}" updated.`));
 });
 
@@ -1495,6 +1512,7 @@ router.post("/store/delete/:id", requireWriteAdmin, (req, res) => {
   }
 
   store.deleteProduct(id);
+  auditLog.log("store", "Product Deleted", product.name, req.session.user);
   res.redirect("/admin/store?success=" + encodeURIComponent(`"${product.name}" deleted.`));
 });
 
@@ -1507,6 +1525,7 @@ router.post("/store/category", requireWriteAdmin, (req, res) => {
   const cleanSlug = slug.toLowerCase().replace(/[^a-z0-9-]/g, "-");
   try {
     store.createCategory({ slug: cleanSlug, label, description: description || "", sort_order: parseInt(sort_order) || 0 });
+    auditLog.log("store", "Category Created", `${label} (${cleanSlug})`, req.session.user);
     res.redirect("/admin/store?success=" + encodeURIComponent(`Category "${label}" created.`));
   } catch (err) {
     res.redirect("/admin/store?error=" + encodeURIComponent("Failed to create category: " + err.message));
@@ -1531,6 +1550,7 @@ router.post("/store/category/edit/:id", requireWriteAdmin, (req, res) => {
   }
 
   store.updateCategory(id, { slug: cleanSlug, label: label || cat.label, description: description || "", sort_order: parseInt(sort_order) || 0 });
+  auditLog.log("store", "Category Updated", `${label}`, req.session.user);
   res.redirect("/admin/store?success=" + encodeURIComponent(`Category "${label}" updated.`));
 });
 
@@ -1540,6 +1560,7 @@ router.post("/store/category/delete/:id", requireWriteAdmin, (req, res) => {
   const cat = store.getCategoryById(id);
   if (!cat) return res.redirect("/admin/store?error=Category not found.");
   store.deleteCategory(id);
+  auditLog.log("store", "Category Deleted", cat.label, req.session.user);
   res.redirect("/admin/store?success=" + encodeURIComponent(`Category "${cat.label}" deleted.`));
 });
 

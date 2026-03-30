@@ -7,6 +7,9 @@
     {{#if storeStats}}
       <button class="tab analytics-tab" data-tab="tab-store" type="button">Store</button>
     {{/if}}
+    {{#if user.isAdmin}}
+      <button class="tab analytics-tab" data-tab="tab-audit" type="button">Audit Log</button>
+    {{/if}}
   </div>
 
   <!-- ═══════════════ WEBSITE TAB ═══════════════ -->
@@ -384,6 +387,83 @@
   </div>
   {{/if}}
 
+  <!-- ═══════════════ AUDIT LOG TAB (Admin Only) ═══════════════ -->
+  {{#if user.isAdmin}}
+  <div id="tab-audit" style="display:none;">
+
+    <div class="analytics-cards">
+      <div class="stat-card primary">
+        <div class="stat-value">{{formatNumber auditStats.total}}</div>
+        <div class="stat-label">Total Actions Logged</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{formatNumber auditStats.today}}</div>
+        <div class="stat-label">Actions Today</div>
+      </div>
+      {{#each auditStats.byCat}}
+        <div class="stat-card">
+          <div class="stat-value">{{this.cnt}}</div>
+          <div class="stat-label">{{this.category}}</div>
+        </div>
+      {{/each}}
+    </div>
+
+    {{#if auditStats.byAdmin.length}}
+    <div class="admin-form-card" style="margin-bottom:1rem;">
+      <h3>Actions by Admin</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Admin</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each auditStats.byAdmin}}
+            <tr>
+              <td class="player-name">{{this.admin_username}}</td>
+              <td>{{this.cnt}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+    {{/if}}
+
+    <div class="admin-form-card">
+      <h3>Recent Actions</h3>
+      {{#if auditEntries.length}}
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Admin</th>
+                <th>Category</th>
+                <th>Action</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each auditEntries}}
+                <tr>
+                  <td>{{formatDate this.created_at}}</td>
+                  <td class="player-name">{{this.admin_username}}</td>
+                  <td><span class="skin-tag">{{this.category}}</span></td>
+                  <td style="font-weight:600;">{{this.action}}</td>
+                  <td style="color:var(--text-secondary);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{this.detail}}</td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        </div>
+      {{else}}
+        <div class="empty-state">No actions logged yet.</div>
+      {{/if}}
+    </div>
+  </div>
+  {{/if}}
+
 </section>
 
 {{> ban-modal}}
@@ -404,6 +484,8 @@
       document.getElementById('tab-discord').style.display = 'none';
       var storeEl = document.getElementById('tab-store');
       if (storeEl) storeEl.style.display = 'none';
+      var auditEl = document.getElementById('tab-audit');
+      if (auditEl) auditEl.style.display = 'none';
       document.getElementById(this.getAttribute('data-tab')).style.display = '';
 
       // Render Discord charts on first tab switch (ECharts needs visible container)

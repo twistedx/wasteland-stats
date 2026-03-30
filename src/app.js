@@ -18,6 +18,7 @@ const blog = require("./blog");
 const metricsHistory = require("./metrics-history");
 const adminUsers = require("./admin-users");
 const store = require("./store");
+const auditLog = require("./audit-log");
 const { marked } = require("marked");
 
 const fs = require("fs");
@@ -282,6 +283,7 @@ bm.init();
 metricsHistory.init();
 adminUsers.init();
 store.init();
+auditLog.init();
 require("./discord-bot").init();
 
 app.use(analytics.middleware);
