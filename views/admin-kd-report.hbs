@@ -1,142 +1,235 @@
 <section id="admin-section">
   {{> admin-nav}}
 
-  <form class="filter-bar" method="GET" action="/admin/kd-report">
+  <form class="filter-bar" id="kd-filter-form">
     <label style="color:var(--text-secondary);font-size:0.85rem;">K/D Threshold</label>
-    <input type="number" name="threshold" class="filter-input" style="max-width:100px;" value="{{threshold}}" step="0.5" min="1">
+    <input type="number" name="threshold" class="filter-input" style="max-width:100px;" value="{{threshold}}" step="0.5" min="1" id="kd-threshold">
     <label style="color:var(--text-secondary);font-size:0.85rem;">Min Kills</label>
-    <input type="number" name="min_kills" class="filter-input" style="max-width:100px;" value="{{minKills}}" min="1">
-    <button type="submit" class="btn btn-admin">Filter</button>
+    <input type="number" name="min_kills" class="filter-input" style="max-width:100px;" value="{{minKills}}" min="1" id="kd-min-kills">
+    <button type="submit" class="btn btn-admin" id="kd-filter-btn">Filter</button>
   </form>
 
-  {{#if kdError}}
-    <div class="error">Failed to load K/D report. Please try again.</div>
-  {{else}}
-    <p class="result-count">{{playerCount}} player{{#unless (eq playerCount 1)}}s{{/unless}} with K/D &ge; {{threshold}} and &ge; {{minKills}} kills</p>
+  <div id="kd-loading" class="kd-loading">
+    <div class="kd-spinner"></div>
+    <p>Loading K/D report...</p>
+    <p style="font-size:0.8rem;">This may take a minute</p>
+  </div>
 
-    {{#if players.length}}
-      <div class="table-scroll bans-table-desktop">
-        <table id="kd-table">
-          <thead>
-            <tr>
-              <th class="sortable" data-col="0" data-type="string">Username <span class="sort-arrow"></span></th>
-              <th class="sortable" data-col="1" data-type="string">Discord <span class="sort-arrow"></span></th>
-              <th class="sortable" data-col="2" data-type="number">Kills <span class="sort-arrow"></span></th>
-              <th class="sortable" data-col="3" data-type="number">Deaths <span class="sort-arrow"></span></th>
-              <th class="sortable" data-col="4" data-type="number">K/D Ratio <span class="sort-arrow"></span></th>
-              <th class="sortable" data-col="5" data-type="string">Banned <span class="sort-arrow"></span></th>
-              <th class="sortable" data-col="6" data-type="string">Watchlisted <span class="sort-arrow"></span></th>
-            </tr>
-          </thead>
-          <tbody>
-            {{#each players}}
-              <tr>
-                <td class="player-name">{{fallback this.arma_username "Unknown"}}</td>
-                <td>{{fallback this.discord_username "-"}}</td>
-                <td>{{this.total_kills}}</td>
-                <td>{{this.total_deaths}}</td>
-                <td style="color:{{#if (gt this.kd_ratio 10)}}var(--danger){{else}}{{#if (gt this.kd_ratio 5)}}#F59E0B{{else}}#22c55e{{/if}}{{/if}};font-weight:600;">{{this.kd_ratio}}</td>
-                <td>{{#if this.is_banned}}<span style="color:var(--danger);">Yes</span>{{else}}-{{/if}}</td>
-                <td>{{#if this.is_watchlisted}}<span style="color:var(--danger);">Yes</span>{{else}}-{{/if}}</td>
-              </tr>
-            {{/each}}
-          </tbody>
-        </table>
-      </div>
+  <style>
+    .kd-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 1rem;
+      gap: 1rem;
+      color: var(--text-secondary);
+    }
+    .kd-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: kd-spin 0.8s linear infinite;
+    }
+    @keyframes kd-spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
 
-      <!-- Mobile cards -->
-      <div class="bans-accordion-mobile">
-        {{#each players}}
-          <div class="ban-card">
-            <div class="ban-card-header" onclick="this.parentElement.classList.toggle('open')">
-              <span class="ban-card-name">{{fallback this.arma_username "Unknown"}}</span>
-              <div class="ban-card-right">
-                <span style="color:{{#if (gt this.kd_ratio 10)}}var(--danger){{else}}{{#if (gt this.kd_ratio 5)}}#F59E0B{{else}}#22c55e{{/if}}{{/if}};font-weight:600;">{{this.kd_ratio}} K/D</span>
-                <svg class="ban-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
-              </div>
-            </div>
-            <div class="ban-card-body">
-              <div class="ban-card-row">
-                <span class="ban-card-label">Discord</span>
-                <span>{{fallback this.discord_username "-"}}</span>
-              </div>
-              <div class="ban-card-row">
-                <span class="ban-card-label">Kills</span>
-                <span>{{this.total_kills}}</span>
-              </div>
-              <div class="ban-card-row">
-                <span class="ban-card-label">Deaths</span>
-                <span>{{this.total_deaths}}</span>
-              </div>
-              <div class="ban-card-row">
-                <span class="ban-card-label">Banned</span>
-                <span>{{#if this.is_banned}}<span style="color:var(--danger);">Yes</span>{{else}}No{{/if}}</span>
-              </div>
-              <div class="ban-card-row">
-                <span class="ban-card-label">Watchlisted</span>
-                <span>{{#if this.is_watchlisted}}<span style="color:var(--danger);">Yes</span>{{else}}No{{/if}}</span>
-              </div>
-            </div>
-          </div>
-        {{/each}}
-      </div>
-    {{else}}
-      <div class="empty-state">No players match this threshold.</div>
-    {{/if}}
-  {{/if}}
+  <div id="kd-results" style="display:none;"></div>
 </section>
 
 <script>
 (function() {
-  var table = document.getElementById('kd-table');
-  if (!table) return;
-  var tbody = table.querySelector('tbody');
-  var headers = table.querySelectorAll('th.sortable');
-  var currentCol = -1;
-  var asc = true;
+  var loading = document.getElementById('kd-loading');
+  var results = document.getElementById('kd-results');
+  var form = document.getElementById('kd-filter-form');
+  var btn = document.getElementById('kd-filter-btn');
+  var thresholdInput = document.getElementById('kd-threshold');
+  var minKillsInput = document.getElementById('kd-min-kills');
 
-  headers.forEach(function(th) {
-    th.addEventListener('click', function() {
-      var col = parseInt(this.getAttribute('data-col'));
-      var type = this.getAttribute('data-type');
+  function kdColor(ratio) {
+    if (ratio > 10) return 'var(--danger)';
+    if (ratio > 5) return '#F59E0B';
+    return '#22c55e';
+  }
 
-      if (currentCol === col) {
-        asc = !asc;
-      } else {
-        currentCol = col;
-        asc = true;
-      }
+  function escapeHtml(str) {
+    if (!str) return '-';
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
 
-      // Update arrows
-      headers.forEach(function(h) {
-        h.querySelector('.sort-arrow').textContent = '';
-        h.classList.remove('sort-active');
-      });
-      this.querySelector('.sort-arrow').textContent = asc ? ' \u25B2' : ' \u25BC';
-      this.classList.add('sort-active');
+  function renderResults(data) {
+    if (data.error) {
+      results.innerHTML = '<div class="error">Failed to load K/D report. Please try again.</div>';
+      return;
+    }
 
-      // Sort rows
-      var rows = Array.from(tbody.querySelectorAll('tr'));
-      rows.sort(function(a, b) {
-        var aVal = a.cells[col].textContent.trim();
-        var bVal = b.cells[col].textContent.trim();
+    var players = data.players || [];
+    var playerCount = data.playerCount || 0;
+    var threshold = thresholdInput.value;
+    var minKills = minKillsInput.value;
 
-        if (type === 'number') {
-          aVal = parseFloat(aVal) || 0;
-          bVal = parseFloat(bVal) || 0;
-        } else {
-          aVal = aVal.toLowerCase();
-          bVal = bVal.toLowerCase();
-        }
+    var html = '<p class="result-count">' + playerCount + ' player' + (playerCount !== 1 ? 's' : '') +
+      ' with K/D &ge; ' + threshold + ' and &ge; ' + minKills + ' kills</p>';
 
-        if (aVal < bVal) return asc ? -1 : 1;
-        if (aVal > bVal) return asc ? 1 : -1;
-        return 0;
-      });
+    if (players.length === 0) {
+      html += '<div class="empty-state">No players match this threshold.</div>';
+      results.innerHTML = html;
+      return;
+    }
 
-      rows.forEach(function(row) { tbody.appendChild(row); });
+    // Desktop table
+    html += '<div class="table-scroll bans-table-desktop"><table id="kd-table"><thead><tr>';
+    html += '<th class="sortable" data-col="0" data-type="string">Username <span class="sort-arrow"></span></th>';
+    html += '<th class="sortable" data-col="1" data-type="string">Discord <span class="sort-arrow"></span></th>';
+    html += '<th class="sortable" data-col="2" data-type="number">Kills <span class="sort-arrow"></span></th>';
+    html += '<th class="sortable" data-col="3" data-type="number">Deaths <span class="sort-arrow"></span></th>';
+    html += '<th class="sortable" data-col="4" data-type="number">K/D Ratio <span class="sort-arrow"></span></th>';
+    html += '<th class="sortable" data-col="5" data-type="string">Banned <span class="sort-arrow"></span></th>';
+    html += '<th class="sortable" data-col="6" data-type="string">Watchlisted <span class="sort-arrow"></span></th>';
+    html += '</tr></thead><tbody>';
+
+    players.forEach(function(p) {
+      html += '<tr class="kd-row-toggle" style="cursor:pointer;" title="Click to show GUID">';
+      html += '<td class="player-name">' + escapeHtml(p.arma_username || 'Unknown') + '</td>';
+      html += '<td>' + escapeHtml(p.discord_username || '-') + '</td>';
+      html += '<td>' + (p.total_kills || 0) + '</td>';
+      html += '<td>' + (p.total_deaths || 0) + '</td>';
+      html += '<td style="color:' + kdColor(p.kd_ratio) + ';font-weight:600;">' + p.kd_ratio + '</td>';
+      html += '<td>' + (p.is_banned ? '<span style="color:var(--danger);">Yes</span>' : '-') + '</td>';
+      html += '<td>' + (p.is_watchlisted ? '<span style="color:var(--danger);">Yes</span>' : '-') + '</td>';
+      html += '</tr>';
+      html += '<tr class="kd-detail-row" style="display:none;">';
+      html += '<td colspan="7" style="padding:0.5rem 1rem;background:var(--bg-primary);border-bottom:1px solid var(--border);">';
+      html += '<span style="color:var(--text-secondary);font-size:0.8rem;">Arma GUID:</span>';
+      html += '<code style="color:var(--accent);font-size:0.85rem;margin-left:0.5rem;user-select:all;">' + escapeHtml(p.arma_id || '-') + '</code>';
+      html += '</td></tr>';
     });
+
+    html += '</tbody></table></div>';
+
+    // Mobile cards
+    html += '<div class="bans-accordion-mobile">';
+    players.forEach(function(p) {
+      html += '<div class="ban-card">';
+      html += '<div class="ban-card-header" onclick="this.parentElement.classList.toggle(\'open\')">';
+      html += '<span class="ban-card-name">' + escapeHtml(p.arma_username || 'Unknown') + '</span>';
+      html += '<div class="ban-card-right">';
+      html += '<span style="color:' + kdColor(p.kd_ratio) + ';font-weight:600;">' + p.kd_ratio + ' K/D</span>';
+      html += '<svg class="ban-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>';
+      html += '</div></div>';
+      html += '<div class="ban-card-body">';
+      html += '<div class="ban-card-row"><span class="ban-card-label">Arma GUID</span><code style="color:var(--accent);font-size:0.85rem;user-select:all;">' + escapeHtml(p.arma_id || '-') + '</code></div>';
+      html += '<div class="ban-card-row"><span class="ban-card-label">Discord</span><span>' + escapeHtml(p.discord_username || '-') + '</span></div>';
+      html += '<div class="ban-card-row"><span class="ban-card-label">Kills</span><span>' + (p.total_kills || 0) + '</span></div>';
+      html += '<div class="ban-card-row"><span class="ban-card-label">Deaths</span><span>' + (p.total_deaths || 0) + '</span></div>';
+      html += '<div class="ban-card-row"><span class="ban-card-label">Banned</span><span>' + (p.is_banned ? '<span style="color:var(--danger);">Yes</span>' : 'No') + '</span></div>';
+      html += '<div class="ban-card-row"><span class="ban-card-label">Watchlisted</span><span>' + (p.is_watchlisted ? '<span style="color:var(--danger);">Yes</span>' : 'No') + '</span></div>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+
+    results.innerHTML = html;
+    initSort();
+    initAccordion();
+  }
+
+  function initSort() {
+    var table = document.getElementById('kd-table');
+    if (!table) return;
+    var tbody = table.querySelector('tbody');
+    var headers = table.querySelectorAll('th.sortable');
+    var currentCol = -1;
+    var asc = true;
+
+    headers.forEach(function(th) {
+      th.addEventListener('click', function() {
+        var col = parseInt(this.getAttribute('data-col'));
+        var type = this.getAttribute('data-type');
+
+        if (currentCol === col) { asc = !asc; } else { currentCol = col; asc = true; }
+
+        headers.forEach(function(h) {
+          h.querySelector('.sort-arrow').textContent = '';
+          h.classList.remove('sort-active');
+        });
+        this.querySelector('.sort-arrow').textContent = asc ? ' \u25B2' : ' \u25BC';
+        this.classList.add('sort-active');
+
+        var toggleRows = Array.from(tbody.querySelectorAll('tr.kd-row-toggle'));
+        toggleRows.sort(function(a, b) {
+          var aVal = a.cells[col].textContent.trim();
+          var bVal = b.cells[col].textContent.trim();
+          if (type === 'number') { aVal = parseFloat(aVal) || 0; bVal = parseFloat(bVal) || 0; }
+          else { aVal = aVal.toLowerCase(); bVal = bVal.toLowerCase(); }
+          if (aVal < bVal) return asc ? -1 : 1;
+          if (aVal > bVal) return asc ? 1 : -1;
+          return 0;
+        });
+
+        toggleRows.forEach(function(row) {
+          var detail = row.nextElementSibling;
+          tbody.appendChild(row);
+          if (detail && detail.classList.contains('kd-detail-row')) tbody.appendChild(detail);
+        });
+      });
+    });
+  }
+
+  function initAccordion() {
+    var table = document.getElementById('kd-table');
+    if (!table) return;
+    table.querySelector('tbody').querySelectorAll('.kd-row-toggle').forEach(function(row) {
+      row.addEventListener('click', function() {
+        var detail = this.nextElementSibling;
+        if (detail && detail.classList.contains('kd-detail-row')) {
+          detail.style.display = detail.style.display === 'none' ? '' : 'none';
+        }
+      });
+    });
+  }
+
+  function loadData() {
+    var threshold = thresholdInput.value;
+    var minKills = minKillsInput.value;
+
+    loading.style.display = 'flex';
+    results.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Loading...';
+
+    fetch('/admin/kd-report/data?threshold=' + encodeURIComponent(threshold) + '&min_kills=' + encodeURIComponent(minKills))
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        renderResults(data);
+        loading.style.display = 'none';
+        results.style.display = '';
+        btn.disabled = false;
+        btn.textContent = 'Filter';
+      })
+      .catch(function() {
+        renderResults({ error: true });
+        loading.style.display = 'none';
+        results.style.display = '';
+        btn.disabled = false;
+        btn.textContent = 'Filter';
+      });
+  }
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    var url = '/admin/kd-report?threshold=' + encodeURIComponent(thresholdInput.value) + '&min_kills=' + encodeURIComponent(minKillsInput.value);
+    history.replaceState(null, '', url);
+    loadData();
   });
+
+  // Load data immediately on page load
+  loadData();
 })();
 </script>
 

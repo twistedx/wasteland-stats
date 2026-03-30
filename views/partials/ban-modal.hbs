@@ -31,7 +31,6 @@
             id="modal-arma-id"
             class="filter-input"
             placeholder="Select from search or paste Arma ID"
-            required
           >
         </div>
         <div class="form-group">
@@ -119,6 +118,16 @@
       }
       modal.style.display = 'flex';
     }
+
+    form.addEventListener('submit', function(e) {
+      if (!armaIdInput.value.trim()) {
+        e.preventDefault();
+        armaIdInput.style.borderColor = 'var(--danger)';
+        armaIdInput.focus();
+        return;
+      }
+      armaIdInput.style.borderColor = '';
+    });
 
     var banBtn = document.getElementById('open-ban-modal');
     var unbanBtn = document.getElementById('open-unban-modal');

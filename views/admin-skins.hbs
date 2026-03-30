@@ -44,29 +44,30 @@
   </div>
 
   <div class="admin-form-card">
-    <h3>Add Skin via Tebex Payload</h3>
-    <p style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:1rem;">Simulates a Tebex payment webhook to add a skin/package to a user's account.</p>
+    <h3>Add Skin to Database</h3>
+    <p style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:1rem;">Add a new skin/item entry to the items database.</p>
     <form method="POST" action="/admin/skins/tebex" class="money-form">
       <input type="hidden" name="_csrf" value="{{csrfToken}}">
       <div class="form-group">
-        <label class="form-label">Discord User ID</label>
+        <label class="form-label">Item / Skin Name</label>
         <input
           type="text"
-          name="discord_id"
+          name="item_name"
           class="filter-input"
-          placeholder="Right-click user in Discord → Copy User ID"
+          placeholder="e.g. Wasteland Loadout Drop — The Burglar"
           required
         >
       </div>
       <div class="form-group">
-        <label class="form-label">Package / Item Name</label>
+        <label class="form-label">Skin Key</label>
         <input
           type="text"
-          name="package_name"
+          name="skin_key"
           class="filter-input"
-          placeholder="e.g. Bronze Package +"
+          placeholder="e.g. wl-skin-theburglar"
           required
         >
+        <span style="color:var(--text-secondary);font-size:0.75rem;margin-top:0.25rem;display:block;">This becomes <code>custom: "skin=value"</code> in the payload</span>
       </div>
       <button type="submit" class="btn btn-admin">Add to Database</button>
     </form>

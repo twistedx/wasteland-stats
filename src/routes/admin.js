@@ -411,13 +411,16 @@ router.get("/skins", requireWriteAdmin, async (req, res) => {
   buildAvatarUrl(user);
 
   let skins = [];
+  let items = [];
   let skinsError = false;
 
   try {
-    const response = await apiClient.get(`/item/getItemNames`, {
-      params: { token: config.backendToken },
-    });
-    skins = Array.isArray(response.data?.items) ? response.data.items : [];
+    const [skinsRes, itemsRes] = await Promise.all([
+      apiClient.get(`/item/getItemNames`, { params: { token: config.backendToken } }),
+      adminApiClient.get("/admin/items", { params: { token: config.adminApiToken } }),
+    ]);
+    skins = Array.isArray(skinsRes.data?.items) ? skinsRes.data.items : [];
+    items = Array.isArray(itemsRes.data?.items) ? itemsRes.data.items : [];
   } catch (error) {
     console.error("Skins fetch error:", error.message);
     sendWebhookError("Skins Fetch", error.message);
@@ -431,6 +434,7 @@ router.get("/skins", requireWriteAdmin, async (req, res) => {
     activeTab: "skins",
     user,
     skins,
+    items,
     skinsError,
     successMessage: req.query.success || null,
     errorMessage: req.query.error || null,
@@ -468,28 +472,32 @@ router.post("/skins", requireWriteAdmin, async (req, res) => {
   }
 });
 
-// POST /admin/skins/tebex — simulate Tebex webhook to add skin to database
+// POST /admin/skins/tebex — add a new skin/item to the database via Tebex-format payload
 router.post("/skins/tebex", requireWriteAdmin, async (req, res) => {
-  const { discord_id, package_name } = req.body;
+  const { item_name, skin_key } = req.body;
   const adminUser = req.session.user;
 
-  if (!discord_id || !package_name) {
+  if (!item_name || !skin_key) {
     return res.redirect("/admin/skins?error=All fields are required.");
   }
 
+  // Ensure skin_key doesn't already have "skin=" prefix
+  const cleanKey = skin_key.replace(/^skin=/, "");
+  const now = new Date().toISOString();
   const txId = "tbx-manual-" + Date.now().toString(36);
+
   const payload = {
     id: crypto.randomUUID(),
     type: "payment.completed",
-    date: new Date().toISOString(),
+    date: now,
     subject: {
       transaction_id: txId,
       status: { id: 1, description: "Complete" },
       payment_sequence: "oneoff",
-      created_at: new Date().toISOString(),
+      created_at: now,
       price: { amount: 0, currency: "USD", base_currency: "USD", base_currency_price: 0 },
       price_paid: { amount: 0, currency: "USD", base_currency: "USD", base_currency_price: 0 },
-      payment_method: { name: "Manual", refundable: false },
+      payment_method: { name: "Manual Admin", refundable: false },
       fees: {
         tax: { amount: 0, currency: "USD", base_currency: "USD", base_currency_price: 0 },
         gateway: { amount: 0, currency: "USD", base_currency: "USD", base_currency_price: 0 },
@@ -499,7 +507,7 @@ router.post("/skins/tebex", requireWriteAdmin, async (req, res) => {
         last_name: "Admin",
         email: "admin@manual.local",
         ip: "127.0.0.1",
-        username: { id: "0", username: "Manual" },
+        username: { id: "0", username: adminUser.username || "Admin" },
         marketing_consent: false,
         country: "US",
         postal_code: null,
@@ -507,15 +515,15 @@ router.post("/skins/tebex", requireWriteAdmin, async (req, res) => {
       products: [
         {
           id: Date.now(),
-          name: package_name,
-          type: null,
+          name: item_name,
+          type: "single",
           quantity: 1,
           base_price: { amount: 0, currency: "USD", base_currency: "USD", base_currency_price: 0 },
           paid_price: { amount: 0, currency: "USD", base_currency: "USD", base_currency_price: 0 },
-          variables: [{ identifier: "discord_id", option: discord_id }],
+          variables: [{ identifier: "discord_id", option: adminUser.discord_id }],
           expires_at: null,
-          custom: null,
-          username: { id: "0", username: "Manual" },
+          custom: "skin=" + cleanKey,
+          username: { id: "0", username: adminUser.username || "Admin" },
           servers: [],
         },
       ],
@@ -526,29 +534,35 @@ router.post("/skins/tebex", requireWriteAdmin, async (req, res) => {
       revenue_share: [],
       decline_reason: null,
       creator_code: null,
-      settled_at: new Date().toISOString(),
+      settled_at: now,
     },
   };
 
+  console.log("Skin add — custom field:", payload.subject.products[0].custom);
+  console.log("Skin add — posting to:", config.apiBaseUrl + "/itemsUser/updateDiscordUserItem");
+
   try {
-    await apiClient.post(
+    const response = await apiClient.post(
       `/itemsUser/updateDiscordUserItem`,
       payload,
       { params: { token: config.backendToken } }
     );
 
+    console.log("Skin add response:", response.status, JSON.stringify(response.data));
+
     sendWebhook({
-      title: "Skin Added (Tebex Payload)",
-      description: `<@${adminUser.discord_id}> added **${package_name}** to Discord user <@${discord_id}>`,
+      title: "Skin Created",
+      description: `<@${adminUser.discord_id}> added **${item_name}** (skin=${cleanKey}) to the database`,
       color: 0x8B5CF6,
     });
 
-    res.redirect(`/admin/skins?success=Added "${package_name}" to Discord user ${discord_id}`);
+    res.redirect(`/admin/skins?success=Added "${item_name}" (${cleanKey}) to the database`);
   } catch (error) {
-    console.error("Tebex skin add error:", error.message);
+    console.error("Skin add error:", error.message);
+    console.error("Skin add error response:", error.response?.status, JSON.stringify(error.response?.data));
     const apiMsg = error.response?.data?.message || error.message;
-    sendWebhookError("Tebex Skin Add", apiMsg);
-    res.redirect("/admin/skins?error=" + encodeURIComponent("Failed to add skin. Please try again."));
+    sendWebhookError("Skin Add", apiMsg);
+    res.redirect("/admin/skins?error=" + encodeURIComponent("Failed to add skin: " + apiMsg));
   }
 });
 
@@ -744,16 +758,29 @@ router.post("/watchlist/notes", async (req, res) => {
   }
 });
 
-// GET /admin/kd-report — suspicious K/D ratio report
-router.get("/kd-report", async (req, res) => {
+// GET /admin/kd-report — renders page immediately with spinner, data loaded via AJAX
+router.get("/kd-report", (req, res) => {
   const user = req.session.user;
   buildAvatarUrl(user);
 
   const threshold = Math.max(1, Math.min(100, parseFloat(req.query.threshold) || 3.0));
   const minKills = Math.max(1, Math.min(1000, parseInt(req.query.min_kills) || 10));
-  let players = [];
-  let kdError = false;
-  let playerCount = 0;
+
+  res.render("admin-kd-report", {
+    page: "admin",
+    pageTitle: "K/D Report",
+    pageDescription: "Players with suspicious kill/death ratios.",
+    activeTab: "kd-report",
+    user,
+    threshold,
+    minKills,
+  });
+});
+
+// GET /admin/kd-report/data — JSON API for K/D report data
+router.get("/kd-report/data", async (req, res) => {
+  const threshold = Math.max(1, Math.min(100, parseFloat(req.query.threshold) || 3.0));
+  const minKills = Math.max(1, Math.min(1000, parseInt(req.query.min_kills) || 10));
 
   try {
     const [kdRes, bansRes] = await Promise.all([
@@ -763,29 +790,18 @@ router.get("/kd-report", async (req, res) => {
       apiClient({ method: "GET", url: "/user/getAllUserBans/", data: { token: config.apiToken } }),
     ]);
 
-    players = Array.isArray(kdRes.data?.players) ? kdRes.data.players : [];
-    playerCount = kdRes.data?.count || players.length;
+    const players = Array.isArray(kdRes.data?.players) ? kdRes.data.players : [];
+    const playerCount = kdRes.data?.count || players.length;
 
     const bans = Array.isArray(bansRes.data?.data) ? bansRes.data.data : [];
     const bannedIds = new Set(bans.map(b => b.user_id_banned));
     players.forEach(p => { p.is_banned = bannedIds.has(p.arma_id); });
+
+    res.json({ players, playerCount });
   } catch (error) {
     console.error("K/D report error:", error.message);
-    kdError = true;
+    res.status(500).json({ error: "Failed to load K/D report." });
   }
-
-  res.render("admin-kd-report", {
-    page: "admin",
-    pageTitle: "K/D Report",
-    pageDescription: "Players with suspicious kill/death ratios.",
-    activeTab: "kd-report",
-    user,
-    players,
-    playerCount,
-    threshold,
-    minKills,
-    kdError,
-  });
 });
 
 // GET /admin/kills

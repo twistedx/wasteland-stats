@@ -11,7 +11,7 @@ const RETENTION_DAYS = 90;
 
 const SKIP_PREFIXES = [
   "/css/", "/img/", "/js/", "/favicon", "/apple-touch-icon",
-  "/android-chrome", "/site.webmanifest",
+  "/android-chrome", "/site.webmanifest", "/api/",
 ];
 
 let db = null;
@@ -124,7 +124,8 @@ function middleware(req, res, next) {
 
 function getStats() {
   const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  // Use UTC consistently to match SQLite's date(ts/1000,'unixepoch') and toISOString()
+  const todayStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const yesterdayStart = todayStart - 86400000;
   const weekStart = todayStart - 7 * 86400000;
   const monthStart = todayStart - 30 * 86400000;

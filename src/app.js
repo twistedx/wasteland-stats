@@ -38,7 +38,7 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "https://cdn.discordapp.com", "data:"],
       connectSrc: ["'self'"],
-      frameSrc: ["'self'", "https://www.youtube.com"],
+      frameSrc: ["'self'", "https://www.youtube.com", "https://youtube.com", "https://www.youtube-nocookie.com"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
     },
@@ -155,6 +155,8 @@ app.use(
   })
 );
 
+// Stripe webhook needs raw body for signature verification — must come before json parser
+app.use("/build/webhook", express.raw({ type: "application/json" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, "..", "public"), {
@@ -191,6 +193,10 @@ app.use((req, res, next) => {
   }
   // Skip CSRF for JSON API endpoints (they use API tokens)
   if (req.path.startsWith("/api/")) {
+    return next();
+  }
+  // Skip CSRF for Stripe webhook (verified via Stripe signature)
+  if (req.path === "/build/webhook") {
     return next();
   }
   // Guard: if no session exists yet, reject the POST
@@ -433,7 +439,7 @@ app.get("/about", (req, res) => {
 app.get("/robots.txt", (req, res) => {
   const base = config.siteUrl;
   res.set("Content-Type", "text/plain");
-  res.send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /auth\nDisallow: /api\n\nSitemap: ${base}/sitemap.xml\n`);
+  res.send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /auth\nDisallow: /api\nDisallow: /build\n\nSitemap: ${base}/sitemap.xml\n`);
 });
 
 app.get("/sitemap.xml", (req, res) => {
@@ -475,6 +481,161 @@ app.get("/sitemap.xml", (req, res) => {
 
   res.set("Content-Type", "application/xml");
   res.send(xml);
+});
+
+// ── Store / Build page ──
+// Product catalog — maps IDs to Stripe-compatible line items
+// Replace price values with your actual Stripe Price IDs once configured
+const STORE_PRODUCTS = {
+  "loadout-sheen-out":    { name: "The Sheen Out",    price: 1999 },
+  "loadout-cowboy":       { name: "The Cowboy",        price: 2499 },
+  "loadout-lumberjack":   { name: "The LumberJack",   price: 2499 },
+  "loadout-corsair":      { name: "The Corsair",       price: 2999 },
+  "loadout-burglar":      { name: "The Burglar",       price: 2999 },
+  "loadout-prepper":      { name: "The Prepper",       price: 2999 },
+  "loadout-slav-specter": { name: "The Slav Specter",  price: 2999 },
+  "loadout-packer":       { name: "The Packer",        price: 2999 },
+  "supporter-wanderer":   { name: "Wanderer",              price: 2500 },
+  "supporter-scout":      { name: "Scout",                 price: 5000 },
+  "supporter-ranger":     { name: "Ranger",                price: 10000 },
+  "supporter-hero":       { name: "Wasteland Hero",        price: 25000 },
+  "supporter-legendary":  { name: "Legendary Wastelander", price: 47500 },
+  "supporter-warlord":    { name: "Warlord",               price: 65000 },
+  "supporter-overlord":   { name: "Overlord",              price: 85000 },
+  "supporter-immortal":   { name: "Immortal",              price: 100000 },
+};
+
+// Build page admin guard
+function requireAdminForBuild(req, res, next) {
+  if (!req.session.user || (!req.session.user.discord_id && req.session.user.authMethod !== "email")) {
+    return res.redirect("/auth/login");
+  }
+  if (!req.session.user.isAdmin) {
+    return res.redirect("/");
+  }
+  next();
+}
+
+app.get("/build", requireAdminForBuild, (req, res) => {
+  const user = req.session.user || null;
+  if (user) {
+    if (user.avatar) {
+      user.avatarUrl =
+        "https://cdn.discordapp.com/avatars/" +
+        user.discord_id + "/" + user.avatar + ".png?size=32";
+    } else {
+      const defaultIndex = Number(BigInt(user.discord_id) >> 22n) % 6;
+      user.avatarUrl =
+        "https://cdn.discordapp.com/embed/avatars/" + defaultIndex + ".png";
+    }
+  }
+  res.render("build", {
+    page: "build",
+    pageTitle: "Store",
+    pageDescription: "Support the server — grab skins, items, and more.",
+    noIndex: true,
+    user,
+    success: req.query.success || null,
+    canceled: req.query.canceled || null,
+  });
+});
+
+// Stripe checkout session creation
+app.post("/build/checkout", requireAdminForBuild, async (req, res) => {
+  // Require Stripe key to be configured
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return res.status(500).send("Stripe is not configured yet.");
+  }
+  const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
+  let cart;
+  try {
+    cart = JSON.parse(req.body.cart);
+  } catch {
+    return res.status(400).send("Invalid cart data.");
+  }
+
+  if (!Array.isArray(cart) || cart.length === 0) {
+    return res.status(400).send("Cart is empty.");
+  }
+
+  // Build Stripe line items from the cart
+  const lineItems = [];
+  for (const item of cart) {
+    const product = STORE_PRODUCTS[item.id];
+    if (!product) continue;
+    const qty = Math.max(1, Math.min(99, parseInt(item.qty) || 1));
+    lineItems.push({
+      price_data: {
+        currency: "usd",
+        product_data: { name: product.name },
+        unit_amount: product.price, // cents
+      },
+      quantity: qty,
+    });
+  }
+
+  if (lineItems.length === 0) {
+    return res.status(400).send("No valid items in cart.");
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: lineItems,
+      success_url: `${config.siteUrl}/build?success=1`,
+      cancel_url: `${config.siteUrl}/build?canceled=1`,
+      metadata: {
+        discord_id: req.session.user?.discord_id || "guest",
+        username: req.session.user?.username || "guest",
+      },
+    });
+    res.redirect(303, session.url);
+  } catch (err) {
+    console.error("Stripe checkout error:", err.message);
+    sendWebhookError("Stripe Checkout", err.message);
+    res.status(500).send("Failed to create checkout session.");
+  }
+});
+
+// Stripe webhook — receives payment confirmations
+// This endpoint is CSRF-exempt (handled by the CSRF middleware skipping /build/webhook below)
+app.post("/build/webhook", async (req, res) => {
+  if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
+    return res.status(500).send("Stripe webhook not configured.");
+  }
+  const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
+  let event;
+  try {
+    const sig = req.headers["stripe-signature"];
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error("Stripe webhook signature verification failed:", err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object;
+    console.log(`Stripe payment completed: ${session.id} — $${(session.amount_total / 100).toFixed(2)} from ${session.metadata?.username || "unknown"}`);
+
+    // TODO: Fulfill the order here
+    // - session.metadata.discord_id has the buyer's Discord ID
+    // - Use stripe.checkout.sessions.listLineItems(session.id) to get purchased items
+    // - Call your backend API to grant skins/cash/VIP as needed
+    // - Send a Discord webhook notification for the purchase
+
+    try {
+      const { sendWebhookError } = require("./webhook");
+      // Notify via Discord webhook (repurpose error webhook or add a dedicated one)
+      // Example: await axios.post(process.env.DISCORD_WEBHOOK_URL, { content: `Purchase: ...` });
+    } catch (fulfillErr) {
+      console.error("Order fulfillment error:", fulfillErr.message);
+      sendWebhookError("Stripe Fulfillment", fulfillErr.message);
+    }
+  }
+
+  res.json({ received: true });
 });
 
 app.get("/how-to", (req, res) => {
