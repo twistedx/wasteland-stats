@@ -17,6 +17,7 @@ const bm = require("./armahq");
 const blog = require("./blog");
 const metricsHistory = require("./metrics-history");
 const adminUsers = require("./admin-users");
+const store = require("./store");
 const { marked } = require("marked");
 
 const fs = require("fs");
@@ -203,6 +204,11 @@ app.use((req, res, next) => {
   if (!req.session) {
     return res.status(403).send("Session required.");
   }
+  // For multipart/form-data, body isn't parsed yet — check query string for CSRF token
+  if (req.headers['content-type']?.startsWith('multipart/form-data') && req.query._csrf) {
+    req.body = req.body || {};
+    req.body._csrf = req.query._csrf;
+  }
   csrfSynchronisedProtection(req, res, (err) => {
     if (err) {
       console.warn(`CSRF validation failed: ${req.method} ${req.path} — ${err.message}`);
@@ -275,6 +281,7 @@ require("./steam-store").init();
 bm.init();
 metricsHistory.init();
 adminUsers.init();
+store.init();
 require("./discord-bot").init();
 
 app.use(analytics.middleware);
@@ -484,26 +491,6 @@ app.get("/sitemap.xml", (req, res) => {
 });
 
 // ── Store / Build page ──
-// Product catalog — maps IDs to Stripe-compatible line items
-// Replace price values with your actual Stripe Price IDs once configured
-const STORE_PRODUCTS = {
-  "loadout-sheen-out":    { name: "The Sheen Out",    price: 1999 },
-  "loadout-cowboy":       { name: "The Cowboy",        price: 2499 },
-  "loadout-lumberjack":   { name: "The LumberJack",   price: 2499 },
-  "loadout-corsair":      { name: "The Corsair",       price: 2999 },
-  "loadout-burglar":      { name: "The Burglar",       price: 2999 },
-  "loadout-prepper":      { name: "The Prepper",       price: 2999 },
-  "loadout-slav-specter": { name: "The Slav Specter",  price: 2999 },
-  "loadout-packer":       { name: "The Packer",        price: 2999 },
-  "supporter-wanderer":   { name: "Wanderer",              price: 2500 },
-  "supporter-scout":      { name: "Scout",                 price: 5000 },
-  "supporter-ranger":     { name: "Ranger",                price: 10000 },
-  "supporter-hero":       { name: "Wasteland Hero",        price: 25000 },
-  "supporter-legendary":  { name: "Legendary Wastelander", price: 47500 },
-  "supporter-warlord":    { name: "Warlord",               price: 65000 },
-  "supporter-overlord":   { name: "Overlord",              price: 85000 },
-  "supporter-immortal":   { name: "Immortal",              price: 100000 },
-};
 
 // Build page admin guard
 function requireAdminForBuild(req, res, next) {
@@ -529,12 +516,15 @@ app.get("/build", requireAdminForBuild, (req, res) => {
         "https://cdn.discordapp.com/embed/avatars/" + defaultIndex + ".png";
     }
   }
+  const categories = store.getCategoriesWithProducts();
+
   res.render("build", {
     page: "build",
     pageTitle: "Store",
     pageDescription: "Support the server — grab skins, items, and more.",
     noIndex: true,
     user,
+    categoriesJson: JSON.stringify(categories),
     success: req.query.success || null,
     canceled: req.query.canceled || null,
   });
@@ -559,17 +549,18 @@ app.post("/build/checkout", requireAdminForBuild, async (req, res) => {
     return res.status(400).send("Cart is empty.");
   }
 
-  // Build Stripe line items from the cart
+  // Build Stripe line items from the cart — validate against DB prices
   const lineItems = [];
   for (const item of cart) {
-    const product = STORE_PRODUCTS[item.id];
-    if (!product) continue;
+    const product = store.getProductById(parseInt(item.id));
+    if (!product || !product.active) continue;
     const qty = Math.max(1, Math.min(99, parseInt(item.qty) || 1));
+    const effectivePrice = store.getEffectivePrice(product);
     lineItems.push({
       price_data: {
         currency: "usd",
         product_data: { name: product.name },
-        unit_amount: product.price, // cents
+        unit_amount: effectivePrice, // cents — uses sale_price if set
       },
       quantity: qty,
     });
@@ -617,18 +608,29 @@ app.post("/build/webhook", async (req, res) => {
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
-    console.log(`Stripe payment completed: ${session.id} — $${(session.amount_total / 100).toFixed(2)} from ${session.metadata?.username || "unknown"}`);
+    console.log(`Stripe payment completed: ${session.id} — $${(session.amount_total / 100).toFixed(2)}`);
 
-    // TODO: Fulfill the order here
-    // - session.metadata.discord_id has the buyer's Discord ID
-    // - Use stripe.checkout.sessions.listLineItems(session.id) to get purchased items
-    // - Call your backend API to grant skins/cash/VIP as needed
-    // - Send a Discord webhook notification for the purchase
-
+    // Record purchases (no PII stored — only Stripe session ID, product, amount)
     try {
-      const { sendWebhookError } = require("./webhook");
-      // Notify via Discord webhook (repurpose error webhook or add a dedicated one)
-      // Example: await axios.post(process.env.DISCORD_WEBHOOK_URL, { content: `Purchase: ...` });
+      const lineItems = await stripe.checkout.sessions.listLineItems(session.id);
+      for (const item of lineItems.data) {
+        store.recordPurchase({
+          stripe_session_id: session.id,
+          product_name: item.description || "Unknown",
+          quantity: item.quantity || 1,
+          amount: item.amount_total || 0,
+        });
+      }
+      console.log(`Stripe: recorded ${lineItems.data.length} line items for session ${session.id}`);
+
+      // TODO: Call your backend API to grant skins/cash/VIP as needed
+
+      const { sendWebhook } = require("./webhook");
+      sendWebhook({
+        title: "Purchase Completed",
+        description: `**$${(session.amount_total / 100).toFixed(2)}** — ${lineItems.data.length} item(s)`,
+        color: 0x22c55e,
+      });
     } catch (fulfillErr) {
       console.error("Order fulfillment error:", fulfillErr.message);
       sendWebhookError("Stripe Fulfillment", fulfillErr.message);

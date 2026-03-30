@@ -1,159 +1,417 @@
 <section id="admin-section">
   {{> admin-nav}}
 
-  <!-- Visitor stat cards -->
-  <div class="analytics-cards">
-    <div class="stat-card primary">
-      <div class="stat-value">{{formatNumber todayViews}}</div>
-      <div class="stat-label">Views Today</div>
-      <div class="stat-compare">Yesterday: {{formatNumber yesterdayViews}}</div>
-    </div>
-    <div class="stat-card primary">
-      <div class="stat-value">{{formatNumber totalViews}}</div>
-      <div class="stat-label">Total Views</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value">{{formatNumber uniqueToday}}</div>
-      <div class="stat-label">Unique Today</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value">{{formatNumber uniqueWeek}}</div>
-      <div class="stat-label">Unique This Week</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value">{{formatNumber uniqueMonth}}</div>
-      <div class="stat-label">Unique This Month</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value">{{formatNumber loggedInToday}}</div>
-      <div class="stat-label">Logged-In Views</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value">{{formatNumber anonymousToday}}</div>
-      <div class="stat-label">Anonymous Views</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value">{{formatNumber activeUserCount}}</div>
-      <div class="stat-label">Active Users Today</div>
-    </div>
-    <div class="stat-card primary">
-      <div class="stat-value">{{formatNumber allTimeUsers}}</div>
-      <div class="stat-label">All-Time Logged In</div>
-    </div>
+  <div style="display:flex;gap:0;margin-bottom:1.5rem;border-bottom:1px solid var(--border);">
+    <button class="tab analytics-tab active" data-tab="tab-website" type="button">Website</button>
+    <button class="tab analytics-tab" data-tab="tab-discord" type="button">Discord</button>
+    {{#if storeStats}}
+      <button class="tab analytics-tab" data-tab="tab-store" type="button">Store</button>
+    {{/if}}
   </div>
 
-  <!-- Visitor traffic chart -->
-  <div class="dash-panel dash-panel-wide" style="margin-bottom: 1rem;">
-    <div class="dash-panel-header">Visitor Traffic — Last 30 Days</div>
-    <div id="chart-visitors" class="dash-chart"></div>
-  </div>
+  <!-- ═══════════════ WEBSITE TAB ═══════════════ -->
+  <div id="tab-website">
 
-  <!-- Game stats charts -->
-  <div class="dash-grid">
-    <div class="dash-panel dash-panel-wide">
-      <div class="dash-panel-header">Ban Activity Over Time</div>
-      <div id="chart-bans" class="dash-chart"></div>
+    <div class="analytics-cards">
+      <div class="stat-card primary">
+        <div class="stat-value">{{formatNumber todayViews}}</div>
+        <div class="stat-label">Views Today</div>
+        <div class="stat-compare">Yesterday: {{formatNumber yesterdayViews}}</div>
+      </div>
+      <div class="stat-card primary">
+        <div class="stat-value">{{formatNumber totalViews}}</div>
+        <div class="stat-label">Total Views</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{formatNumber uniqueToday}}</div>
+        <div class="stat-label">Unique Today</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{formatNumber uniqueWeek}}</div>
+        <div class="stat-label">Unique This Week</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{formatNumber uniqueMonth}}</div>
+        <div class="stat-label">Unique This Month</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{formatNumber loggedInToday}}</div>
+        <div class="stat-label">Logged-In Views</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{formatNumber anonymousToday}}</div>
+        <div class="stat-label">Anonymous Views</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{formatNumber activeUserCount}}</div>
+        <div class="stat-label">Active Users Today</div>
+      </div>
+      <div class="stat-card primary">
+        <div class="stat-value">{{formatNumber allTimeUsers}}</div>
+        <div class="stat-label">All-Time Logged In</div>
+      </div>
     </div>
 
-    <div class="dash-panel">
-      <div class="dash-panel-header">Ban Reasons</div>
-      <div id="chart-reasons" class="dash-chart"></div>
+    <div class="dash-panel dash-panel-wide" style="margin-bottom: 1rem;">
+      <div class="dash-panel-header">Visitor Traffic — Last 30 Days</div>
+      <div id="chart-visitors" class="dash-chart"></div>
     </div>
 
-    <div class="dash-panel">
-      <div class="dash-panel-header">Top Admins by Bans Issued</div>
-      <div id="chart-admins" class="dash-chart"></div>
+    <div class="dash-grid">
+      <div class="dash-panel dash-panel-wide">
+        <div class="dash-panel-header">Ban Activity Over Time</div>
+        <div id="chart-bans" class="dash-chart"></div>
+      </div>
+      <div class="dash-panel">
+        <div class="dash-panel-header">Ban Reasons</div>
+        <div id="chart-reasons" class="dash-chart"></div>
+      </div>
+      <div class="dash-panel">
+        <div class="dash-panel-header">Top Admins by Bans Issued</div>
+        <div id="chart-admins" class="dash-chart"></div>
+      </div>
     </div>
-  </div>
 
-  <!-- Tables -->
-  <div class="analytics-tables">
-    <div class="admin-form-card">
-      <h3>Top Pages</h3>
-      {{#if topPages.length}}
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Page</th>
-              <th>Views</th>
-            </tr>
-          </thead>
-          <tbody>
-            {{#each topPages}}
+    <div class="analytics-tables">
+      <div class="admin-form-card">
+        <h3>Top Pages</h3>
+        {{#if topPages.length}}
+          <table>
+            <thead>
               <tr>
-                <td class="rank">{{math @index 1}}</td>
-                <td>{{this.path}}</td>
-                <td>{{formatNumber this.count}}</td>
+                <th>#</th>
+                <th>Page</th>
+                <th>Views</th>
               </tr>
-            {{/each}}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {{#each topPages}}
+                <tr>
+                  <td class="rank">{{math @index 1}}</td>
+                  <td>{{this.path}}</td>
+                  <td>{{formatNumber this.count}}</td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        {{else}}
+          <div class="empty-state">No page view data yet.</div>
+        {{/if}}
+      </div>
+
+      <div class="admin-form-card">
+        <h3>Active Users Today</h3>
+        {{#if activeUsers.length}}
+          <table>
+            <thead>
+              <tr>
+                <th>Username</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each activeUsers}}
+                <tr>
+                  <td class="player-name">{{this}}</td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        {{else}}
+          <div class="empty-state">No logged-in users today.</div>
+        {{/if}}
+      </div>
+    </div>
+
+    <div class="admin-form-card">
+      <h3>Recent Activity</h3>
+      {{#if recentActivity.length}}
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>User</th>
+                <th>Page</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each recentActivity}}
+                <tr>
+                  <td>{{this.time}}</td>
+                  <td class="player-name">
+                    {{#if this.loggedIn}}
+                      {{this.username}}
+                    {{else}}
+                      <span style="color: var(--text-secondary);">Anonymous</span>
+                    {{/if}}
+                  </td>
+                  <td>{{this.path}}</td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        </div>
       {{else}}
-        <div class="empty-state">No page view data yet.</div>
+        <div class="empty-state">No activity recorded yet.</div>
       {{/if}}
     </div>
 
-    <div class="admin-form-card">
-      <h3>Active Users Today</h3>
-      {{#if activeUsers.length}}
-        <table>
-          <thead>
-            <tr>
-              <th>Username</th>
-            </tr>
-          </thead>
-          <tbody>
-            {{#each activeUsers}}
-              <tr>
-                <td class="player-name">{{this}}</td>
-              </tr>
-            {{/each}}
-          </tbody>
-        </table>
-      {{else}}
-        <div class="empty-state">No logged-in users today.</div>
-      {{/if}}
-    </div>
   </div>
 
-  <div class="admin-form-card">
-    <h3>Recent Activity</h3>
-    {{#if recentActivity.length}}
-      <div class="table-scroll">
+  <!-- ═══════════════ DISCORD TAB ═══════════════ -->
+  <div id="tab-discord" style="display:none;">
+
+    {{#if discord}}
+    <div class="dash-panel dash-panel-wide" style="margin-bottom: 1rem;">
+      <div class="dash-panel-header" style="display:flex;align-items:center;gap:0.5rem;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="#5865F2"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+        {{discord.serverInfo.name}}
+      </div>
+
+      <div class="analytics-cards" style="margin-top:1rem;">
+        <div class="stat-card primary">
+          <div class="stat-value">{{formatNumber discord.humans}}</div>
+          <div class="stat-label">Members</div>
+          <div class="stat-compare">{{formatNumber discord.bots}} bots</div>
+        </div>
+        <div class="stat-card" style="border-top-color:#43b581;">
+          <div class="stat-value" style="color:#43b581;">{{formatNumber discord.online}}</div>
+          <div class="stat-label">Online</div>
+        </div>
+        <div class="stat-card" style="border-top-color:#faa61a;">
+          <div class="stat-value" style="color:#faa61a;">{{formatNumber discord.idle}}</div>
+          <div class="stat-label">Idle</div>
+        </div>
+        <div class="stat-card" style="border-top-color:#f04747;">
+          <div class="stat-value" style="color:#f04747;">{{formatNumber discord.dnd}}</div>
+          <div class="stat-label">Do Not Disturb</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{formatNumber discord.offline}}</div>
+          <div class="stat-label">Offline</div>
+        </div>
+        <div class="stat-card" style="border-top-color:#f47fff;">
+          <div class="stat-value" style="color:#f47fff;">{{formatNumber discord.boostCount}}</div>
+          <div class="stat-label">Boosts (Tier {{discord.boostTier}})</div>
+        </div>
+        <div class="stat-card" style="border-top-color:#5865F2;">
+          <div class="stat-value" style="color:#5865F2;">{{formatNumber discord.newThisWeek}}</div>
+          <div class="stat-label">New This Week</div>
+        </div>
+        <div class="stat-card" style="border-top-color:#5865F2;">
+          <div class="stat-value" style="color:#5865F2;">{{formatNumber discord.newThisMonth}}</div>
+          <div class="stat-label">New This Month</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{formatNumber discord.inVoice}}</div>
+          <div class="stat-label">In Voice Now</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dash-panel dash-panel-wide" style="margin-bottom: 1rem;">
+      <div class="dash-panel-header">Online Activity — Last 7 Days</div>
+      <div id="chart-discord-online-history" class="dash-chart" style="height:350px;"></div>
+    </div>
+
+    <div class="dash-grid">
+      <div class="dash-panel dash-panel-wide">
+        <div class="dash-panel-header">Member Growth — Last 30 Days</div>
+        <div id="chart-discord-joins" class="dash-chart"></div>
+      </div>
+      <div class="dash-panel">
+        <div class="dash-panel-header">Top Roles</div>
+        <div id="chart-discord-roles" class="dash-chart"></div>
+      </div>
+      <div class="dash-panel">
+        <div class="dash-panel-header">Member Status</div>
+        <div id="chart-discord-status" class="dash-chart"></div>
+      </div>
+    </div>
+
+    <div class="analytics-tables">
+      {{#if discord.voiceChannelBreakdown.length}}
+      <div class="admin-form-card">
+        <h3>Voice Channels — Active Now</h3>
         <table>
           <thead>
             <tr>
-              <th>Time</th>
-              <th>User</th>
-              <th>Page</th>
+              <th>Channel</th>
+              <th>Members</th>
+              <th>Who</th>
             </tr>
           </thead>
           <tbody>
-            {{#each recentActivity}}
+            {{#each discord.voiceChannelBreakdown}}
               <tr>
-                <td>{{this.time}}</td>
-                <td class="player-name">
-                  {{#if this.loggedIn}}
-                    {{this.username}}
-                  {{else}}
-                    <span style="color: var(--text-secondary);">Anonymous</span>
-                  {{/if}}
-                </td>
-                <td>{{this.path}}</td>
+                <td style="font-weight:600;">{{this.name}}</td>
+                <td>{{this.members.length}}</td>
+                <td style="color:var(--text-secondary);">{{joinTags this.members}}</td>
               </tr>
             {{/each}}
           </tbody>
         </table>
       </div>
+      {{/if}}
+
+      <div class="admin-form-card">
+        <h3>Top Members by Roles</h3>
+        {{#if discord.topMembers.length}}
+          <table>
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Username</th>
+                <th>Roles</th>
+                <th>Joined</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each discord.topMembers}}
+                <tr>
+                  <td class="player-name" style="display:flex;align-items:center;gap:0.5rem;">
+                    <img src="{{this.avatar}}" style="width:20px;height:20px;border-radius:50%;" alt="">
+                    {{this.name}}
+                  </td>
+                  <td style="color:var(--text-secondary);">{{this.username}}</td>
+                  <td>{{this.roles}}</td>
+                  <td>{{formatDate this.joinedAt}}</td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        {{else}}
+          <div class="empty-state">No member data available.</div>
+        {{/if}}
+      </div>
+    </div>
+
+    <div class="admin-form-card">
+      <h3>Server Info</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;">
+        <div><span style="color:var(--text-secondary);font-size:0.8rem;">Text Channels</span><div style="font-weight:600;">{{discord.textChannels}}</div></div>
+        <div><span style="color:var(--text-secondary);font-size:0.8rem;">Voice Channels</span><div style="font-weight:600;">{{discord.voiceChannels}}</div></div>
+        <div><span style="color:var(--text-secondary);font-size:0.8rem;">Categories</span><div style="font-weight:600;">{{discord.categories}}</div></div>
+        <div><span style="color:var(--text-secondary);font-size:0.8rem;">Total Members (inc. bots)</span><div style="font-weight:600;">{{formatNumber discord.totalMembers}}</div></div>
+      </div>
+    </div>
     {{else}}
-      <div class="empty-state">No activity recorded yet.</div>
+      <div class="empty-state" style="padding:3rem 1rem;">Discord stats not available. The bot may still be connecting — try refreshing in a few seconds.</div>
     {{/if}}
+
   </div>
+
+  <!-- ═══════════════ STORE TAB (Admin Only) ═══════════════ -->
+  {{#if storeStats}}
+  <div id="tab-store" style="display:none;">
+
+    <div class="analytics-cards">
+      <div class="stat-card primary">
+        <div class="stat-value" style="color:#22c55e;">${{storeStats.todayRevenue}}</div>
+        <div class="stat-label">Revenue Today</div>
+        <div class="stat-compare">{{storeStats.todayOrders}} orders</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#5865F2;">
+        <div class="stat-value" style="color:#5865F2;">${{storeStats.weekRevenue}}</div>
+        <div class="stat-label">This Week</div>
+        <div class="stat-compare">{{storeStats.weekOrders}} orders</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#F59E0B;">
+        <div class="stat-value" style="color:#F59E0B;">${{storeStats.monthRevenue}}</div>
+        <div class="stat-label">This Month</div>
+        <div class="stat-compare">{{storeStats.monthOrders}} orders</div>
+      </div>
+      <div class="stat-card primary">
+        <div class="stat-value" style="color:#22c55e;">${{storeStats.totalRevenue}}</div>
+        <div class="stat-label">All-Time Revenue</div>
+        <div class="stat-compare">{{storeStats.totalOrders}} total orders</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{storeStats.uniqueBuyers}}</div>
+        <div class="stat-label">Unique Sessions</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${{storeStats.avgOrderValue}}</div>
+        <div class="stat-label">Avg Order Value</div>
+      </div>
+    </div>
+
+    <div class="dash-panel dash-panel-wide" style="margin-bottom:1rem;">
+      <div class="dash-panel-header">Revenue — Last 30 Days</div>
+      <div id="chart-store-revenue" class="dash-chart" style="height:300px;"></div>
+    </div>
+
+    <div class="dash-grid">
+      <div class="dash-panel">
+        <div class="dash-panel-header">Top Products by Revenue</div>
+        <div id="chart-store-products" class="dash-chart"></div>
+      </div>
+      <div class="dash-panel">
+        <div class="dash-panel-header">Top Products by Quantity</div>
+        <div id="chart-store-qty" class="dash-chart"></div>
+      </div>
+    </div>
+
+    <div class="admin-form-card">
+      <h3>Recent Purchases</h3>
+      {{#if storeStats.recentPurchases.length}}
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Qty</th>
+                <th>Amount</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each storeStats.recentPurchases}}
+                <tr>
+                  <td>{{this.product_name}}</td>
+                  <td>{{this.quantity}}</td>
+                  <td style="color:#22c55e;font-weight:600;">${{this.amount}}</td>
+                  <td>{{formatDate this.created_at}}</td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        </div>
+      {{else}}
+        <div class="empty-state">No purchases yet.</div>
+      {{/if}}
+    </div>
+  </div>
+  {{/if}}
+
 </section>
 
 {{> ban-modal}}
 
-<script>window.__dailyViews = {{{dailyViewsJson}}};</script>
+<script>window.__dailyViews = {{{dailyViewsJson}}};window.__discord = {{{discordJson}}};window.__onlineHistory = {{{onlineHistoryJson}}};window.__storeStats = {{{storeStatsJson}}};</script>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script src="/js/admin-charts.js"></script>
+
+<script>
+(function() {
+  var discordChartsRendered = false;
+
+  document.querySelectorAll('.analytics-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.analytics-tab').forEach(function(t) { t.classList.remove('active'); });
+      this.classList.add('active');
+      document.getElementById('tab-website').style.display = 'none';
+      document.getElementById('tab-discord').style.display = 'none';
+      var storeEl = document.getElementById('tab-store');
+      if (storeEl) storeEl.style.display = 'none';
+      document.getElementById(this.getAttribute('data-tab')).style.display = '';
+
+      // Render Discord charts on first tab switch (ECharts needs visible container)
+      if (this.getAttribute('data-tab') === 'tab-discord' && !discordChartsRendered && window.__discord && window.__discord.joinHistory) {
+        discordChartsRendered = true;
+        setTimeout(function() { window.dispatchEvent(new Event('resize')); }, 50);
+      }
+    });
+  });
+})();
+</script>

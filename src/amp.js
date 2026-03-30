@@ -239,4 +239,38 @@ async function getFreshStatus() {
   return getStatus();
 }
 
-module.exports = { init, getStatus, getFreshStatus, apiCall };
+// Restart a specific game server instance via AMP
+async function restartInstance(instanceId) {
+  if (!sessionID) await login();
+
+  // Login to the remote instance through ADS proxy
+  const loginRes = await axios.post(`${config.amp.url}/API/ADSModule/Servers/${instanceId}/API/Core/Login`, {
+    SESSIONID: sessionID,
+    username: config.amp.username,
+    password: config.amp.password,
+    token: "",
+    rememberMe: false,
+  }, {
+    headers: { "Content-Type": "application/json" },
+    timeout: 15000,
+  });
+
+  if (!loginRes.data?.success && !loginRes.data?.sessionID) {
+    throw new Error("Failed to authenticate with instance: " + (loginRes.data?.resultReason || "unknown"));
+  }
+
+  const remoteSession = loginRes.data.sessionID;
+
+  // Send restart command
+  const res = await axios.post(`${config.amp.url}/API/ADSModule/Servers/${instanceId}/API/Core/Restart`, {
+    SESSIONID: remoteSession,
+  }, {
+    headers: { "Content-Type": "application/json" },
+    timeout: 30000,
+  });
+
+  console.log(`AMP: restart issued for instance ${instanceId}:`, JSON.stringify(res.data).slice(0, 200));
+  return res.data;
+}
+
+module.exports = { init, getStatus, getFreshStatus, apiCall, restartInstance };

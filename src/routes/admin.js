@@ -9,7 +9,35 @@ const amp = require("../amp");
 const bm = require("../armahq");
 const metricsHistory = require("../metrics-history");
 const systemStats = require("../system-stats");
+const store = require("../store");
+const multer = require("multer");
+const sharp = require("sharp");
+const path = require("path");
+const fs = require("fs");
 const router = express.Router();
+
+// Store image upload config
+const storeUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    const allowed = /\.(jpg|jpeg|png|webp)$/i;
+    if (allowed.test(path.extname(file.originalname))) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only JPG, PNG, and WebP images are allowed."));
+    }
+  },
+});
+
+async function saveStoreImage(file) {
+  const dir = path.join(__dirname, "..", "..", "public", "img", "store");
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const filename = Date.now() + "-" + file.originalname.replace(/[^a-zA-Z0-9._-]/g, "").toLowerCase();
+  const filepath = path.join(dir, filename);
+  await sharp(file.buffer).resize(600, 800, { fit: "inside", withoutEnlargement: true }).png({ quality: 85 }).toFile(filepath);
+  return "/img/store/" + filename;
+}
 
 const apiClient = axios.create({
   baseURL: config.apiBaseUrl,
@@ -979,11 +1007,19 @@ router.get("/kills", async (req, res) => {
 });
 
 // GET /admin/analytics
-router.get("/analytics", (req, res) => {
+router.get("/analytics", async (req, res) => {
   const user = req.session.user;
   buildAvatarUrl(user);
 
   const stats = analytics.getStats();
+
+  // Fetch Discord stats
+  const discordStats = require("../discord-stats");
+  const discord = await discordStats.getStats();
+  const onlineHistory = discordStats.getOnlineHistory(7);
+
+  // Store stats (admin only)
+  const storeStats = user.isAdmin ? store.getStoreStats() : null;
 
   res.render("admin-analytics", {
     page: "admin",
@@ -993,6 +1029,11 @@ router.get("/analytics", (req, res) => {
     user,
     ...stats,
     dailyViewsJson: JSON.stringify(stats.dailyViews),
+    discord,
+    discordJson: JSON.stringify(discord || {}),
+    onlineHistoryJson: JSON.stringify(onlineHistory || []),
+    storeStats,
+    storeStatsJson: JSON.stringify(storeStats || {}),
   });
 });
 
@@ -1161,6 +1202,7 @@ router.get("/servers", async (req, res) => {
         status: srv.status,
         cpu: ampInst ? ampInst.cpu : { value: 0, max: 100, percent: 0, units: "%" },
         memory: ampInst ? ampInst.memory : { value: 0, max: 0, percent: 0, units: "MB" },
+        instanceId: ampInst ? ampInst.instanceId : null,
         instanceName: ampInst ? ampInst.instanceName : "",
         ampVersion: ampInst ? ampInst.ampVersion : "",
       };
@@ -1200,6 +1242,8 @@ router.get("/servers", async (req, res) => {
     serversError,
     backendHealth,
     chartDataJson: JSON.stringify(metricsHistory.getHistory(6)).replace(/</g, "\\u003c"),
+    successMessage: req.query.success || null,
+    errorMessage: req.query.error || null,
   });
 });
 
@@ -1207,6 +1251,30 @@ router.get("/servers", async (req, res) => {
 router.get("/servers/history", (req, res) => {
   const hours = Math.min(Math.max(parseInt(req.query.hours) || 6, 1), 720);
   res.json(metricsHistory.getHistory(hours));
+});
+
+// POST /admin/servers/restart/:instanceId — restart a game server via AMP
+router.post("/servers/restart/:instanceId", requireWriteAdmin, async (req, res) => {
+  const instanceId = req.params.instanceId;
+  const user = req.session.user;
+
+  console.log(`Server restart requested by ${user.username} for instance ${instanceId}`);
+
+  try {
+    await amp.restartInstance(instanceId);
+
+    sendWebhook({
+      title: "Game Server Restarted",
+      description: `<@${user.discord_id}> restarted server instance \`${instanceId}\``,
+      color: 0xF59E0B,
+    });
+
+    res.redirect("/admin/servers?success=" + encodeURIComponent("Restart command sent. Server is restarting."));
+  } catch (error) {
+    console.error("Server restart error:", error.message);
+    sendWebhookError("Server Restart", error.message);
+    res.redirect("/admin/servers?error=" + encodeURIComponent("Restart failed: " + error.message));
+  }
 });
 
 // GET /admin/system — VPS health dashboard
@@ -1322,6 +1390,157 @@ router.post("/system/deploy", async (req, res) => {
     sendWebhookError("Deploy", err.message);
     res.redirect("/admin/system?error=" + encodeURIComponent("Deploy failed. Check server logs for details."));
   }
+});
+
+// ── Store Management ──
+
+// GET /admin/store
+router.get("/store", requireWriteAdmin, (req, res) => {
+  const user = req.session.user;
+  buildAvatarUrl(user);
+
+  const products = store.getAllProducts().map(p => ({
+    ...p,
+    priceDisplay: (p.price / 100).toFixed(2),
+    salePriceDisplay: p.sale_price ? (p.sale_price / 100).toFixed(2) : "",
+  }));
+  const categories = store.getAllCategories();
+
+  res.render("admin-store", {
+    page: "admin",
+    pageTitle: "Store Management",
+    pageDescription: "Manage store products and pricing.",
+    activeTab: "store",
+    user,
+    products,
+    categories,
+    successMessage: req.query.success || null,
+    errorMessage: req.query.error || null,
+  });
+});
+
+// POST /admin/store — create product
+router.post("/store", requireWriteAdmin, storeUpload.single("image_file"), async (req, res) => {
+  const { name, description, price, sale_price, image, category, badge, sort_order } = req.body;
+
+  if (!name || !price) {
+    return res.redirect("/admin/store?error=Name and price are required.");
+  }
+
+  let imagePath = image || null;
+  if (req.file) {
+    try {
+      imagePath = await saveStoreImage(req.file);
+    } catch (err) {
+      console.error("Image upload error:", err.message);
+      return res.redirect("/admin/store?error=" + encodeURIComponent("Image upload failed: " + err.message));
+    }
+  }
+
+  store.createProduct({
+    name,
+    description: description || "",
+    price: Math.round(parseFloat(price) * 100),
+    sale_price: sale_price ? Math.round(parseFloat(sale_price) * 100) : null,
+    image: imagePath,
+    category: category || "loadout",
+    badge: badge || null,
+    sort_order: parseInt(sort_order) || 0,
+  });
+
+  res.redirect("/admin/store?success=" + encodeURIComponent(`"${name}" added to store.`));
+});
+
+// POST /admin/store/edit/:id — update product
+router.post("/store/edit/:id", requireWriteAdmin, storeUpload.single("image_file"), async (req, res) => {
+  const id = parseInt(req.params.id);
+  const product = store.getProductById(id);
+  if (!product) {
+    return res.redirect("/admin/store?error=Product not found.");
+  }
+
+  const { name, description, price, sale_price, image, category, active, badge, sort_order } = req.body;
+
+  let imagePath = image || product.image || null;
+  if (req.file) {
+    try {
+      imagePath = await saveStoreImage(req.file);
+    } catch (err) {
+      console.error("Image upload error:", err.message);
+      return res.redirect("/admin/store?error=" + encodeURIComponent("Image upload failed: " + err.message));
+    }
+  }
+
+  store.updateProduct(id, {
+    name: name || product.name,
+    description: description || "",
+    price: Math.round(parseFloat(price) * 100),
+    sale_price: sale_price ? Math.round(parseFloat(sale_price) * 100) : null,
+    image: imagePath,
+    category: category || product.category,
+    active: parseInt(active),
+    badge: badge || null,
+    sort_order: parseInt(sort_order) || 0,
+  });
+
+  res.redirect("/admin/store?success=" + encodeURIComponent(`"${name}" updated.`));
+});
+
+// POST /admin/store/delete/:id — delete product
+router.post("/store/delete/:id", requireWriteAdmin, (req, res) => {
+  const id = parseInt(req.params.id);
+  const product = store.getProductById(id);
+  if (!product) {
+    return res.redirect("/admin/store?error=Product not found.");
+  }
+
+  store.deleteProduct(id);
+  res.redirect("/admin/store?success=" + encodeURIComponent(`"${product.name}" deleted.`));
+});
+
+// POST /admin/store/category — create category
+router.post("/store/category", requireWriteAdmin, (req, res) => {
+  const { slug, label, description, sort_order } = req.body;
+  if (!slug || !label) {
+    return res.redirect("/admin/store?error=Slug and label are required.");
+  }
+  const cleanSlug = slug.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+  try {
+    store.createCategory({ slug: cleanSlug, label, description: description || "", sort_order: parseInt(sort_order) || 0 });
+    res.redirect("/admin/store?success=" + encodeURIComponent(`Category "${label}" created.`));
+  } catch (err) {
+    res.redirect("/admin/store?error=" + encodeURIComponent("Failed to create category: " + err.message));
+  }
+});
+
+// POST /admin/store/category/edit/:id — update category
+router.post("/store/category/edit/:id", requireWriteAdmin, (req, res) => {
+  const id = parseInt(req.params.id);
+  const cat = store.getCategoryById(id);
+  if (!cat) return res.redirect("/admin/store?error=Category not found.");
+
+  const { slug, label, description, sort_order } = req.body;
+  const cleanSlug = (slug || cat.slug).toLowerCase().replace(/[^a-z0-9-]/g, "-");
+
+  // Update products that used the old slug
+  if (cleanSlug !== cat.slug) {
+    const products = store.getAllProducts().filter(p => p.category === cat.slug);
+    for (const p of products) {
+      store.updateProduct(p.id, { ...p, category: cleanSlug });
+    }
+  }
+
+  store.updateCategory(id, { slug: cleanSlug, label: label || cat.label, description: description || "", sort_order: parseInt(sort_order) || 0 });
+  res.redirect("/admin/store?success=" + encodeURIComponent(`Category "${label}" updated.`));
+});
+
+// POST /admin/store/category/delete/:id — delete category
+router.post("/store/category/delete/:id", requireWriteAdmin, (req, res) => {
+  const id = parseInt(req.params.id);
+  const cat = store.getCategoryById(id);
+  if (!cat) return res.redirect("/admin/store?error=Category not found.");
+  store.deleteCategory(id);
+  res.redirect("/admin/store?success=" + encodeURIComponent(`Category "${cat.label}" deleted.`));
 });
 
 module.exports = router;

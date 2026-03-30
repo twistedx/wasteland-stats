@@ -208,10 +208,317 @@
     }));
   }
 
+  // Discord — Online Activity History (7 days, 15-min snapshots)
+  function renderOnlineHistoryChart(history) {
+    var el = document.getElementById("chart-discord-online-history");
+    if (!el || !history || !history.length) return;
+    var chart = echarts.init(el);
+    charts.push(chart);
+
+    var dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    var labels = history.map(function (d) {
+      var dt = new Date(d.ts);
+      return dayNames[dt.getDay()] + " " + String(dt.getHours()).padStart(2, "0") + ":" + String(dt.getMinutes()).padStart(2, "0");
+    });
+
+    chart.setOption(Object.assign({}, baseTheme, {
+      tooltip: {
+        trigger: "axis",
+        backgroundColor: BG,
+        borderColor: GRID,
+        textStyle: { color: "#e8e8e8" },
+        formatter: function (params) {
+          var idx = params[0].dataIndex;
+          var d = new Date(history[idx].ts);
+          var header = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+          var lines = params.map(function (p) {
+            return '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + p.color + ';margin-right:4px;"></span>' + p.seriesName + ": <b>" + p.value + "</b>";
+          });
+          return header + "<br>" + lines.join("<br>");
+        },
+      },
+      legend: { data: ["Online", "Idle", "DnD", "In Voice"], textStyle: { color: ACCENT, fontFamily: "Rajdhani, sans-serif" }, top: 0 },
+      xAxis: {
+        type: "category",
+        data: labels,
+        axisLine: { lineStyle: { color: GRID } },
+        axisLabel: {
+          color: ACCENT,
+          fontSize: 9,
+          rotate: 45,
+          interval: function (idx) {
+            // Show label every ~3 hours (12 snapshots at 15-min intervals)
+            return idx % 12 === 0;
+          },
+        },
+        boundaryGap: false,
+      },
+      yAxis: { type: "value", axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: ACCENT }, splitLine: { lineStyle: { color: GRID } } },
+      dataZoom: [
+        { type: "inside", start: 0, end: 100 },
+        { type: "slider", start: 0, end: 100, height: 20, bottom: 5, borderColor: GRID, fillerColor: "rgba(88,101,242,0.15)", handleStyle: { color: "#5865F2" } },
+      ],
+      series: [
+        {
+          name: "Online",
+          type: "line",
+          data: history.map(function (d) { return d.online; }),
+          smooth: true,
+          symbol: "none",
+          lineStyle: { color: "#43b581", width: 2 },
+          itemStyle: { color: "#43b581" },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: "rgba(67,181,129,0.3)" },
+              { offset: 1, color: "rgba(67,181,129,0.02)" },
+            ]),
+          },
+        },
+        {
+          name: "Idle",
+          type: "line",
+          data: history.map(function (d) { return d.idle; }),
+          smooth: true,
+          symbol: "none",
+          lineStyle: { color: "#faa61a", width: 1.5 },
+          itemStyle: { color: "#faa61a" },
+        },
+        {
+          name: "DnD",
+          type: "line",
+          data: history.map(function (d) { return d.dnd; }),
+          smooth: true,
+          symbol: "none",
+          lineStyle: { color: "#f04747", width: 1.5 },
+          itemStyle: { color: "#f04747" },
+        },
+        {
+          name: "In Voice",
+          type: "line",
+          data: history.map(function (d) { return d.in_voice; }),
+          smooth: true,
+          symbol: "none",
+          lineStyle: { color: "#5865F2", width: 2, type: "dashed" },
+          itemStyle: { color: "#5865F2" },
+        },
+      ],
+    }));
+  }
+
+  // Discord — Member Growth chart
+  function renderDiscordJoinsChart(joinHistory) {
+    var el = document.getElementById("chart-discord-joins");
+    if (!el || !joinHistory || !joinHistory.length) return;
+    var chart = echarts.init(el);
+    charts.push(chart);
+
+    var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    var labels = joinHistory.map(function (d) {
+      var parts = d.date.split("-");
+      return monthNames[parseInt(parts[1], 10) - 1] + " " + parseInt(parts[2], 10);
+    });
+
+    chart.setOption(Object.assign({}, baseTheme, {
+      tooltip: { trigger: "axis", backgroundColor: BG, borderColor: GRID, textStyle: { color: "#e8e8e8" } },
+      xAxis: { type: "category", data: labels, axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: ACCENT, fontSize: 10, rotate: 35 }, boundaryGap: true },
+      yAxis: { type: "value", minInterval: 1, axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: ACCENT }, splitLine: { lineStyle: { color: GRID } } },
+      series: [{
+        name: "New Members",
+        type: "bar",
+        data: joinHistory.map(function (d) { return d.joins; }),
+        itemStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: "#5865F2" },
+            { offset: 1, color: "#3a42a0" },
+          ]),
+          borderRadius: [3, 3, 0, 0],
+        },
+        label: { show: false },
+        barMaxWidth: 20,
+      }],
+    }));
+  }
+
+  // Discord — Role Breakdown chart
+  function renderDiscordRolesChart(topRoles) {
+    var el = document.getElementById("chart-discord-roles");
+    if (!el || !topRoles || !topRoles.length) return;
+    var chart = echarts.init(el);
+    charts.push(chart);
+
+    var sorted = topRoles.slice(0, 10).reverse();
+
+    chart.setOption(Object.assign({}, baseTheme, {
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, backgroundColor: BG, borderColor: GRID, textStyle: { color: "#e8e8e8" } },
+      xAxis: { type: "value", axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: ACCENT }, splitLine: { lineStyle: { color: GRID } } },
+      yAxis: { type: "category", data: sorted.map(function (r) { return r.name; }), axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: "#e8e8e8", fontSize: 11, fontWeight: 600 } },
+      series: [{
+        type: "bar",
+        data: sorted.map(function (r) {
+          return { value: r.count, itemStyle: { color: r.color === "#000000" ? "#5865F2" : r.color } };
+        }),
+        label: { show: true, position: "right", color: "#e8e8e8", fontSize: 11, fontWeight: 700 },
+        barWidth: "55%",
+        itemStyle: { borderRadius: [0, 3, 3, 0] },
+      }],
+    }));
+  }
+
+  // Discord — Online Status donut
+  function renderDiscordStatusChart(discord) {
+    var el = document.getElementById("chart-discord-status");
+    if (!el || !discord) return;
+    var chart = echarts.init(el);
+    charts.push(chart);
+
+    var data = [
+      { name: "Online", value: discord.online || 0 },
+      { name: "Idle", value: discord.idle || 0 },
+      { name: "DnD", value: discord.dnd || 0 },
+      { name: "Offline", value: discord.offline || 0 },
+    ].filter(function (d) { return d.value > 0; });
+
+    chart.setOption(Object.assign({}, baseTheme, {
+      tooltip: { trigger: "item", backgroundColor: BG, borderColor: GRID, textStyle: { color: "#e8e8e8" } },
+      series: [{
+        type: "pie",
+        radius: ["35%", "65%"],
+        center: ["50%", "55%"],
+        data: data,
+        label: { color: "#e8e8e8", fontSize: 11, fontWeight: 600, formatter: "{b}\n{c} ({d}%)" },
+        labelLine: { lineStyle: { color: ACCENT } },
+        itemStyle: { borderColor: BG, borderWidth: 2 },
+        color: ["#43b581", "#faa61a", "#f04747", "#747f8d"],
+      }],
+    }));
+  }
+
+  // Store — Revenue chart (30 days)
+  function renderStoreRevenueChart(dailyRevenue) {
+    var el = document.getElementById("chart-store-revenue");
+    if (!el || !dailyRevenue || !dailyRevenue.length) return;
+    var chart = echarts.init(el);
+    charts.push(chart);
+
+    var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    var labels = dailyRevenue.map(function (d) {
+      var parts = d.date.split("-");
+      return monthNames[parseInt(parts[1], 10) - 1] + " " + parseInt(parts[2], 10);
+    });
+
+    chart.setOption(Object.assign({}, baseTheme, {
+      tooltip: { trigger: "axis", backgroundColor: BG, borderColor: GRID, textStyle: { color: "#e8e8e8" }, formatter: function(params) {
+        var idx = params[0].dataIndex;
+        return labels[idx] + "<br>Revenue: <b>$" + dailyRevenue[idx].revenue.toFixed(2) + "</b><br>Orders: <b>" + dailyRevenue[idx].orders + "</b>";
+      }},
+      xAxis: { type: "category", data: labels, axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: ACCENT, fontSize: 10, rotate: 35 }, boundaryGap: true },
+      yAxis: { type: "value", axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: ACCENT, formatter: "${value}" }, splitLine: { lineStyle: { color: GRID } } },
+      series: [{
+        name: "Revenue",
+        type: "bar",
+        data: dailyRevenue.map(function (d) { return d.revenue; }),
+        itemStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: "#22c55e" },
+            { offset: 1, color: "#166534" },
+          ]),
+          borderRadius: [3, 3, 0, 0],
+        },
+        barMaxWidth: 20,
+      }],
+    }));
+  }
+
+  // Store — Top Products by Revenue (horizontal bar)
+  function renderStoreProductsChart(topProducts) {
+    var el = document.getElementById("chart-store-products");
+    if (!el || !topProducts || !topProducts.length) return;
+    var chart = echarts.init(el);
+    charts.push(chart);
+
+    var sorted = topProducts.slice(0, 8).reverse();
+    chart.setOption(Object.assign({}, baseTheme, {
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, backgroundColor: BG, borderColor: GRID, textStyle: { color: "#e8e8e8" } },
+      xAxis: { type: "value", axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: ACCENT, formatter: "${value}" }, splitLine: { lineStyle: { color: GRID } } },
+      yAxis: { type: "category", data: sorted.map(function (p) { return p.product_name; }), axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: "#e8e8e8", fontSize: 11, fontWeight: 600 } },
+      series: [{
+        type: "bar",
+        data: sorted.map(function (p) { return parseFloat(p.revenue); }),
+        itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: "#166534" }, { offset: 1, color: "#22c55e" }]), borderRadius: [0, 3, 3, 0] },
+        label: { show: true, position: "right", color: "#e8e8e8", fontSize: 11, fontWeight: 700, formatter: "${c}" },
+        barWidth: "55%",
+      }],
+    }));
+  }
+
+  // Store — Top Products by Quantity (horizontal bar)
+  function renderStoreQtyChart(topProducts) {
+    var el = document.getElementById("chart-store-qty");
+    if (!el || !topProducts || !topProducts.length) return;
+    var chart = echarts.init(el);
+    charts.push(chart);
+
+    var sorted = topProducts.slice(0, 8).reverse();
+    chart.setOption(Object.assign({}, baseTheme, {
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, backgroundColor: BG, borderColor: GRID, textStyle: { color: "#e8e8e8" } },
+      xAxis: { type: "value", minInterval: 1, axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: ACCENT }, splitLine: { lineStyle: { color: GRID } } },
+      yAxis: { type: "category", data: sorted.map(function (p) { return p.product_name; }), axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: "#e8e8e8", fontSize: 11, fontWeight: 600 } },
+      series: [{
+        type: "bar",
+        data: sorted.map(function (p) { return p.sold; }),
+        itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: "#1e3a5f" }, { offset: 1, color: "#5865F2" }]), borderRadius: [0, 3, 3, 0] },
+        label: { show: true, position: "right", color: "#e8e8e8", fontSize: 11, fontWeight: 700 },
+        barWidth: "55%",
+      }],
+    }));
+  }
+
   // Render visitor chart from server-side embedded data
   if (window.__dailyViews) {
     renderVisitorsChart(window.__dailyViews);
   }
+
+  // Render Discord charts when tab becomes visible
+  var discordRendered = false;
+  function renderDiscordCharts() {
+    if (discordRendered || !window.__discord || !window.__discord.joinHistory) return;
+    discordRendered = true;
+    renderOnlineHistoryChart(window.__onlineHistory || []);
+    renderDiscordJoinsChart(window.__discord.joinHistory);
+    renderDiscordRolesChart(window.__discord.topRoles);
+    renderDiscordStatusChart(window.__discord);
+  }
+
+  // Store charts (deferred)
+  var storeRendered = false;
+  function renderStoreCharts() {
+    if (storeRendered || !window.__storeStats || !window.__storeStats.dailyRevenue) return;
+    storeRendered = true;
+    renderStoreRevenueChart(window.__storeStats.dailyRevenue);
+    renderStoreProductsChart(window.__storeStats.topProducts);
+    renderStoreQtyChart(window.__storeStats.topProducts);
+  }
+
+  // Check if tabs are already visible, otherwise wait for tab switch
+  var discordTab = document.getElementById("tab-discord");
+  if (discordTab && discordTab.style.display !== "none") {
+    renderDiscordCharts();
+  }
+  var storeTab = document.getElementById("tab-store");
+  if (storeTab && storeTab.style.display !== "none") {
+    renderStoreCharts();
+  }
+  // Listen for tab switch
+  document.querySelectorAll(".analytics-tab").forEach(function(tab) {
+    tab.addEventListener("click", function() {
+      if (this.getAttribute("data-tab") === "tab-discord") {
+        setTimeout(renderDiscordCharts, 100);
+      }
+      if (this.getAttribute("data-tab") === "tab-store") {
+        setTimeout(renderStoreCharts, 100);
+      }
+    });
+  });
 
   // Fetch game stats and render charts
   fetch("/api/stats")

@@ -1,6 +1,7 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require("discord.js");
 const config = require("./config");
 const adminUsers = require("./admin-users");
+const discordStats = require("./discord-stats");
 
 let client = null;
 
@@ -34,11 +35,19 @@ async function init() {
   }
 
   // Start the bot
-  console.log("DiscordBot: connecting to Discord gateway with intents [Guilds, GuildMembers]...");
-  client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
+  console.log("DiscordBot: connecting to Discord gateway with intents [Guilds, GuildMembers, GuildPresences, GuildVoiceStates]...");
+  client = new Client({
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMembers,
+      GatewayIntentBits.GuildPresences,
+      GatewayIntentBits.GuildVoiceStates,
+    ],
+  });
 
   client.on("ready", () => {
     console.log(`DiscordBot: logged in as ${client.user.tag}`);
+    discordStats.init(client, config.discordGuildId);
   });
 
   client.on("interactionCreate", async (interaction) => {

@@ -22,21 +22,28 @@
     {{#if user.isWriteAdmin}}
     <!-- Utilities dropdown -->
     <div class="admin-dropdown">
-      <button class="tab admin-dropdown-toggle {{#if (or (eq activeTab 'money') (eq activeTab 'skins'))}}active{{/if}}">
+      <button class="tab admin-dropdown-toggle {{#if (or (or (eq activeTab 'money') (eq activeTab 'skins')) (eq activeTab 'blog'))}}active{{/if}}">
         Utilities <span class="dropdown-arrow">&#9662;</span>
       </button>
       <div class="admin-dropdown-menu">
         <a href="/admin/money" class="admin-dropdown-item {{#if (eq activeTab 'money')}}active{{/if}}">Add Money</a>
         <a href="/admin/skins" class="admin-dropdown-item {{#if (eq activeTab 'skins')}}active{{/if}}">Skins</a>
+        {{#if user.isBlogAdmin}}
+          <a href="/admin/blog" class="admin-dropdown-item {{#if (eq activeTab 'blog')}}active{{/if}}">Blog</a>
+        {{/if}}
       </div>
     </div>
     {{/if}}
-
-    {{#if user.isBlogAdmin}}
-      <a href="/admin/blog" class="tab {{#if (eq activeTab 'blog')}}active{{/if}}">Blog</a>
-    {{/if}}
-    <a href="/admin/servers" class="tab {{#if (eq activeTab 'servers')}}active{{/if}}">Servers</a>
-    <a href="/admin/system" class="tab {{#if (eq activeTab 'system')}}active{{/if}}">System</a>
+    <div class="admin-dropdown">
+      <button class="tab admin-dropdown-toggle {{#if (or (eq activeTab 'servers') (eq activeTab 'system'))}}active{{/if}}">
+        Servers <span class="dropdown-arrow">&#9662;</span>
+      </button>
+      <div class="admin-dropdown-menu">
+        <a href="/admin/servers" class="admin-dropdown-item {{#if (eq activeTab 'servers')}}active{{/if}}">Game Servers</a>
+        <a href="/admin/system" class="admin-dropdown-item {{#if (eq activeTab 'system')}}active{{/if}}">Webserver</a>
+      </div>
+    </div>
+    <a href="/admin/store" class="tab {{#if (eq activeTab 'store')}}active{{/if}}">Store Admin</a>
     <a href="/build" class="tab {{#if (eq activeTab 'build')}}active{{/if}}">Store (Build)</a>
   </div>
   <div class="admin-tab-actions">

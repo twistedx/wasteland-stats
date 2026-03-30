@@ -34,48 +34,31 @@
 </div>
 <div id="cart-overlay" class="cart-overlay"></div>
 
-<section class="info-section store-section">
-  <h2>Wasteland Loadout Skins</h2>
-  <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Browse items and add them to your cart. When you're ready, checkout securely via Stripe.</p>
-
-  <div class="feature-grid store-grid" id="product-grid">
-    <!-- Products are rendered from the data below -->
-  </div>
-</section>
-
-<section class="info-section store-section">
-  <h2>Support the Community</h2>
-  <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">One-time supporter tiers — help keep the servers running and earn exclusive perks.</p>
-
-  <div class="feature-grid store-grid" id="supporter-grid">
-    <!-- Supporter tiers rendered by JS below -->
-  </div>
-</section>
+<div id="store-categories">
+  <!-- Dynamically rendered by JS from categories data -->
+</div>
 
 <script>
 (function() {
-  // ── Product catalog ──
-  const PRODUCTS = [
-    { id: "loadout-sheen-out",    name: "The Sheen Out",    price: 19.99, image: "/img/store/charliesheen 1.png",  description: "Clean casual look with cargo shorts and a fresh white tee." },
-    { id: "loadout-cowboy",       name: "The Cowboy",        price: 24.99, image: "/img/store/cowboy.png",           description: "Saddle up with a classic western hat and rugged denim." },
-    { id: "loadout-lumberjack",   name: "The LumberJack",   price: 24.99, image: "/img/store/lumberjack 1.png",     description: "Flannel and denim — built for chopping wood and enemies." },
-    { id: "loadout-corsair",      name: "The Corsair",       price: 29.99, image: "/img/store/pirate 1.png",         description: "Pirate-inspired loadout with a tricorn hat and leather boots." },
-    { id: "loadout-burglar",      name: "The Burglar",       price: 29.99, image: "/img/store/burgler 1.png",        description: "Dark hoodie and tactical pants — move unseen in the shadows." },
-    { id: "loadout-prepper",      name: "The Prepper",       price: 29.99, image: "/img/store/prepper 1.png",        description: "Survival-ready gear with a cap and earth-tone fatigues." },
-    { id: "loadout-slav-specter", name: "The Slav Specter",  price: 29.99, image: "/img/store/theslav 1.png",        description: "Full camo loadout for blending into the wilderness." },
-    { id: "loadout-packer",       name: "The Packer",        price: 29.99, image: "/img/store/thepacker 1.png",      description: "Green tactical jacket and cargo pants — ready for anything." },
-  ];
+  // ── Product catalog from database ──
+  const CATEGORIES = {{{categoriesJson}}};
 
-  const SUPPORTER_TIERS = [
-    { id: "supporter-wanderer",    name: "Wanderer",              price: 25.00,  image: "/img/store/wanderer.png",              description: "Start your journey — entry-level supporter tier with exclusive perks." },
-    { id: "supporter-scout",       name: "Scout",                 price: 50.00,  image: "/img/store/scout.png",                 description: "Survival tier — elevated supporter status with bonus rewards." },
-    { id: "supporter-ranger",      name: "Ranger",                price: 100.00, image: "/img/store/ranger.png",                description: "Elite tier — serious commitment with premium community benefits." },
-    { id: "supporter-hero",        name: "Wasteland Hero",        price: 250.00, image: "/img/store/hero.png",        description: "Hero tier — top-level support with exclusive in-game recognition." },
-    { id: "supporter-legendary",   name: "Legendary Wastelander", price: 475.00, image: "/img/store/legendary.png", description: "Ultimate supporter — the highest honor with all perks unlocked." },
-    { id: "supporter-warlord",     name: "Warlord",               price: 650.00, image: "/img/store/warlord.png",               description: "Warlord tier — command respect with top-tier recognition and rewards." },
-    { id: "supporter-overlord",    name: "Overlord",              price: 850.00, image: "/img/store/overlord.png",              description: "Overlord tier — dominate the wasteland with unmatched supporter status." },
-    { id: "supporter-immortal",    name: "Immortal",              price: 1000.00, image: "/img/store/immortal.png",             description: "Immortal tier — the pinnacle of support. Your legacy lives forever." },
-  ];
+  function mapProduct(p) {
+    const effectivePrice = (p.sale_price && p.sale_price > 0) ? p.sale_price : p.price;
+    return {
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      price: effectivePrice / 100,
+      originalPrice: p.sale_price ? p.price / 100 : null,
+      image: p.image,
+      badge: p.badge,
+      onSale: p.sale_price && p.sale_price > 0,
+    };
+  }
+
+  // Flat list of all products for cart lookups
+  const ALL_PRODUCTS = CATEGORIES.flatMap(c => c.products.map(mapProduct));
 
   // ── Cart state (localStorage) ──
   function getCart() {
@@ -116,48 +99,44 @@
   }
 
   // ── Render ──
-  function renderProducts() {
-    const grid = document.getElementById("product-grid");
-    grid.innerHTML = PRODUCTS.map(p => {
-      const isLimited = p.name.includes("Leaving Soon");
-      return `
+  function renderProductCard(p) {
+    const badgeHtml = p.badge === 'new' ? '<span class="store-badge new-badge">New</span>'
+      : p.badge === 'limited' ? '<span class="store-badge limited">Limited Time</span>'
+      : p.badge === 'sale' || p.onSale ? '<span class="store-badge sale-badge">Sale</span>'
+      : p.badge ? `<span class="store-badge new-badge">${p.badge}</span>` : '';
+    const priceHtml = p.onSale
+      ? `<span class="store-original-price">$${p.originalPrice.toFixed(2)}</span> <strong>$${p.price.toFixed(2)}</strong>`
+      : `<strong>$${p.price.toFixed(2)}</strong>`;
+    return `
       <div class="feature-card store-card has-image">
         <div class="store-image-wrap">
           ${p.image ? `<img src="${p.image}" alt="${p.name}" class="card-image">` : ""}
-          <span class="store-badge new-badge">New</span>
-          ${isLimited ? '<span class="store-badge limited">Limited Time</span>' : ""}
+          ${badgeHtml}
         </div>
         <div class="card-body">
           <h4>${p.name}</h4>
           <p>${p.description}</p>
-          <p class="store-price"><strong>$${p.price.toFixed(2)}</strong></p>
+          <p class="store-price">${priceHtml}</p>
           <button class="btn btn-discord btn-add-cart" data-id="${p.id}">Add to Cart</button>
         </div>
       </div>`;
+  }
+
+  function renderProducts() {
+    const container = document.getElementById("store-categories");
+    container.innerHTML = CATEGORIES.map(cat => {
+      const products = cat.products.map(mapProduct);
+      return `
+        <section class="info-section store-section">
+          <h2>${cat.label}</h2>
+          ${cat.description ? `<p style="color: var(--text-secondary); margin-bottom: 1.5rem;">${cat.description}</p>` : ''}
+          <div class="feature-grid store-grid">
+            ${products.map(renderProductCard).join("")}
+          </div>
+        </section>`;
     }).join("");
 
-    grid.querySelectorAll(".btn-add-cart").forEach(btn => {
-      btn.addEventListener("click", () => addToCart(btn.dataset.id));
-    });
-
-    // Render supporter tiers
-    const supporterGrid = document.getElementById("supporter-grid");
-    supporterGrid.innerHTML = SUPPORTER_TIERS.map(p => `
-      <div class="feature-card store-card has-image">
-        <div class="store-image-wrap">
-          ${p.image ? `<img src="${p.image}" alt="${p.name}" class="card-image">` : ""}
-        </div>
-        <div class="card-body">
-          <h4>${p.name}</h4>
-          <p>${p.description}</p>
-          <p class="store-price"><strong>$${p.price.toFixed(2)}</strong></p>
-          <span style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.5rem;display:block;">One-time payment</span>
-          <button class="btn btn-discord btn-add-cart" data-id="${p.id}">Add to Cart</button>
-        </div>
-      </div>
-    `).join("");
-
-    supporterGrid.querySelectorAll(".btn-add-cart").forEach(btn => {
+    container.querySelectorAll(".btn-add-cart").forEach(btn => {
       btn.addEventListener("click", () => addToCart(btn.dataset.id));
     });
   }
@@ -182,7 +161,8 @@
 
     let total = 0;
     itemsEl.innerHTML = cart.map(ci => {
-      const p = PRODUCTS.find(pr => pr.id === ci.id) || SUPPORTER_TIERS.find(pr => pr.id === ci.id);
+      const cid = typeof ci.id === 'string' ? parseInt(ci.id) : ci.id;
+      const p = ALL_PRODUCTS.find(pr => pr.id === cid);
       if (!p) return "";
       const lineTotal = p.price * ci.qty;
       total += lineTotal;
@@ -447,6 +427,19 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-radius: 2px;
+}
+.store-original-price {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin-right: 0.5rem;
+}
+.store-badge.sale-badge {
+  left: 0.5rem;
+  right: auto;
+  background: #22c55e;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.4);
 }
 .store-badge.new-badge {
   left: 0.5rem;

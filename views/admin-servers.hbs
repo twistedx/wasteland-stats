@@ -1,6 +1,17 @@
 <section id="admin-section">
   {{> admin-nav}}
 
+  {{#if successMessage}}
+    <div class="notice success-notice">
+      <strong>Success</strong>
+      <p>{{successMessage}}</p>
+    </div>
+  {{/if}}
+
+  {{#if errorMessage}}
+    <div class="error">{{errorMessage}}</div>
+  {{/if}}
+
   {{#if serversError}}
     <div class="alert alert-error">Failed to load server data.</div>
   {{/if}}
@@ -101,7 +112,18 @@
           </div>
         {{/if}}
 
-        {{#if this.instanceName}}
+        {{#if this.instanceId}}
+          <div class="server-card-footer" style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              {{#if this.instanceName}}<span>{{this.instanceName}}</span>{{/if}}
+              {{#if this.ampVersion}}<span style="margin-left:0.5rem;color:var(--text-secondary);">AMP {{this.ampVersion}}</span>{{/if}}
+            </div>
+            <form method="POST" action="/admin/servers/restart/{{this.instanceId}}" style="margin:0;" onsubmit="return confirm('Are you sure you want to restart this server?\n\nAll connected players will be disconnected.');">
+              <input type="hidden" name="_csrf" value="{{../csrfToken}}">
+              <button type="submit" class="btn btn-small" style="background:#F59E0B;color:#000;font-weight:700;">Restart</button>
+            </form>
+          </div>
+        {{else if this.instanceName}}
           <div class="server-card-footer">
             <span>{{this.instanceName}}</span>
             <span>AMP {{this.ampVersion}}</span>
