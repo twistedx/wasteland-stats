@@ -1564,4 +1564,20 @@ router.post("/store/category/delete/:id", requireWriteAdmin, (req, res) => {
   res.redirect("/admin/store?success=" + encodeURIComponent(`Category "${cat.label}" deleted.`));
 });
 
+// POST /admin/store/sync-stripe — sync all products to Stripe
+router.post("/store/sync-stripe", requireWriteAdmin, async (req, res) => {
+  try {
+    const result = await store.syncToStripe();
+    auditLog.log("store", "Stripe Sync", `Synced ${result.synced}/${result.total} products${result.errors.length ? ", " + result.errors.length + " errors" : ""}`, req.session.user);
+    if (result.errors.length) {
+      res.redirect("/admin/store?error=" + encodeURIComponent(`Synced ${result.synced}/${result.total}. Errors: ${result.errors.map(e => e.product).join(", ")}`));
+    } else {
+      res.redirect("/admin/store?success=" + encodeURIComponent(`All ${result.synced} products synced to Stripe.`));
+    }
+  } catch (err) {
+    console.error("Stripe sync error:", err.message);
+    res.redirect("/admin/store?error=" + encodeURIComponent("Stripe sync failed: " + err.message));
+  }
+});
+
 module.exports = router;

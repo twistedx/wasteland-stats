@@ -42,6 +42,7 @@ app.use(helmet({
       connectSrc: ["'self'"],
       frameSrc: ["'self'", "https://www.youtube.com", "https://youtube.com", "https://www.youtube-nocookie.com"],
       objectSrc: ["'none'"],
+      formAction: ["'self'", "https://checkout.stripe.com"],
       baseUri: ["'self'"],
     },
   },
@@ -551,21 +552,26 @@ app.post("/build/checkout", requireAdminForBuild, async (req, res) => {
     return res.status(400).send("Cart is empty.");
   }
 
-  // Build Stripe line items from the cart — validate against DB prices
+  // Build Stripe line items from the cart — use Stripe price IDs if synced, otherwise inline
   const lineItems = [];
   for (const item of cart) {
     const product = store.getProductById(parseInt(item.id));
     if (!product || !product.active) continue;
     const qty = Math.max(1, Math.min(99, parseInt(item.qty) || 1));
-    const effectivePrice = store.getEffectivePrice(product);
-    lineItems.push({
-      price_data: {
-        currency: "usd",
-        product_data: { name: product.name },
-        unit_amount: effectivePrice, // cents — uses sale_price if set
-      },
-      quantity: qty,
-    });
+
+    if (product.stripe_price_id) {
+      lineItems.push({ price: product.stripe_price_id, quantity: qty });
+    } else {
+      const effectivePrice = store.getEffectivePrice(product);
+      lineItems.push({
+        price_data: {
+          currency: "usd",
+          product_data: { name: product.name },
+          unit_amount: effectivePrice,
+        },
+        quantity: qty,
+      });
+    }
   }
 
   if (lineItems.length === 0) {

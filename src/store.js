@@ -32,6 +32,10 @@ function init() {
     )
   `);
 
+  // Add Stripe columns if they don't exist (migration-safe)
+  try { db.exec("ALTER TABLE store_products ADD COLUMN stripe_product_id TEXT DEFAULT NULL"); } catch {}
+  try { db.exec("ALTER TABLE store_products ADD COLUMN stripe_price_id TEXT DEFAULT NULL"); } catch {}
+
   db.exec(`CREATE INDEX IF NOT EXISTS idx_store_category ON store_products (category)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_store_active ON store_products (active)`);
 
@@ -187,6 +191,82 @@ function getCategoriesWithProducts() {
   })).filter(cat => cat.products.length > 0);
 }
 
+// ── Stripe Sync ──
+async function syncToStripe() {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    console.log("Store: Stripe not configured, skipping sync.");
+    return { synced: 0, errors: [] };
+  }
+  const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+  const products = getAllProducts();
+  let synced = 0;
+  const errors = [];
+
+  for (const product of products) {
+    try {
+      let stripeProductId = product.stripe_product_id;
+
+      // Create or update the Stripe product
+      if (!stripeProductId) {
+        const sp = await stripe.products.create({
+          name: product.name,
+          description: product.description || undefined,
+          metadata: { store_id: String(product.id), category: product.category },
+        });
+        stripeProductId = sp.id;
+        console.log(`Store: created Stripe product ${sp.id} for "${product.name}"`);
+      } else {
+        await stripe.products.update(stripeProductId, {
+          name: product.name,
+          description: product.description || undefined,
+          active: !!product.active,
+          metadata: { store_id: String(product.id), category: product.category },
+        });
+      }
+
+      // Create a new price (Stripe prices are immutable — always create new on change)
+      const effectivePrice = getEffectivePrice(product);
+      let needsNewPrice = !product.stripe_price_id;
+
+      if (product.stripe_price_id) {
+        // Check if existing price matches
+        try {
+          const existingPrice = await stripe.prices.retrieve(product.stripe_price_id);
+          if (existingPrice.unit_amount !== effectivePrice) {
+            // Deactivate old price
+            await stripe.prices.update(product.stripe_price_id, { active: false });
+            needsNewPrice = true;
+          }
+        } catch {
+          needsNewPrice = true;
+        }
+      }
+
+      let stripePriceId = product.stripe_price_id;
+      if (needsNewPrice) {
+        const price = await stripe.prices.create({
+          product: stripeProductId,
+          unit_amount: effectivePrice,
+          currency: "usd",
+        });
+        stripePriceId = price.id;
+        console.log(`Store: created Stripe price ${price.id} ($${(effectivePrice / 100).toFixed(2)}) for "${product.name}"`);
+      }
+
+      // Save IDs back to DB
+      db.prepare("UPDATE store_products SET stripe_product_id = ?, stripe_price_id = ? WHERE id = ?")
+        .run(stripeProductId, stripePriceId, product.id);
+      synced++;
+    } catch (err) {
+      console.error(`Store: Stripe sync error for "${product.name}":`, err.message);
+      errors.push({ product: product.name, error: err.message });
+    }
+  }
+
+  console.log(`Store: synced ${synced}/${products.length} products to Stripe.`);
+  return { synced, total: products.length, errors };
+}
+
 // ── Purchases ──
 function recordPurchase({ stripe_session_id, product_name, quantity, amount }) {
   return db.prepare(`
@@ -263,5 +343,5 @@ function getStoreStats() {
 module.exports = {
   init, getActiveProducts, getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, getEffectivePrice,
   getAllCategories, getCategoryBySlug, getCategoryById, createCategory, updateCategory, deleteCategory, getCategoriesWithProducts,
-  recordPurchase, getStoreStats,
+  recordPurchase, getStoreStats, syncToStripe,
 };
