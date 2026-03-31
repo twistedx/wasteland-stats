@@ -9,8 +9,34 @@ const DB_FILE = path.join(DB_DIR, "store.db");
 let db = null;
 
 function init() {
+  if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
   db = new Database(DB_FILE);
   db.pragma("journal_mode = WAL");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS skin_draw_pool (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      skin_key TEXT NOT NULL,
+      rarity TEXT NOT NULL DEFAULT 'common',
+      weight INTEGER NOT NULL DEFAULT 100,
+      image TEXT DEFAULT NULL,
+      active INTEGER NOT NULL DEFAULT 1
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS skin_draw_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      discord_id TEXT,
+      result_name TEXT NOT NULL,
+      result_rarity TEXT NOT NULL,
+      stripe_session_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  db.exec("CREATE INDEX IF NOT EXISTS idx_draw_history_ts ON skin_draw_history (created_at)");
   try { db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_draw_pool_name ON skin_draw_pool (name)"); } catch {}
 }
 

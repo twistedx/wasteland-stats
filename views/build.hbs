@@ -107,6 +107,10 @@
     const priceHtml = p.onSale
       ? `<span class="store-original-price">$${p.originalPrice.toFixed(2)}</span> <strong>$${p.price.toFixed(2)}</strong>`
       : `<strong>$${p.price.toFixed(2)}</strong>`;
+    const isDrawProduct = p.name === 'Random Skin Draw';
+    const buttonHtml = isDrawProduct
+      ? `<a href="/draw" class="btn btn-discord" style="text-decoration:none;display:inline-block;">Roll Now — $${p.price.toFixed(2)}</a>`
+      : `<button class="btn btn-discord btn-add-cart" data-id="${p.id}">Add to Cart</button>`;
     return `
       <div class="feature-card store-card has-image">
         <div class="store-image-wrap">
@@ -117,7 +121,7 @@
           <h4>${p.name}</h4>
           <p>${p.description}</p>
           <p class="store-price">${priceHtml}</p>
-          <button class="btn btn-discord btn-add-cart" data-id="${p.id}">Add to Cart</button>
+          ${buttonHtml}
         </div>
       </div>`;
   }

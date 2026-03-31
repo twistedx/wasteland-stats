@@ -782,9 +782,14 @@ app.post("/build/webhook", async (req, res) => {
       console.log(`Stripe: recorded ${lineItems.data.length} line items for session ${session.id}`);
 
       // Fulfill — grant items to the buyer via backend API
+      // Only fulfill loadout skins — subscriptions/supporter tiers need manual Discord role assignment
+      const FULFILLABLE_CATEGORIES = ["loadout"];
+      const SKIP_PRODUCTS = ["Random Skin Draw"]; // handled by /draw flow
+
       const discordId = session.metadata?.discord_id;
       const cartItems = session.metadata?.cart_items ? JSON.parse(session.metadata.cart_items) : [];
       const fulfilled = [];
+      const skipped = [];
       const fulfillErrors = [];
 
       if (discordId && discordId !== "guest" && cartItems.length > 0) {
@@ -796,6 +801,13 @@ app.post("/build/webhook", async (req, res) => {
           const product = store.getProductById(cartItem.id);
           if (!product) {
             fulfillErrors.push(`Product ID ${cartItem.id} not found in DB`);
+            continue;
+          }
+
+          // Skip non-skin products
+          if (SKIP_PRODUCTS.includes(product.name) || !FULFILLABLE_CATEGORIES.includes(product.category)) {
+            skipped.push(product.name);
+            console.log(`Stripe fulfillment: skipped "${product.name}" (category: ${product.category}) — requires manual fulfillment`);
             continue;
           }
 
@@ -817,10 +829,11 @@ app.post("/build/webhook", async (req, res) => {
 
       const { sendWebhook } = require("./webhook");
       const fulfillSummary = fulfilled.length > 0 ? `\nDelivered: ${fulfilled.join(", ")}` : "";
+      const skippedSummary = skipped.length > 0 ? `\nManual fulfillment needed: ${skipped.join(", ")}` : "";
       const errorSummary = fulfillErrors.length > 0 ? `\nErrors: ${fulfillErrors.join("; ")}` : "";
       sendWebhook({
         title: "Purchase Completed",
-        description: `**$${(session.amount_total / 100).toFixed(2)}** — ${lineItems.data.length} item(s)${fulfillSummary}${errorSummary}`,
+        description: `**$${(session.amount_total / 100).toFixed(2)}** — ${lineItems.data.length} item(s)${fulfillSummary}${skippedSummary}${errorSummary}`,
         color: fulfillErrors.length > 0 ? 0xF59E0B : 0x22c55e,
       });
 
