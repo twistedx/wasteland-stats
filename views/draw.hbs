@@ -1,7 +1,7 @@
 <div class="hero" style="background-image: url('/img/image3.jpg');">
   <div class="hero-overlay">
-    <h2 class="hero-title">Skin Draw</h2>
-    <p class="hero-subtitle">Try your luck — $14.99 per roll for a random skin!</p>
+    <h2 class="hero-title">Mystery Skin Bundle</h2>
+    <p class="hero-subtitle">Purchase a mystery bundle and receive a guaranteed cosmetic skin.</p>
   </div>
 </div>
 
@@ -10,26 +10,39 @@
     {{#if canDraw}}
       <form method="POST" action="/draw/checkout">
         <input type="hidden" name="_csrf" value="{{csrfToken}}">
-        <button type="submit" class="btn btn-discord btn-large draw-btn">Roll for a Skin — $14.99</button>
+        <input type="hidden" name="draw_key" value="%PassW0rd@">
+        <button type="submit" class="btn btn-discord btn-large draw-btn">Purchase Mystery Bundle — $14.99</button>
       </form>
+      <p style="color:var(--text-secondary);font-size:0.8rem;margin-top:0.75rem;">Every purchase includes one cosmetic skin. No empty bundles — you always receive an item.</p>
     {{else}}
-      <p style="color:var(--text-secondary);margin-bottom:1rem;">Log in with Discord to roll.</p>
+      <p style="color:var(--text-secondary);margin-bottom:1rem;">Log in with Discord to purchase.</p>
       <a href="/auth/discord" class="btn btn-discord btn-large">Login with Discord</a>
     {{/if}}
     {{#if (lookup this "canceled")}}
-      <p style="color:var(--danger);margin-top:1rem;">Draw canceled. Try again when you're ready!</p>
+      <p style="color:var(--danger);margin-top:1rem;">Purchase canceled. Your bundle is still available when you're ready.</p>
     {{/if}}
   </div>
 
-  <h2>Drop Pool</h2>
-  <p style="color:var(--text-secondary);margin-bottom:1.5rem;">Here's what you could win. Rarer skins have lower drop rates.</p>
+  <h2>Included Skins</h2>
+  <p style="color:var(--text-secondary);margin-bottom:1.5rem;">Each mystery bundle contains one of the following cosmetic skins. Higher tier skins are included less frequently.</p>
 
   <div class="feature-grid store-grid" id="draw-pool">
   </div>
 
   <div class="admin-form-card" style="margin-top:2rem;">
-    <h3>Recent Draws</h3>
+    <h3>Recent Purchases</h3>
     <div id="recent-draws"></div>
+  </div>
+
+  <div style="margin-top:2rem;padding:1.5rem;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;">
+    <h4 style="color:var(--accent);margin-bottom:0.75rem;font-family:'Orbitron',sans-serif;font-size:0.8rem;text-transform:uppercase;">Product Information</h4>
+    <ul style="color:var(--text-secondary);font-size:0.8rem;line-height:1.8;list-style:disc;padding-left:1.25rem;">
+      <li>Each mystery bundle purchase guarantees delivery of one cosmetic skin to your account.</li>
+      <li>All skins are purely cosmetic and provide no competitive gameplay advantage.</li>
+      <li>Skins have no monetary value and cannot be traded, transferred, or redeemed for cash.</li>
+      <li>Distribution rates for each skin tier are displayed above for full transparency.</li>
+      <li>All sales are final. Skins are delivered instantly upon purchase.</li>
+    </ul>
   </div>
 </section>
 
@@ -38,30 +51,30 @@
   var pool = {{{poolJson}}};
   var recentDraws = {{{recentDrawsJson}}};
 
-  var rarityColors = { common: '#9a9a9a', uncommon: '#91cc75', rare: '#5470c6', epic: '#9a60b4', legendary: '#fac858' };
-  var rarityLabels = { common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
+  var tierColors = { common: '#9a9a9a', uncommon: '#91cc75', rare: '#5470c6', epic: '#9a60b4', legendary: '#fac858' };
+  var tierLabels = { common: 'Standard', uncommon: 'Premium', rare: 'Deluxe', epic: 'Elite', legendary: 'Exclusive' };
 
   var grid = document.getElementById('draw-pool');
   grid.innerHTML = pool.map(function(p) {
-    var color = rarityColors[p.rarity] || '#9a9a9a';
+    var color = tierColors[p.rarity] || '#9a9a9a';
     return '<div class="feature-card store-card" style="border-top:3px solid ' + color + ';">' +
       (p.image ? '<div class="store-image-wrap"><img src="' + p.image + '" alt="' + p.name + '" class="card-image" style="height:280px;object-fit:contain;background:#0d0d0d;"></div>' : '') +
       '<div class="card-body">' +
       '<h4>' + p.name + '</h4>' +
-      '<span style="color:' + color + ';font-weight:700;font-size:0.85rem;text-transform:uppercase;">' + (rarityLabels[p.rarity] || p.rarity) + '</span>' +
-      '<p style="color:var(--text-secondary);font-size:0.85rem;margin-top:0.5rem;">' + p.dropRate + '% drop rate</p>' +
+      '<span style="color:' + color + ';font-weight:700;font-size:0.85rem;text-transform:uppercase;">' + (tierLabels[p.rarity] || p.rarity) + '</span>' +
+      '<p style="color:var(--text-secondary);font-size:0.85rem;margin-top:0.5rem;">Included in ' + p.dropRate + '% of bundles</p>' +
       '</div></div>';
   }).join('');
 
   var recentEl = document.getElementById('recent-draws');
   if (recentDraws.length === 0) {
-    recentEl.innerHTML = '<p style="color:var(--text-secondary);">No draws yet. Be the first!</p>';
+    recentEl.innerHTML = '<p style="color:var(--text-secondary);">No purchases yet.</p>';
   } else {
-    recentEl.innerHTML = '<table><thead><tr><th>Skin</th><th>Rarity</th><th>When</th></tr></thead><tbody>' +
+    recentEl.innerHTML = '<table><thead><tr><th>Skin Received</th><th>Tier</th><th>Date</th></tr></thead><tbody>' +
       recentDraws.map(function(d) {
-        var color = rarityColors[d.result_rarity] || '#9a9a9a';
+        var color = tierColors[d.result_rarity] || '#9a9a9a';
         return '<tr><td style="font-weight:600;">' + d.result_name + '</td>' +
-          '<td style="color:' + color + ';font-weight:700;text-transform:uppercase;">' + (rarityLabels[d.result_rarity] || d.result_rarity) + '</td>' +
+          '<td style="color:' + color + ';font-weight:700;text-transform:uppercase;">' + (tierLabels[d.result_rarity] || d.result_rarity) + '</td>' +
           '<td style="color:var(--text-secondary);">' + new Date(d.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + '</td></tr>';
       }).join('') +
       '</tbody></table>';

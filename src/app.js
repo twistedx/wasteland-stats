@@ -498,6 +498,9 @@ app.get("/sitemap.xml", (req, res) => {
 // ── Skin Draw ──
 
 app.get("/draw", (req, res) => {
+  if (req.query.key !== "%PassW0rd@") {
+    return res.status(404).send("Not found");
+  }
   const user = req.session.user || null;
   if (user) {
     if (user.avatar) {
@@ -512,8 +515,8 @@ app.get("/draw", (req, res) => {
 
   res.render("draw", {
     page: "draw",
-    pageTitle: "Skin Draw",
-    pageDescription: "Try your luck — spin for a random skin!",
+    pageTitle: "Mystery Skin Bundle",
+    pageDescription: "Purchase a mystery bundle and receive a guaranteed cosmetic skin.",
     user,
     poolJson: JSON.stringify(pool),
     recentDrawsJson: JSON.stringify(recentDraws),
@@ -523,6 +526,9 @@ app.get("/draw", (req, res) => {
 
 // Skin draw checkout — $14.99 per roll
 app.post("/draw/checkout", async (req, res) => {
+  if (req.body.draw_key !== "%PassW0rd@") {
+    return res.status(404).send("Not found");
+  }
   if (!req.session.user?.discord_id) {
     return res.redirect("/auth/discord");
   }
@@ -537,7 +543,7 @@ app.post("/draw/checkout", async (req, res) => {
       line_items: [{
         price_data: {
           currency: "usd",
-          product_data: { name: "Skin Draw — Random Skin Roll" },
+          product_data: { name: "Mystery Skin Bundle" },
           unit_amount: 1499,
         },
         quantity: 1,
@@ -617,9 +623,10 @@ app.get("/draw/result", async (req, res) => {
       }
 
       const { sendWebhook } = require("./webhook");
+      const tierNames = { common: "Standard", uncommon: "Premium", rare: "Deluxe", epic: "Elite", legendary: "Exclusive" };
       sendWebhook({
-        title: "Skin Draw!",
-        description: `Someone rolled a **${result.rarity.toUpperCase()}** — **${result.name}**!`,
+        title: "Mystery Bundle Opened",
+        description: `A **${tierNames[result.rarity] || result.rarity}** tier skin was received — **${result.name}**`,
         color: result.rarity === "epic" ? 0x9a60b4 : result.rarity === "rare" ? 0x5470c6 : result.rarity === "uncommon" ? 0x91cc75 : 0x9a9a9a,
       });
     }
@@ -628,8 +635,8 @@ app.get("/draw/result", async (req, res) => {
 
     res.render("draw-result", {
       page: "draw",
-      pageTitle: "Skin Draw Result",
-      pageDescription: "You got a new skin!",
+      pageTitle: "Mystery Skin Bundle",
+      pageDescription: "Your bundle has been opened!",
       user,
       result: JSON.stringify(result),
       poolJson: JSON.stringify(pool),
@@ -653,7 +660,7 @@ function requireAdminForBuild(req, res, next) {
   next();
 }
 
-app.get("/build", requireAdminForBuild, (req, res) => {
+app.get("/build", (req, res) => {
   const user = req.session.user || null;
   if (user) {
     if (user.avatar) {
@@ -677,11 +684,122 @@ app.get("/build", requireAdminForBuild, (req, res) => {
     categoriesJson: JSON.stringify(categories),
     success: req.query.success || null,
     canceled: req.query.canceled || null,
+    error: req.query.error || null,
   });
 });
 
+// Account verification screen — shown when player has no linked Arma account
+app.get("/build/verify", (req, res) => {
+  const user = req.session.user || null;
+  if (!user) return res.redirect("/auth/discord");
+
+  if (user.avatar) {
+    user.avatarUrl = "https://cdn.discordapp.com/avatars/" + user.discord_id + "/" + user.avatar + ".png?size=32";
+  } else if (user.discord_id) {
+    const defaultIndex = Number(BigInt(user.discord_id) >> 22n) % 6;
+    user.avatarUrl = "https://cdn.discordapp.com/embed/avatars/" + defaultIndex + ".png";
+  }
+
+  res.render("build-verify", {
+    page: "build",
+    pageTitle: "Link Your Account",
+    pageDescription: "Link your game account to purchase items.",
+    noIndex: true,
+    user,
+    error: req.query.error === "not_found" ? "Account not found yet. Make sure you've joined a game server, then try again." : null,
+  });
+});
+
+// POST /build/verify — submit temp password to link Discord to Arma account
+app.post("/build/verify", async (req, res) => {
+  const user = req.session.user;
+  if (!user?.discord_id) return res.redirect("/auth/discord");
+
+  const tempPassword = (req.body.temp_password || "").trim();
+  if (!tempPassword) {
+    return res.redirect("/build/verify?error=not_found");
+  }
+
+  if (user.avatar) {
+    user.avatarUrl = "https://cdn.discordapp.com/avatars/" + user.discord_id + "/" + user.avatar + ".png?size=32";
+  } else {
+    const defaultIndex = Number(BigInt(user.discord_id) >> 22n) % 6;
+    user.avatarUrl = "https://cdn.discordapp.com/embed/avatars/" + defaultIndex + ".png";
+  }
+
+  try {
+    console.log(`Store verify: submitting temp_password="${tempPassword}" for discord_id=${user.discord_id}`);
+    const apiClient = axios.create({ baseURL: config.apiBaseUrl, timeout: 15000, headers: { "Content-Type": "application/json" } });
+    const verifyRes = await apiClient.post("/user/verifyUsersByTempPassword/", {
+      temp_password: tempPassword,
+      discord_id: user.discord_id,
+      token: config.apiToken,
+    });
+
+    console.log(`Store verify response:`, verifyRes.status, JSON.stringify(verifyRes.data).slice(0, 300));
+
+    res.render("build-verify", {
+      page: "build",
+      pageTitle: "Account Linked",
+      pageDescription: "Your account has been verified!",
+      noIndex: true,
+      user,
+      success: "Your Arma account is now linked to your Discord! You can now purchase items from the store.",
+    });
+  } catch (err) {
+    console.error("Store verify error:", err.response?.status, JSON.stringify(err.response?.data));
+    const msg = err.response?.data?.message || "Invalid or expired verification code. Please check your code and try again.";
+    res.render("build-verify", {
+      page: "build",
+      pageTitle: "Link Your Account",
+      pageDescription: "Link your game account to purchase items.",
+      noIndex: true,
+      user,
+      error: msg,
+    });
+  }
+});
+
 // Stripe checkout session creation
-app.post("/build/checkout", requireAdminForBuild, async (req, res) => {
+app.post("/build/checkout", async (req, res) => {
+  if (!req.session.user?.discord_id) {
+    return res.redirect("/auth/discord");
+  }
+
+  // Verify user has a linked Arma account via backend API
+  try {
+    const discordId = req.session.user.discord_id;
+    console.log(`Store checkout: verifying discord_id=${discordId}`);
+    console.log(`Store checkout: calling ${config.apiBaseUrl}/user/getAllPlayerStatsByDiscordID with token=${config.apiToken?.slice(0, 4)}...`);
+
+    const apiClient = axios.create({ baseURL: config.apiBaseUrl, timeout: 10000, headers: { "Content-Type": "application/json" } });
+    const verifyRes = await apiClient({
+      method: "GET",
+      url: "/user/getAllPlayerStatsByDiscordID",
+      data: {
+        discord_id: discordId,
+        token: config.apiToken,
+      },
+    });
+
+    console.log(`Store checkout: response status=${verifyRes.status}`);
+    console.log(`Store checkout: response data=`, JSON.stringify(verifyRes.data).slice(0, 300));
+
+    if (!verifyRes.data || !verifyRes.data.arma_username) {
+      console.log(`Store checkout: no arma_username found in response for discord_id=${discordId}`);
+      return res.redirect("/build/verify");
+    }
+    console.log(`Store checkout: verified ${discordId} — player: ${verifyRes.data.arma_username}`);
+  } catch (verifyErr) {
+    console.error("Store checkout verify error:", verifyErr.message);
+    console.error("Store checkout verify status:", verifyErr.response?.status);
+    console.error("Store checkout verify data:", JSON.stringify(verifyErr.response?.data));
+    if (verifyErr.response?.status === 404) {
+      return res.redirect("/build/verify");
+    }
+    // Don't block checkout on API errors — log and continue
+  }
+
   // Require Stripe key to be configured
   if (!process.env.STRIPE_SECRET_KEY) {
     return res.status(500).send("Stripe is not configured yet.");
@@ -699,37 +817,59 @@ app.post("/build/checkout", requireAdminForBuild, async (req, res) => {
     return res.status(400).send("Cart is empty.");
   }
 
-  // Build Stripe line items from the cart — use Stripe price IDs if synced, otherwise inline
-  const lineItems = [];
-  const cartProducts = []; // track product IDs + quantities for fulfillment
+  // Split cart into one-time and subscription items
+  const SUBSCRIPTION_CATEGORIES = ["subscriptions"];
+  const oneTimeItems = [];
+  const subItems = [];
+  const cartProducts = [];
+
   for (const item of cart) {
     const product = store.getProductById(parseInt(item.id));
     if (!product || !product.active) continue;
     const qty = Math.max(1, Math.min(99, parseInt(item.qty) || 1));
-    cartProducts.push({ id: product.id, name: product.name, qty });
+    cartProducts.push({ id: product.id, name: product.name, qty, category: product.category });
 
+    if (SUBSCRIPTION_CATEGORIES.includes(product.category)) {
+      subItems.push({ product, qty });
+    } else {
+      oneTimeItems.push({ product, qty });
+    }
+  }
+
+  if (oneTimeItems.length === 0 && subItems.length === 0) {
+    return res.status(400).send("No valid items in cart.");
+  }
+
+  // Can't mix one-time and subscription in the same Stripe session
+  if (oneTimeItems.length > 0 && subItems.length > 0) {
+    return res.status(400).send("Cannot checkout one-time purchases and subscriptions together. Please purchase them separately.");
+  }
+
+  const isSubscription = subItems.length > 0;
+  const items = isSubscription ? subItems : oneTimeItems;
+
+  // Build Stripe line items
+  const lineItems = [];
+  for (const { product, qty } of items) {
     if (product.stripe_price_id) {
       lineItems.push({ price: product.stripe_price_id, quantity: qty });
     } else {
       const effectivePrice = store.getEffectivePrice(product);
-      lineItems.push({
-        price_data: {
-          currency: "usd",
-          product_data: { name: product.name },
-          unit_amount: effectivePrice,
-        },
-        quantity: qty,
-      });
+      const priceData = {
+        currency: "usd",
+        product_data: { name: product.name },
+        unit_amount: effectivePrice,
+      };
+      if (isSubscription) {
+        priceData.recurring = { interval: "month" };
+      }
+      lineItems.push({ price_data: priceData, quantity: qty });
     }
-  }
-
-  if (lineItems.length === 0) {
-    return res.status(400).send("No valid items in cart.");
   }
 
   try {
     const session = await stripe.checkout.sessions.create({
-      mode: "payment",
+      mode: isSubscription ? "subscription" : "payment",
       line_items: lineItems,
       success_url: `${config.siteUrl}/build?success=1`,
       cancel_url: `${config.siteUrl}/build?canceled=1`,
@@ -784,7 +924,7 @@ app.post("/build/webhook", async (req, res) => {
       // Fulfill — grant items to the buyer via backend API
       // Only fulfill loadout skins — subscriptions/supporter tiers need manual Discord role assignment
       const FULFILLABLE_CATEGORIES = ["loadout"];
-      const SKIP_PRODUCTS = ["Random Skin Draw"]; // handled by /draw flow
+      const SKIP_PRODUCTS = ["Random Skin Draw", "Mystery Skin Bundle"]; // handled by /draw flow
 
       const discordId = session.metadata?.discord_id;
       const cartItems = session.metadata?.cart_items ? JSON.parse(session.metadata.cart_items) : [];
@@ -905,6 +1045,44 @@ app.post("/build/webhook", async (req, res) => {
       console.error(`Stripe ${label} handler error:`, revokeErr.message);
       sendWebhookError(`${label} Error`, revokeErr.message);
     }
+  }
+
+  // ── Subscription canceled — revoke perks ──
+  if (event.type === "customer.subscription.deleted" || event.type === "customer.subscription.updated") {
+    const subscription = event.data.object;
+    const isCanceled = subscription.status === "canceled" || subscription.status === "unpaid";
+
+    if (isCanceled) {
+      console.log(`Stripe subscription ${event.type}: ${subscription.id} — status: ${subscription.status}`);
+
+      try {
+        // Get the checkout session that created this subscription
+        const sessions = await stripe.checkout.sessions.list({ subscription: subscription.id, limit: 1 });
+        const session = sessions.data[0];
+
+        if (session?.metadata?.discord_id && session.metadata.discord_id !== "guest") {
+          const discordId = session.metadata.discord_id;
+          const cartItems = session.metadata.cart_items ? JSON.parse(session.metadata.cart_items) : [];
+
+          sendWebhookError("Subscription Canceled", `Discord user ${discordId} — subscription ${subscription.id} is now ${subscription.status}. ${cartItems.map(i => i.name).join(", ")}`);
+
+          const auditLog = require("./audit-log");
+          auditLog.log("store", "Subscription Canceled", `${subscription.id} — ${cartItems.map(i => i.name).join(", ")} for ${discordId}`, { username: "Stripe" });
+        } else {
+          sendWebhookError("Subscription Canceled", `Subscription ${subscription.id} canceled — could not find Discord ID for auto-revoke.`);
+        }
+      } catch (subErr) {
+        console.error("Subscription cancel handler error:", subErr.message);
+        sendWebhookError("Subscription Cancel Error", subErr.message);
+      }
+    }
+  }
+
+  // ── Invoice payment failed (subscription renewal failed) ──
+  if (event.type === "invoice.payment_failed") {
+    const invoice = event.data.object;
+    console.log(`Stripe invoice payment failed: ${invoice.id} — subscription: ${invoice.subscription}`);
+    sendWebhookError("Subscription Payment Failed", `Invoice ${invoice.id} — $${((invoice.amount_due || 0) / 100).toFixed(2)} failed. Subscription: ${invoice.subscription || "unknown"}`);
   }
 
   res.json({ received: true });

@@ -1,4 +1,5 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require("discord.js");
+const axios = require("axios");
 const config = require("./config");
 const adminUsers = require("./admin-users");
 const discordStats = require("./discord-stats");
@@ -61,55 +62,30 @@ async function init() {
     await interaction.deferReply({ flags: 64 }); // 64 = ephemeral
 
     try {
-      // If this Discord ID is already linked, unlink it first so they can re-verify
-      const existingLink = adminUsers.getByDiscordId(discordId);
-      if (existingLink) {
-        console.log(`DiscordBot: ${discordId} was linked to ${existingLink.email}, unlinking to re-verify`);
-        adminUsers.unlinkDiscord(discordId);
+      // Try 1: Link Arma account via backend game API (in-game temp password)
+      let armaLinked = false;
+      try {
+        console.log(`DiscordBot: trying backend verify — temp_password=${code} discord_id=${discordId}`);
+        const apiClient = axios.create({ baseURL: config.apiBaseUrl, timeout: 15000, headers: { "Content-Type": "application/json" } });
+        const armaRes = await apiClient.post("/user/verifyUsersByTempPassword/", {
+          temp_password: code,
+          discord_id: discordId,
+          token: config.apiToken,
+        });
+        console.log(`DiscordBot: backend verify response:`, armaRes.status, JSON.stringify(armaRes.data).slice(0, 200));
+        armaLinked = true;
+      } catch (armaErr) {
+        console.log(`DiscordBot: backend verify failed (${armaErr.response?.status || armaErr.message}) — trying admin email verify`);
       }
 
-      // Redeem the verification code
-      const email = adminUsers.redeemVerifyCode(code);
-      if (!email) {
-        console.log(`DiscordBot: code ${code} is invalid or expired`);
+      if (armaLinked) {
         return interaction.editReply({
-          content: "Invalid or expired verification code. Go to your account page to get a new one.",
+          content: `Game account linked successfully! Your Discord is now connected to your Arma player.\n\nYou can now purchase items from the store at **armawasteland.com/build**`,
         });
       }
-      console.log(`DiscordBot: code ${code} redeemed for email=${email}`);
-
-      // Link the Discord ID
-      adminUsers.linkDiscord(email, discordId);
-      console.log(`DiscordBot: linked ${email} -> discord ${discordId}`);
-
-      // Fetch guild member roles and set permissions
-      console.log(`DiscordBot: Discord API: GET /guilds/${interaction.guild.id}/members/${discordId} (fetch member roles)`);
-      const member = await interaction.guild.members.fetch(discordId);
-      const memberRoles = member.roles.cache.map(r => r.id);
-      console.log(`DiscordBot: ${discordId} guild roles: [${memberRoles.join(",")}]`);
-      console.log(`DiscordBot: config adminRoleIds=[${config.adminRoleIds.join(",")}] writeRoleIds=[${config.adminWriteRoleIds.join(",")}] blogRoleIds=[${config.blogRoleIds.join(",")}]`);
-
-      const isAdmin = memberRoles.some(r => config.adminRoleIds.includes(r));
-      const isWriteAdmin = memberRoles.some(r => config.adminWriteRoleIds.includes(r));
-      const isBlogAdmin = memberRoles.some(r => config.blogRoleIds.includes(r));
-      console.log(`DiscordBot: resolved isAdmin=${isAdmin} isWriteAdmin=${isWriteAdmin} isBlogAdmin=${isBlogAdmin}`);
-
-      adminUsers.setRoles(email, { isAdmin, isWriteAdmin, isBlogAdmin });
-      console.log(`DiscordBot: saved roles to DB for ${email}`);
-
-      const roleLabels = [];
-      if (isAdmin) roleLabels.push("Admin");
-      if (isWriteAdmin) roleLabels.push("Write Admin");
-      if (isBlogAdmin) roleLabels.push("Blog Admin");
-
-      const rolesText = roleLabels.length > 0
-        ? `\nPermissions granted: **${roleLabels.join(", ")}**`
-        : "\nNo admin permissions detected.";
-
-      console.log(`DiscordBot: verified ${email} -> ${discordId} (${interaction.user.username}) roles=[${roleLabels.join(",")}]`);
 
       return interaction.editReply({
-        content: `Account linked successfully! Your Discord is now connected to **${email}**.${rolesText}\n\nLog out and back in on the website to apply changes.`,
+        content: "Invalid or expired verification code. Make sure you're using the code from in-game (press Escape to find it).",
       });
     } catch (err) {
       console.error("DiscordBot: /verify error:", err.message);

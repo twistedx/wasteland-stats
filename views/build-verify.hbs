@@ -1,0 +1,79 @@
+<div class="login-page">
+  <div class="login-card" style="max-width:550px;">
+    <div class="account-header" style="margin-bottom:1.5rem;">
+      <img src="{{user.avatarUrl}}" class="account-avatar" alt="avatar">
+      <div>
+        <h2>Link Your Account</h2>
+        <p class="login-subtitle">Hey {{user.username}} — link your Arma player to start purchasing items.</p>
+      </div>
+    </div>
+
+    {{#if success}}
+      <div class="notice success-notice" style="margin-bottom:1rem;">
+        <strong>Account Linked!</strong>
+        <p>{{success}}</p>
+      </div>
+      <div style="text-align:center;margin-bottom:1rem;">
+        <a href="/build" class="btn btn-discord btn-large" style="text-decoration:none;">Continue to Store</a>
+      </div>
+    {{/if}}
+
+    {{#if error}}
+      <div class="error" style="margin-bottom:1rem;">{{error}}</div>
+    {{/if}}
+
+    {{#unless success}}
+    <div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:4px;padding:1.5rem;margin-bottom:1.5rem;">
+      <h3 style="font-family:'Orbitron',sans-serif;font-size:0.9rem;color:var(--accent);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:1rem;">Verify Your Account</h3>
+
+      <div style="display:flex;flex-direction:column;gap:1rem;margin-bottom:1.5rem;">
+        <div style="display:flex;gap:1rem;align-items:flex-start;">
+          <div style="min-width:32px;height:32px;border-radius:50%;background:#5865F2;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;">1</div>
+          <div>
+            <strong>Join a Game Server</strong>
+            <p style="color:var(--text-secondary);font-size:0.85rem;margin-top:0.25rem;">Launch Arma Reforger and connect to any ArmaWasteland server.</p>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:1rem;align-items:flex-start;">
+          <div style="min-width:32px;height:32px;border-radius:50%;background:#5865F2;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;">2</div>
+          <div>
+            <strong>Get Your Verification Code</strong>
+            <p style="color:var(--text-secondary);font-size:0.85rem;margin-top:0.25rem;">Press <strong>Escape</strong> in-game to find your temporary verification code.</p>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:1rem;align-items:flex-start;">
+          <div style="min-width:32px;height:32px;border-radius:50%;background:#22c55e;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;">3</div>
+          <div>
+            <strong>Enter It Below</strong>
+            <p style="color:var(--text-secondary);font-size:0.85rem;margin-top:0.25rem;">Type your code below and we'll link your accounts instantly.</p>
+          </div>
+        </div>
+      </div>
+
+      <form method="POST" action="/build/verify" class="login-form">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <div class="form-group">
+          <label class="form-label">Verification Code</label>
+          <input
+            type="text"
+            name="temp_password"
+            class="filter-input"
+            placeholder="Enter your in-game verification code"
+            required
+            autofocus
+            style="font-size:1.1rem;text-align:center;letter-spacing:0.15em;text-transform:uppercase;"
+          >
+        </div>
+        <button type="submit" class="btn btn-discord btn-large" style="width:100%;margin-top:0.75rem;">Verify & Link Account</button>
+      </form>
+    </div>
+    {{/unless}}
+
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+      <a href="/build" class="btn btn-admin" style="text-decoration:none;flex:1;text-align:center;background:var(--bg-card);border:1px solid var(--border);">Back to Store</a>
+      <a href="https://discord.gg/W8jNyvAnEp" target="_blank" rel="noopener" class="btn btn-admin" style="text-decoration:none;flex:1;text-align:center;background:#5865F2;">Join Discord</a>
+    </div>
+  </div>
+</div>

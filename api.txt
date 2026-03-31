@@ -1,0 +1,117 @@
+API Documentation (All in /User 
+POST Endpoints 
+/confirmUser/ 
+● Input Parameters: 
+○ arma_id (query/body): Required. 
+○ arma_username (query/body): Required. 
+● Description: Confirms or creates a user by arma_id. Updates their arma_username if 
+necessary. 
+/confirmUserTest/ 
+● Input Parameters: 
+○ arma_id (query/body): Required. 
+○ arma_username (query/body): Required. 
+● Description: Test endpoint for confirming a user. 
+/postPlayerKill/ 
+● Input Parameters: 
+○ arma_id_killer (query/body): Required. 
+○ arma_id_death (query/body): Required. 
+○ Additional parameters: time_stamp, server_info, arma_distance, 
+arma_isFriendlyFire. 
+● Description: Records a player kill in the database. 
+/postAIKill/ 
+● Input Parameters: 
+○ arma_id_killer (query/body): Required. 
+○ increment (query/body): Required. 
+○ time_stamp_last_kill (query/body): Optional. 
+● Description: Updates AI kill counts for a specific player. 
+/banByArmaID/ 
+● Input Parameters: 
+○ arma_id (query/body): Required. 
+○ admin_name, reason, duration_hours (query/body): Required. 
+○ time_stamp (query/body): Optional. 
+● Description: Bans a user for a specified duration. 
+/upsertUserMiscStats/ 
+● Input Parameters: 
+○ arma_id (query/body): Required. 
+○ Additional parameters for user statistics (e.g., distance_walked, ai_kills, 
+etc.). 
+● Description: Inserts or updates miscellaneous user stats. 
+/verifyUsersByTempPassword/ 
+● Input Parameters: 
+○ temp_password (query/body): Required. 
+○ discord_id (query/body): Required. 
+● Description: Verifies a user using their temporary password and associates a Discord 
+ID. 
+/updateUserCash/ 
+● Input Parameters: 
+○ arma_id (query/body): Required. 
+○ amount (query/body): Required. 
+● Description: Updates the user’s cash balance. 
+/endUserTimer/ 
+● Input Parameters: 
+○ arma_id (query/body): Required. 
+○ amount (query/body): Required. 
+● Description: Alias for /updateUserCash. 
+/updateArmaTimePlayed/ 
+● Input Parameters: 
+○ arma_id (query/body): Required. 
+● Description: Updates the total time played by a user since their last login. 
+GET Endpoints 
+/getUserMiscStats/ 
+● Input Parameters: 
+○ arma_id (query/body): Required. 
+● Description: Retrieves miscellaneous statistics for a specific user. 
+/getTopTenAIKills/ 
+● Input Parameters: None. 
+● Description: Fetches the top 10 players by AI kills. 
+/topTenUserStats/ 
+● Input Parameters: None. 
+● Description: Fetches the top 10 players by player kill stats. 
+/topTenUserStatsAllTime/ 
+● Input Parameters: None. 
+● Description: Fetches the top 10 players of all time by player kill stats. 
+/getPlayerStatsByID/ 
+● Input Parameters: 
+○ arma_id (query/body): Required. 
+● Description: Retrieves stats for a user by their arma_id. 
+/getPlayerStatsByDiscordID/ 
+● Input Parameters: 
+○ discord_id (query/body): Required. 
+● Description: Retrieves stats for a user by their discord_id. 
+/getAllPlayerStatsByDiscordID/ 
+● Input Parameters: 
+○ discord_id (query/body): Required. 
+● Description: Retrieves all stats for a user by their discord_id. 
+/removeUserBanByID/ 
+● Input Parameters: 
+○ arma_id (query/body): Required. 
+● Description: Removes a ban for a user by their arma_id. 
+/getPlayerIDsByName/ 
+● Input Parameters: 
+○ arma_username (query/body): Required. 
+● Description: Retrieves a list of arma_id values associated with a username. 
+/searchUsersByUsername/ 
+● Input Parameters: 
+○ search (body): Required. 
+○ page (body): Optional. Defaults to 1. 
+● Description: Searches for users by partial matches on their username. Supports 
+pagination. 
+/verifyUser/ 
+● Input Parameters: 
+○ arma_id (query/body): Required. 
+● Description: Verifies a user by their arma_id. 
+/getAllUserBans/ 
+● Input Parameters: None. 
+● Description: Retrieves all user bans. 
+/getPlayerStatsByIDCurrentSeason/ 
+● Input Parameters: 
+○ arma_id (query/body): Required. 
+● Description: Retrieves stats for a user by their arma_id for the current season. 
+/getAllPlayerStatsByDiscordIDCurrentSeason/ 
+● Input Parameters: 
+○ discord_id (query/body): Required. 
+● Description: Retrieves all stats for a user by their discord_id for the current season. 
+/getUserCash/ 
+● Input Parameters: 
+○ arma_id (query/body): Required. 
+● Description: Retrieves the cash balance for a user by their arma_id.

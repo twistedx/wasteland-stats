@@ -24,15 +24,23 @@
     <div class="cart-total">
       Total: <span id="cart-total-amount">$0.00</span>
     </div>
-    <form id="checkout-form" method="POST" action="/build/checkout">
-      <input type="hidden" name="_csrf" value="{{csrfToken}}">
-      <input type="hidden" name="cart" id="cart-data" value="">
-      <button type="submit" class="btn btn-checkout btn-large" style="width:100%;">Checkout with Stripe</button>
-    </form>
+    {{#if user}}
+      <form id="checkout-form" method="POST" action="/build/checkout">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <input type="hidden" name="cart" id="cart-data" value="">
+        <button type="submit" class="btn btn-checkout btn-large" style="width:100%;">Checkout with Stripe</button>
+      </form>
+    {{else}}
+      <a href="/auth/discord" class="btn btn-discord btn-large" style="width:100%;text-align:center;text-decoration:none;display:block;">Login with Discord to Checkout</a>
+    {{/if}}
     <button id="cart-clear" class="btn btn-small" style="margin-top:0.5rem;width:100%;background:var(--text-secondary);">Clear Cart</button>
   </div>
 </div>
 <div id="cart-overlay" class="cart-overlay"></div>
+
+{{#if error}}
+  <div class="store-banner cancel" style="max-width:1200px;margin:1rem auto;">{{error}}</div>
+{{/if}}
 
 <div id="store-categories">
   <!-- Dynamically rendered by JS from categories data -->
@@ -53,6 +61,7 @@
       originalPrice: p.sale_price ? p.price / 100 : null,
       image: p.image,
       badge: p.badge,
+      category: p.category,
       onSale: p.sale_price && p.sale_price > 0,
     };
   }
@@ -104,12 +113,16 @@
       : p.badge === 'limited' ? '<span class="store-badge limited">Limited Time</span>'
       : p.badge === 'sale' || p.onSale ? '<span class="store-badge sale-badge">Sale</span>'
       : p.badge ? `<span class="store-badge new-badge">${p.badge}</span>` : '';
+    const isSub = p.category === 'subscriptions';
+    const priceLabel = isSub ? '/mo' : '';
     const priceHtml = p.onSale
-      ? `<span class="store-original-price">$${p.originalPrice.toFixed(2)}</span> <strong>$${p.price.toFixed(2)}</strong>`
-      : `<strong>$${p.price.toFixed(2)}</strong>`;
-    const isDrawProduct = p.name === 'Random Skin Draw';
+      ? `<span class="store-original-price">$${p.originalPrice.toFixed(2)}${priceLabel}</span> <strong>$${p.price.toFixed(2)}${priceLabel}</strong>`
+      : `<strong>$${p.price.toFixed(2)}${priceLabel}</strong>`;
+    const isDrawProduct = p.name === 'Random Skin Draw' || p.name === 'Mystery Skin Bundle';
     const buttonHtml = isDrawProduct
-      ? `<a href="/draw" class="btn btn-discord" style="text-decoration:none;display:inline-block;">Roll Now — $${p.price.toFixed(2)}</a>`
+      ? `<a href="/draw" class="btn btn-discord" style="text-decoration:none;display:inline-block;">Browse Bundle — $${p.price.toFixed(2)}</a>`
+      : isSub
+      ? `<button class="btn btn-discord btn-add-cart" data-id="${p.id}">Subscribe</button>`
       : `<button class="btn btn-discord btn-add-cart" data-id="${p.id}">Add to Cart</button>`;
     return `
       <div class="feature-card store-card has-image">
