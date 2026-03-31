@@ -1,5 +1,5 @@
 <!-- Ban/Unban Player Modal -->
-<div id="action-modal" class="modal-overlay" style="display:none;">
+<div id="action-modal" class="modal-overlay" style="display:none;" role="dialog" aria-labelledby="modal-title" aria-modal="true">
   <div class="modal-content">
     <div class="modal-header">
       <h3 id="modal-title">Ban Player</h3>
@@ -24,7 +24,7 @@
       <form id="modal-form" method="POST" action="/admin/bans" class="money-form">
         <input type="hidden" name="_csrf" value="{{csrfToken}}">
         <div class="form-group">
-          <label class="form-label">Player Arma ID</label>
+          <label for="modal-arma-id" class="form-label">Player Arma ID</label>
           <input
             type="text"
             name="arma_id"
@@ -34,7 +34,7 @@
           >
         </div>
         <div class="form-group">
-          <label class="form-label">Selected Player</label>
+          <label for="modal-selected-username" class="form-label">Selected Player</label>
           <input
             type="text"
             id="modal-selected-username"
@@ -45,7 +45,7 @@
         </div>
         <div id="ban-fields">
           <div class="form-group">
-            <label class="form-label">Reason</label>
+            <label for="modal-reason" class="form-label">Reason</label>
             <input
               type="text"
               name="reason"
@@ -55,7 +55,7 @@
             >
           </div>
           <div class="form-group">
-            <label class="form-label">Duration</label>
+            <label for="modal-duration" class="form-label">Duration</label>
             <select name="duration_hours" class="filter-select">
               <option value="-1">Permanent</option>
               <option value="1">1 Hour</option>

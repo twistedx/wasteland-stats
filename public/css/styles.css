@@ -6,7 +6,7 @@
   --bg-card: #161616;
   --bg-card-hover: #1e1e1e;
   --text-primary: #e8e8e8;
-  --text-secondary: #888888;
+  --text-secondary: #999999;
   --accent: #9a9a9a;
   --accent-dim: rgba(154, 154, 154, 0.12);
   --accent-glow: rgba(154, 154, 154, 0.3);
@@ -23,6 +23,29 @@
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* ADA: Skip to main content — hidden until focused */
+.skip-to-main {
+  position: absolute;
+  top: -100px;
+  left: 0;
+  background: var(--accent);
+  color: var(--bg-primary);
+  padding: 0.75rem 1.5rem;
+  z-index: 10000;
+  font-weight: 700;
+  text-decoration: none;
+  transition: top 0.2s;
+}
+.skip-to-main:focus {
+  top: 0;
+}
+
+/* ADA: Focus indicators */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 body {
   font-family: 'Rajdhani', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -2379,6 +2402,33 @@ footer a:hover { text-shadow: 0 0 10px var(--accent-dim); }
 
   /* Dash panels tighter padding */
   .dash-panel { padding: 0.75rem; }
+
+  /* Store page mobile */
+  .store-section { padding: 0 0.5rem; }
+  .store-grid { grid-template-columns: 1fr !important; }
+  .cart-drawer { width: 100%; max-width: 100vw; right: -100%; }
+  .cart-drawer.open { right: 0; }
+  .cart-toggle { bottom: 1rem; right: 1rem; width: 48px; height: 48px; }
+
+  /* Products page mobile */
+  .info-section [style*="grid-template-columns: repeat(auto-fit"] { grid-template-columns: 1fr !important; }
+  .info-section [style*="grid-template-columns:repeat(auto-fit"] { grid-template-columns: 1fr !important; }
+  .info-section [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+  .info-section [style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+
+  /* Draw spinner mobile */
+  .draw-spinner-container { height: 180px; }
+  .draw-spinner-item { width: 120px; }
+  .draw-result-card { padding: 1.5rem 1rem; }
+  .draw-btn { font-size: 1rem; padding: 0.8rem 1.5rem; }
+
+  /* Verify page mobile */
+  .login-card { margin: 1rem; max-width: 100% !important; }
+
+  /* Admin store mobile */
+  .admin-form-card [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+  .admin-form-card [style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+  .admin-form-card [style*="grid-template-columns:1fr 1fr 1fr"] { grid-template-columns: 1fr !important; }
 }
 
 @media (max-width: 380px) {

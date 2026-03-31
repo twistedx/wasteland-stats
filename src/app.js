@@ -10,7 +10,7 @@ const { csrfSync } = require("csrf-sync");
 const { JSDOM } = require("jsdom");
 const createDOMPurify = require("dompurify");
 const config = require("./config");
-const { sendWebhookError } = require("./webhook");
+const { sendWebhook, sendWebhookError } = require("./webhook");
 const analytics = require("./analytics");
 const amp = require("./amp");
 const bm = require("./armahq");
@@ -20,6 +20,7 @@ const adminUsers = require("./admin-users");
 const store = require("./store");
 const auditLog = require("./audit-log");
 const skinDraw = require("./skin-draw");
+const subscriptionPerks = require("./subscription-perks");
 const { marked } = require("marked");
 
 const fs = require("fs");
@@ -461,6 +462,7 @@ app.get("/sitemap.xml", (req, res) => {
   const staticPages = [
     { loc: "/", priority: "1.0", changefreq: "daily" },
     { loc: "/blog", priority: "0.8", changefreq: "daily" },
+    { loc: "/products", priority: "0.8", changefreq: "weekly" },
     { loc: "/about", priority: "0.5", changefreq: "monthly" },
     { loc: "/how-to", priority: "0.5", changefreq: "monthly" },
   ];
@@ -493,6 +495,24 @@ app.get("/sitemap.xml", (req, res) => {
 
   res.set("Content-Type", "application/xml");
   res.send(xml);
+});
+
+app.get("/products", (req, res) => {
+  const user = req.session.user || null;
+  if (user) {
+    if (user.avatar) {
+      user.avatarUrl = "https://cdn.discordapp.com/avatars/" + user.discord_id + "/" + user.avatar + ".png?size=32";
+    } else if (user.discord_id) {
+      const defaultIndex = Number(BigInt(user.discord_id) >> 22n) % 6;
+      user.avatarUrl = "https://cdn.discordapp.com/embed/avatars/" + defaultIndex + ".png";
+    }
+  }
+  res.render("products", {
+    page: "products",
+    pageTitle: "Products & Perks",
+    pageDescription: "Subscriptions, loadout skins, mystery bundles, and community support tiers for Arma Wasteland.",
+    user,
+  });
 });
 
 // ── Skin Draw ──
@@ -610,7 +630,7 @@ app.get("/draw/result", async (req, res) => {
 
       // Grant the skin
       try {
-        const axios = require("axios");
+
         await axios.post(
           `${config.apiBaseUrl}/itemsUser/updateDiscordUserItemFromDiscord`,
           { discord_id: session.metadata.discord_id, item_name: result.name, request_type: "set", quantity: 1 },
@@ -622,7 +642,7 @@ app.get("/draw/result", async (req, res) => {
         sendWebhookError("Skin Draw Grant", `Failed to grant "${result.name}" to ${session.metadata.discord_id}: ${grantErr.message}`);
       }
 
-      const { sendWebhook } = require("./webhook");
+
       const tierNames = { common: "Standard", uncommon: "Premium", rare: "Deluxe", epic: "Elite", legendary: "Exclusive" };
       sendWebhook({
         title: "Mystery Bundle Opened",
@@ -868,7 +888,7 @@ app.post("/build/checkout", async (req, res) => {
   }
 
   try {
-    const session = await stripe.checkout.sessions.create({
+    const sessionParams = {
       mode: isSubscription ? "subscription" : "payment",
       line_items: lineItems,
       success_url: `${config.siteUrl}/build?success=1`,
@@ -878,7 +898,17 @@ app.post("/build/checkout", async (req, res) => {
         username: req.session.user?.username || "guest",
         cart_items: JSON.stringify(cartProducts),
       },
-    });
+    };
+    // Store metadata on the subscription itself for renewal lookups
+    if (isSubscription) {
+      sessionParams.subscription_data = {
+        metadata: {
+          discord_id: req.session.user?.discord_id || "guest",
+          cart_items: JSON.stringify(cartProducts),
+        },
+      };
+    }
+    const session = await stripe.checkout.sessions.create(sessionParams);
     res.redirect(303, session.url);
   } catch (err) {
     console.error("Stripe checkout error:", err.message);
@@ -933,7 +963,7 @@ app.post("/build/webhook", async (req, res) => {
       const fulfillErrors = [];
 
       if (discordId && discordId !== "guest" && cartItems.length > 0) {
-        const axios = require("axios");
+
         const apiBaseUrl = config.apiBaseUrl;
         const backendToken = config.backendToken;
 
@@ -967,7 +997,7 @@ app.post("/build/webhook", async (req, res) => {
         }
       }
 
-      const { sendWebhook } = require("./webhook");
+
       const fulfillSummary = fulfilled.length > 0 ? `\nDelivered: ${fulfilled.join(", ")}` : "";
       const skippedSummary = skipped.length > 0 ? `\nManual fulfillment needed: ${skipped.join(", ")}` : "";
       const errorSummary = fulfillErrors.length > 0 ? `\nErrors: ${fulfillErrors.join("; ")}` : "";
@@ -983,6 +1013,22 @@ app.post("/build/webhook", async (req, res) => {
     } catch (fulfillErr) {
       console.error("Order fulfillment error:", fulfillErr.message);
       sendWebhookError("Stripe Fulfillment", fulfillErr.message);
+    }
+
+    // Apply subscription perks if this was a subscription checkout
+    if (session.mode === "subscription") {
+      const discordId = session.metadata?.discord_id;
+      const cartItems = session.metadata?.cart_items ? JSON.parse(session.metadata.cart_items) : [];
+      if (discordId && discordId !== "guest") {
+        for (const cartItem of cartItems) {
+          try {
+            await subscriptionPerks.applyPerks(discordId, cartItem.name);
+          } catch (perkErr) {
+            console.error("Subscription perk error:", perkErr.message);
+            sendWebhookError("Subscription Perk Error", `${cartItem.name}: ${perkErr.message}`);
+          }
+        }
+      }
     }
   }
 
@@ -1004,7 +1050,7 @@ app.post("/build/webhook", async (req, res) => {
         if (session?.metadata?.discord_id && session.metadata.discord_id !== "guest" && session.metadata.cart_items) {
           const discordId = session.metadata.discord_id;
           const cartItems = JSON.parse(session.metadata.cart_items);
-          const axios = require("axios");
+  
           const revoked = [];
 
           for (const cartItem of cartItems) {
@@ -1026,16 +1072,11 @@ app.post("/build/webhook", async (req, res) => {
 
           // Update purchase status in DB
           if (session.id) {
-            try {
-              const storeDb = require("better-sqlite3")(require("path").join(__dirname, "data", "store.db"));
-              storeDb.prepare("UPDATE store_purchases SET status = ? WHERE stripe_session_id = ?").run(isDispute ? "disputed" : "refunded", session.id);
-              storeDb.close();
-            } catch {}
+            try { store.updatePurchaseStatus(session.id, isDispute ? "disputed" : "refunded"); } catch {}
           }
 
           sendWebhookError(`${label} — Items Revoked`, `**$${((charge.amount || 0) / 100).toFixed(2)}** from Discord user ${discordId}\nRevoked: ${revoked.length > 0 ? revoked.join(", ") : "none (lookup failed)"}`);
 
-          const auditLog = require("./audit-log");
           auditLog.log("store", label, `$${((charge.amount || 0) / 100).toFixed(2)} — revoked ${revoked.join(", ")} from ${discordId}`, { username: "Stripe", discord_id: null });
         } else {
           sendWebhookError(`${label} — Manual Review Needed`, `**$${((charge.amount || 0) / 100).toFixed(2)}** — could not find session metadata to auto-revoke items. Charge: ${charge.id}`);
@@ -1060,14 +1101,18 @@ app.post("/build/webhook", async (req, res) => {
         const sessions = await stripe.checkout.sessions.list({ subscription: subscription.id, limit: 1 });
         const session = sessions.data[0];
 
-        if (session?.metadata?.discord_id && session.metadata.discord_id !== "guest") {
-          const discordId = session.metadata.discord_id;
-          const cartItems = session.metadata.cart_items ? JSON.parse(session.metadata.cart_items) : [];
+        // Also check subscription metadata directly (more reliable for renewals)
+        const discordId = session?.metadata?.discord_id || subscription.metadata?.discord_id;
+        const cartItemsRaw = session?.metadata?.cart_items || subscription.metadata?.cart_items;
+        const cartItems = cartItemsRaw ? JSON.parse(cartItemsRaw) : [];
 
-          sendWebhookError("Subscription Canceled", `Discord user ${discordId} — subscription ${subscription.id} is now ${subscription.status}. ${cartItems.map(i => i.name).join(", ")}`);
+        if (discordId && discordId !== "guest") {
+          // Revoke subscription perks (reset bank limit)
+          await subscriptionPerks.revokePerks(discordId);
 
-          const auditLog = require("./audit-log");
-          auditLog.log("store", "Subscription Canceled", `${subscription.id} — ${cartItems.map(i => i.name).join(", ")} for ${discordId}`, { username: "Stripe" });
+          sendWebhookError("Subscription Canceled", `Discord user ${discordId} — subscription ${subscription.id} is now ${subscription.status}. ${cartItems.map(i => i.name).join(", ")}\nBank limit reset to ${subscriptionPerks.DEFAULT_BANK_LIMIT.toLocaleString()}`);
+
+          auditLog.log("store", "Subscription Canceled", `${subscription.id} — ${cartItems.map(i => i.name).join(", ")} for ${discordId} — perks revoked`, { username: "Stripe" });
         } else {
           sendWebhookError("Subscription Canceled", `Subscription ${subscription.id} canceled — could not find Discord ID for auto-revoke.`);
         }
@@ -1083,6 +1128,39 @@ app.post("/build/webhook", async (req, res) => {
     const invoice = event.data.object;
     console.log(`Stripe invoice payment failed: ${invoice.id} — subscription: ${invoice.subscription}`);
     sendWebhookError("Subscription Payment Failed", `Invoice ${invoice.id} — $${((invoice.amount_due || 0) / 100).toFixed(2)} failed. Subscription: ${invoice.subscription || "unknown"}`);
+  }
+
+  // ── Invoice paid — grant monthly subscription skins on renewal ──
+  if (event.type === "invoice.paid") {
+    const invoice = event.data.object;
+    // Only process recurring renewals, not the initial subscription payment
+    if (invoice.billing_reason === "subscription_cycle") {
+      console.log(`Stripe subscription renewal paid: ${invoice.id} — $${((invoice.amount_paid || 0) / 100).toFixed(2)}`);
+      try {
+        // Get metadata from the subscription object directly
+        const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
+        const discordId = subscription.metadata?.discord_id;
+        const cartItems = subscription.metadata?.cart_items ? JSON.parse(subscription.metadata.cart_items) : [];
+
+        if (discordId && discordId !== "guest") {
+          for (const cartItem of cartItems) {
+            const tier = subscriptionPerks.getTierForProduct(cartItem.name);
+            if (tier && tier.skinsPerMonth > 0) {
+              console.log(`Stripe renewal: granting ${tier.skinsPerMonth} skins for "${cartItem.name}" to ${discordId}`);
+              const results = await subscriptionPerks.grantSkins(discordId, tier.skinsPerMonth);
+              sendWebhook({
+                title: "Monthly Subscription Skins Delivered",
+                description: `**${cartItem.name}** renewal\n${results.map(s => `${s.name} (${s.rarity})${s.success ? "" : " FAILED"}`).join("\n")}`,
+                color: 0x5865F2,
+              });
+            }
+          }
+        }
+      } catch (renewErr) {
+        console.error("Subscription renewal perk error:", renewErr.message);
+        sendWebhookError("Subscription Renewal Error", renewErr.message);
+      }
+    }
   }
 
   res.json({ received: true });

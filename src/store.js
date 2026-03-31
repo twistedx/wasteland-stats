@@ -290,11 +290,15 @@ async function syncToStripe() {
 
       let stripePriceId = product.stripe_price_id;
       if (needsNewPrice) {
-        const price = await stripe.prices.create({
+        const priceParams = {
           product: stripeProductId,
           unit_amount: effectivePrice,
           currency: "usd",
-        });
+        };
+        if (product.category === "subscriptions") {
+          priceParams.recurring = { interval: "month" };
+        }
+        const price = await stripe.prices.create(priceParams);
         stripePriceId = price.id;
         console.log(`Store: created Stripe price ${price.id} ($${(effectivePrice / 100).toFixed(2)}) for "${product.name}"`);
       }
@@ -386,8 +390,13 @@ function getStoreStats() {
   };
 }
 
+function updatePurchaseStatus(stripeSessionId, status) {
+  if (!db) return;
+  db.prepare("UPDATE store_purchases SET status = ? WHERE stripe_session_id = ?").run(status, stripeSessionId);
+}
+
 module.exports = {
-  init, getActiveProducts, getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, getEffectivePrice,
+  init, getActiveProducts, getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, getEffectivePrice, updatePurchaseStatus,
   getAllCategories, getCategoryBySlug, getCategoryById, createCategory, updateCategory, deleteCategory, getCategoriesWithProducts,
   recordPurchase, getStoreStats, syncToStripe, upsertSyncData,
 };
