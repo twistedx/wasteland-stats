@@ -11,6 +11,7 @@ const metricsHistory = require("../metrics-history");
 const systemStats = require("../system-stats");
 const store = require("../store");
 const auditLog = require("../audit-log");
+const skinDraw = require("../skin-draw");
 const multer = require("multer");
 const sharp = require("sharp");
 const path = require("path");
@@ -1577,6 +1578,47 @@ router.post("/store/sync-stripe", requireWriteAdmin, async (req, res) => {
   } catch (err) {
     console.error("Stripe sync error:", err.message);
     res.redirect("/admin/store?error=" + encodeURIComponent("Stripe sync failed: " + err.message));
+  }
+});
+
+// POST /admin/store/sync-production — push store data to production server
+router.post("/store/sync-production", requireWriteAdmin, async (req, res) => {
+  if (!config.productionSyncUrl) {
+    return res.redirect("/admin/store?error=" + encodeURIComponent("PRODUCTION_SYNC_URL not configured."));
+  }
+
+  try {
+    const products = store.getAllProducts();
+    const categories = store.getAllCategories();
+    const drawPool = skinDraw.getAllPool();
+
+    const response = await axios.post(`${config.productionSyncUrl}/api/store-sync`, {
+      products: products.map(p => ({
+        name: p.name, description: p.description, price: p.price,
+        sale_price: p.sale_price, image: p.image, category: p.category,
+        active: p.active, badge: p.badge, sort_order: p.sort_order,
+      })),
+      categories: categories.map(c => ({
+        slug: c.slug, label: c.label, description: c.description,
+        sort_order: c.sort_order,
+      })),
+      drawPool: drawPool.map(d => ({
+        name: d.name, skin_key: d.skin_key, rarity: d.rarity,
+        weight: d.weight, image: d.image, active: d.active,
+      })),
+    }, {
+      params: { token: config.apiToken },
+      timeout: 30000,
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const s = response.data.summary || {};
+    auditLog.log("store", "Synced to Production", `Products: ${products.length}, Categories: ${categories.length}, Draw Pool: ${drawPool.length}`, req.session.user);
+    res.redirect("/admin/store?success=" + encodeURIComponent(`Synced to production — ${products.length} products, ${categories.length} categories, ${drawPool.length} draw pool items.`));
+  } catch (err) {
+    console.error("Production sync error:", err.message);
+    const msg = err.response?.data?.error || err.message;
+    res.redirect("/admin/store?error=" + encodeURIComponent("Sync failed: " + msg));
   }
 });
 

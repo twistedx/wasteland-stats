@@ -27,6 +27,7 @@ const config = {
   armaHqApiKey: process.env.ARMAHQ_API_KEY || "",
   adminApiToken: process.env.ADMIN_API_TOKEN || "",
   watchlistWebhookUrl: process.env.WATCHLISTWH || "",
+  productionSyncUrl: process.env.PRODUCTION_SYNC_URL || "",
   ssh: {
     host: process.env.SSH_HOST || "",
     port: parseInt(process.env.SSH_PORT || "22", 10),

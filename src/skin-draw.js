@@ -11,6 +11,7 @@ let db = null;
 function init() {
   db = new Database(DB_FILE);
   db.pragma("journal_mode = WAL");
+  try { db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_draw_pool_name ON skin_draw_pool (name)"); } catch {}
 }
 
 function getPool() {
@@ -83,4 +84,24 @@ function getDropRates() {
   }));
 }
 
-module.exports = { init, getPool, getAllPool, getPoolItem, addToPool, updatePoolItem, removeFromPool, draw, recordDraw, getRecentDraws, getDrawStats, getDropRates };
+function upsertPoolItems(items) {
+  const summary = { inserted: 0, updated: 0 };
+  const tx = db.transaction(() => {
+    for (const item of items) {
+      const existing = db.prepare("SELECT id FROM skin_draw_pool WHERE name = ?").get(item.name);
+      if (existing) {
+        db.prepare("UPDATE skin_draw_pool SET skin_key = ?, rarity = ?, weight = ?, image = ?, active = ? WHERE name = ?")
+          .run(item.skin_key, item.rarity, item.weight, item.image || null, item.active ?? 1, item.name);
+        summary.updated++;
+      } else {
+        db.prepare("INSERT INTO skin_draw_pool (name, skin_key, rarity, weight, image, active) VALUES (?, ?, ?, ?, ?, ?)")
+          .run(item.name, item.skin_key, item.rarity || "common", item.weight || 100, item.image || null, item.active ?? 1);
+        summary.inserted++;
+      }
+    }
+  });
+  tx();
+  return summary;
+}
+
+module.exports = { init, getPool, getAllPool, getPoolItem, addToPool, updatePoolItem, removeFromPool, draw, recordDraw, getRecentDraws, getDrawStats, getDropRates, upsertPoolItems };

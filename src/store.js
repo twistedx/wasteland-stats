@@ -36,6 +36,8 @@ function init() {
   try { db.exec("ALTER TABLE store_products ADD COLUMN stripe_product_id TEXT DEFAULT NULL"); } catch {}
   try { db.exec("ALTER TABLE store_products ADD COLUMN stripe_price_id TEXT DEFAULT NULL"); } catch {}
 
+  try { db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_store_products_name ON store_products (name)"); } catch {}
+
   db.exec(`CREATE INDEX IF NOT EXISTS idx_store_category ON store_products (category)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_store_active ON store_products (active)`);
 
@@ -191,6 +193,50 @@ function getCategoriesWithProducts() {
   })).filter(cat => cat.products.length > 0);
 }
 
+// ── Production Sync (upsert) ──
+function upsertSyncData({ products, categories }) {
+  const summary = { products: { inserted: 0, updated: 0 }, categories: { inserted: 0, updated: 0 } };
+
+  const tx = db.transaction(() => {
+    if (categories && Array.isArray(categories)) {
+      for (const c of categories) {
+        const existing = db.prepare("SELECT id FROM store_categories WHERE slug = ?").get(c.slug);
+        if (existing) {
+          db.prepare("UPDATE store_categories SET label = ?, description = ?, sort_order = ? WHERE slug = ?")
+            .run(c.label, c.description || "", c.sort_order || 0, c.slug);
+          summary.categories.updated++;
+        } else {
+          db.prepare("INSERT INTO store_categories (slug, label, description, sort_order) VALUES (?, ?, ?, ?)")
+            .run(c.slug, c.label, c.description || "", c.sort_order || 0);
+          summary.categories.inserted++;
+        }
+      }
+    }
+
+    if (products && Array.isArray(products)) {
+      for (const p of products) {
+        const existing = db.prepare("SELECT id FROM store_products WHERE name = ?").get(p.name);
+        if (existing) {
+          db.prepare(`UPDATE store_products SET description = ?, price = ?, sale_price = ?, image = ?,
+            category = ?, active = ?, badge = ?, sort_order = ?, updated_at = datetime('now') WHERE name = ?`)
+            .run(p.description || "", p.price, p.sale_price || null, p.image || null,
+              p.category || "loadout", p.active ?? 1, p.badge || null, p.sort_order || 0, p.name);
+          summary.products.updated++;
+        } else {
+          db.prepare(`INSERT INTO store_products (name, description, price, sale_price, image, category, active, badge, sort_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+            .run(p.name, p.description || "", p.price, p.sale_price || null, p.image || null,
+              p.category || "loadout", p.active ?? 1, p.badge || null, p.sort_order || 0);
+          summary.products.inserted++;
+        }
+      }
+    }
+  });
+
+  tx();
+  return summary;
+}
+
 // ── Stripe Sync ──
 async function syncToStripe() {
   if (!process.env.STRIPE_SECRET_KEY) {
@@ -343,5 +389,5 @@ function getStoreStats() {
 module.exports = {
   init, getActiveProducts, getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, getEffectivePrice,
   getAllCategories, getCategoryBySlug, getCategoryById, createCategory, updateCategory, deleteCategory, getCategoriesWithProducts,
-  recordPurchase, getStoreStats, syncToStripe,
+  recordPurchase, getStoreStats, syncToStripe, upsertSyncData,
 };

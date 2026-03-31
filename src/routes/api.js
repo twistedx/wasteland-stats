@@ -108,4 +108,43 @@ router.get("/server-history", (req, res) => {
   res.json(metricsHistory.getHistory(hours));
 });
 
+// POST /api/store-sync — receive store data from admin and upsert
+const store = require("../store");
+const skinDraw = require("../skin-draw");
+const auditLog = require("../audit-log");
+
+router.post("/store-sync", (req, res) => {
+  const token = req.query.token || req.headers.authorization?.replace("Bearer ", "");
+  if (!token || token !== config.apiToken) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const { products, categories, drawPool } = req.body;
+  if (!products && !categories && !drawPool) {
+    return res.status(400).json({ error: "No data provided" });
+  }
+
+  try {
+    const summary = {};
+    if (categories || products) {
+      const storeResult = store.upsertSyncData({
+        products: products || [],
+        categories: categories || [],
+      });
+      summary.categories = storeResult.categories;
+      summary.products = storeResult.products;
+    }
+    if (drawPool && Array.isArray(drawPool)) {
+      summary.drawPool = skinDraw.upsertPoolItems(drawPool);
+    }
+
+    auditLog.log("store", "Store Sync Received", `Products: ${products?.length || 0}, Categories: ${categories?.length || 0}, Draw Pool: ${drawPool?.length || 0}`, { username: "sync-api" });
+    console.log("Store sync completed:", JSON.stringify(summary));
+    res.json({ ok: true, summary });
+  } catch (err) {
+    console.error("Store sync error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

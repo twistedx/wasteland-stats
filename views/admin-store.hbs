@@ -12,12 +12,18 @@
     <div class="error">{{errorMessage}}</div>
   {{/if}}
 
-  <div class="admin-form-card" style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;">
-    <span style="color:var(--text-secondary);font-size:0.85rem;">Sync all products and prices to your Stripe dashboard.</span>
-    <form method="POST" action="/admin/store/sync-stripe" style="margin:0;" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Syncing...';">
-      <input type="hidden" name="_csrf" value="{{csrfToken}}">
-      <button type="submit" class="btn btn-admin" style="background:#5865F2;">Sync to Stripe</button>
-    </form>
+  <div class="admin-form-card" style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;flex-wrap:wrap;gap:0.75rem;">
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+      <form method="POST" action="/admin/store/sync-stripe" style="margin:0;" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Syncing...';">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <button type="submit" class="btn btn-admin" style="background:#5865F2;">Sync to Stripe</button>
+      </form>
+      <form method="POST" action="/admin/store/sync-production" style="margin:0;" onsubmit="if(!confirm('Push all store data to production? This will update products, categories, and draw pool on the live server.'))return false;this.querySelector('button').disabled=true;this.querySelector('button').textContent='Syncing...';">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <button type="submit" class="btn btn-admin" style="background:#ef4444;">Sync to Production</button>
+      </form>
+    </div>
+    <span style="color:var(--text-secondary);font-size:0.8rem;">Push products, categories, and draw pool to Stripe or production.</span>
   </div>
 
   <div class="admin-form-card">
