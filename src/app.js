@@ -161,7 +161,7 @@ app.use(
 );
 
 // Stripe webhook needs raw body for signature verification — must come before json parser
-app.use("/build/webhook", express.raw({ type: "application/json" }));
+app.use("/store/webhook", express.raw({ type: "application/json" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, "..", "public"), {
@@ -201,7 +201,7 @@ app.use((req, res, next) => {
     return next();
   }
   // Skip CSRF for Stripe webhook (verified via Stripe signature)
-  if (req.path === "/build/webhook") {
+  if (req.path === "/store/webhook") {
     return next();
   }
   // Guard: if no session exists yet, reject the POST
@@ -452,7 +452,7 @@ app.get("/about", (req, res) => {
 app.get("/robots.txt", (req, res) => {
   const base = config.siteUrl;
   res.set("Content-Type", "text/plain");
-  res.send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /auth\nDisallow: /api\nDisallow: /build\n\nSitemap: ${base}/sitemap.xml\n`);
+  res.send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /auth\nDisallow: /api\nDisallow: /store\n\nSitemap: ${base}/sitemap.xml\n`);
 });
 
 app.get("/sitemap.xml", (req, res) => {
@@ -680,7 +680,13 @@ function requireAdminForBuild(req, res, next) {
   next();
 }
 
-app.get("/build", (req, res) => {
+// 301 redirect old /build URLs to /store
+app.get("/build*", (req, res) => {
+  const newPath = req.originalUrl.replace(/^\/build/, "/store");
+  res.redirect(301, newPath);
+});
+
+app.get("/store", (req, res) => {
   const user = req.session.user || null;
   if (user) {
     if (user.avatar) {
@@ -696,7 +702,7 @@ app.get("/build", (req, res) => {
   const categories = store.getCategoriesWithProducts();
 
   res.render("build", {
-    page: "build",
+    page: "store",
     pageTitle: "Store",
     pageDescription: "Support the server — grab skins, items, and more.",
     noIndex: true,
@@ -709,7 +715,7 @@ app.get("/build", (req, res) => {
 });
 
 // Account verification screen — shown when player has no linked Arma account
-app.get("/build/verify", (req, res) => {
+app.get("/store/verify", (req, res) => {
   const user = req.session.user || null;
   if (!user) return res.redirect("/auth/discord");
 
@@ -721,7 +727,7 @@ app.get("/build/verify", (req, res) => {
   }
 
   res.render("build-verify", {
-    page: "build",
+    page: "store",
     pageTitle: "Link Your Account",
     pageDescription: "Link your game account to purchase items.",
     noIndex: true,
@@ -730,14 +736,14 @@ app.get("/build/verify", (req, res) => {
   });
 });
 
-// POST /build/verify — submit temp password to link Discord to Arma account
-app.post("/build/verify", async (req, res) => {
+// POST /store/verify — submit temp password to link Discord to Arma account
+app.post("/store/verify", async (req, res) => {
   const user = req.session.user;
   if (!user?.discord_id) return res.redirect("/auth/discord");
 
   const tempPassword = (req.body.temp_password || "").trim();
   if (!tempPassword) {
-    return res.redirect("/build/verify?error=not_found");
+    return res.redirect("/store/verify?error=not_found");
   }
 
   if (user.avatar) {
@@ -759,7 +765,7 @@ app.post("/build/verify", async (req, res) => {
     console.log(`Store verify response:`, verifyRes.status, JSON.stringify(verifyRes.data).slice(0, 300));
 
     res.render("build-verify", {
-      page: "build",
+      page: "store",
       pageTitle: "Account Linked",
       pageDescription: "Your account has been verified!",
       noIndex: true,
@@ -770,7 +776,7 @@ app.post("/build/verify", async (req, res) => {
     console.error("Store verify error:", err.response?.status, JSON.stringify(err.response?.data));
     const msg = err.response?.data?.message || "Invalid or expired verification code. Please check your code and try again.";
     res.render("build-verify", {
-      page: "build",
+      page: "store",
       pageTitle: "Link Your Account",
       pageDescription: "Link your game account to purchase items.",
       noIndex: true,
@@ -781,7 +787,7 @@ app.post("/build/verify", async (req, res) => {
 });
 
 // Stripe checkout session creation
-app.post("/build/checkout", async (req, res) => {
+app.post("/store/checkout", async (req, res) => {
   if (!req.session.user?.discord_id) {
     return res.redirect("/auth/discord");
   }
@@ -807,7 +813,7 @@ app.post("/build/checkout", async (req, res) => {
 
     if (!verifyRes.data || !verifyRes.data.arma_username) {
       console.log(`Store checkout: no arma_username found in response for discord_id=${discordId}`);
-      return res.redirect("/build/verify");
+      return res.redirect("/store/verify");
     }
     console.log(`Store checkout: verified ${discordId} — player: ${verifyRes.data.arma_username}`);
   } catch (verifyErr) {
@@ -815,7 +821,7 @@ app.post("/build/checkout", async (req, res) => {
     console.error("Store checkout verify status:", verifyErr.response?.status);
     console.error("Store checkout verify data:", JSON.stringify(verifyErr.response?.data));
     if (verifyErr.response?.status === 404) {
-      return res.redirect("/build/verify");
+      return res.redirect("/store/verify");
     }
     // Don't block checkout on API errors — log and continue
   }
@@ -891,8 +897,8 @@ app.post("/build/checkout", async (req, res) => {
     const sessionParams = {
       mode: isSubscription ? "subscription" : "payment",
       line_items: lineItems,
-      success_url: `${config.siteUrl}/build?success=1`,
-      cancel_url: `${config.siteUrl}/build?canceled=1`,
+      success_url: `${config.siteUrl}/store?success=1`,
+      cancel_url: `${config.siteUrl}/store?canceled=1`,
       metadata: {
         discord_id: req.session.user?.discord_id || "guest",
         username: req.session.user?.username || "guest",
@@ -918,8 +924,8 @@ app.post("/build/checkout", async (req, res) => {
 });
 
 // Stripe webhook — receives payment confirmations
-// This endpoint is CSRF-exempt (handled by the CSRF middleware skipping /build/webhook below)
-app.post("/build/webhook", async (req, res) => {
+// This endpoint is CSRF-exempt (handled by the CSRF middleware skipping /store/webhook)
+app.post("/store/webhook", async (req, res) => {
   if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
     return res.status(500).send("Stripe webhook not configured.");
   }

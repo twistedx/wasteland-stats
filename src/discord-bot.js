@@ -80,7 +80,7 @@ async function init() {
 
       if (armaLinked) {
         return interaction.editReply({
-          content: `Game account linked successfully! Your Discord is now connected to your Arma player.\n\nYou can now purchase items from the store at **armawasteland.com/build**`,
+          content: `Game account linked successfully! Your Discord is now connected to your Arma player.\n\nYou can now purchase items from the store at **armawasteland.com/store**`,
         });
       }
 

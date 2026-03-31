@@ -14,7 +14,7 @@
         <p>{{success}}</p>
       </div>
       <div style="text-align:center;margin-bottom:1rem;">
-        <a href="/build" class="btn btn-discord btn-large" style="text-decoration:none;">Continue to Store</a>
+        <a href="/store" class="btn btn-discord btn-large" style="text-decoration:none;">Continue to Store</a>
       </div>
     {{/if}}
 
@@ -52,7 +52,7 @@
         </div>
       </div>
 
-      <form method="POST" action="/build/verify" class="login-form">
+      <form method="POST" action="/store/verify" class="login-form">
         <input type="hidden" name="_csrf" value="{{csrfToken}}">
         <div class="form-group">
           <label class="form-label">Verification Code</label>
@@ -72,7 +72,7 @@
     {{/unless}}
 
     <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
-      <a href="/build" class="btn btn-admin" style="text-decoration:none;flex:1;text-align:center;background:var(--bg-card);border:1px solid var(--border);">Back to Store</a>
+      <a href="/store" class="btn btn-admin" style="text-decoration:none;flex:1;text-align:center;background:var(--bg-card);border:1px solid var(--border);">Back to Store</a>
       <a href="https://discord.gg/W8jNyvAnEp" target="_blank" rel="noopener" class="btn btn-admin" style="text-decoration:none;flex:1;text-align:center;background:#5865F2;">Join Discord</a>
     </div>
   </div>

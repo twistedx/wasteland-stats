@@ -25,7 +25,7 @@
       Total: <span id="cart-total-amount">$0.00</span>
     </div>
     {{#if user}}
-      <form id="checkout-form" method="POST" action="/build/checkout">
+      <form id="checkout-form" method="POST" action="/store/checkout">
         <input type="hidden" name="_csrf" value="{{csrfToken}}">
         <input type="hidden" name="cart" id="cart-data" value="">
         <button type="submit" class="btn btn-checkout btn-large" style="width:100%;">Checkout with Stripe</button>
