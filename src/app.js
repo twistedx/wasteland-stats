@@ -19,6 +19,7 @@ const metricsHistory = require("./metrics-history");
 const adminUsers = require("./admin-users");
 const store = require("./store");
 const auditLog = require("./audit-log");
+const skinDraw = require("./skin-draw");
 const { marked } = require("marked");
 
 const fs = require("fs");
@@ -285,6 +286,7 @@ metricsHistory.init();
 adminUsers.init();
 store.init();
 auditLog.init();
+skinDraw.init();
 require("./discord-bot").init();
 
 app.use(analytics.middleware);
@@ -493,6 +495,151 @@ app.get("/sitemap.xml", (req, res) => {
   res.send(xml);
 });
 
+// ── Skin Draw ──
+
+app.get("/draw", (req, res) => {
+  const user = req.session.user || null;
+  if (user) {
+    if (user.avatar) {
+      user.avatarUrl = "https://cdn.discordapp.com/avatars/" + user.discord_id + "/" + user.avatar + ".png?size=32";
+    } else if (user.discord_id) {
+      const defaultIndex = Number(BigInt(user.discord_id) >> 22n) % 6;
+      user.avatarUrl = "https://cdn.discordapp.com/embed/avatars/" + defaultIndex + ".png";
+    }
+  }
+  const pool = skinDraw.getDropRates();
+  const recentDraws = skinDraw.getRecentDraws(10);
+
+  res.render("draw", {
+    page: "draw",
+    pageTitle: "Skin Draw",
+    pageDescription: "Try your luck — spin for a random skin!",
+    user,
+    poolJson: JSON.stringify(pool),
+    recentDrawsJson: JSON.stringify(recentDraws),
+    canDraw: !!user?.discord_id,
+  });
+});
+
+// Skin draw checkout — $14.99 per roll
+app.post("/draw/checkout", async (req, res) => {
+  if (!req.session.user?.discord_id) {
+    return res.redirect("/auth/discord");
+  }
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return res.status(500).send("Stripe is not configured.");
+  }
+  const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: [{
+        price_data: {
+          currency: "usd",
+          product_data: { name: "Skin Draw — Random Skin Roll" },
+          unit_amount: 1499,
+        },
+        quantity: 1,
+      }],
+      success_url: `${config.siteUrl}/draw/result?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${config.siteUrl}/draw?canceled=1`,
+      metadata: {
+        type: "skin_draw",
+        discord_id: req.session.user.discord_id,
+        username: req.session.user.username,
+      },
+    });
+    res.redirect(303, session.url);
+  } catch (err) {
+    console.error("Draw checkout error:", err.message);
+    res.status(500).send("Failed to start checkout.");
+  }
+});
+
+// Draw result page — shows after successful payment
+app.get("/draw/result", async (req, res) => {
+  const user = req.session.user || null;
+  if (!user?.discord_id) return res.redirect("/auth/discord");
+
+  if (user.avatar) {
+    user.avatarUrl = "https://cdn.discordapp.com/avatars/" + user.discord_id + "/" + user.avatar + ".png?size=32";
+  } else {
+    const defaultIndex = Number(BigInt(user.discord_id) >> 22n) % 6;
+    user.avatarUrl = "https://cdn.discordapp.com/embed/avatars/" + defaultIndex + ".png";
+  }
+
+  const sessionId = req.query.session_id;
+  if (!sessionId) return res.redirect("/draw");
+
+  // Verify payment completed
+  if (!process.env.STRIPE_SECRET_KEY) return res.redirect("/draw");
+  const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    if (session.payment_status !== "paid" || session.metadata?.type !== "skin_draw") {
+      return res.redirect("/draw");
+    }
+
+    // Check if this session was already drawn (prevent re-rolls on refresh)
+    const existing = skinDraw.getRecentDraws(100).find(d => d.stripe_session_id === sessionId);
+    let result;
+    if (existing) {
+      // Already drawn, show same result
+      const pool = skinDraw.getPool();
+      result = pool.find(p => p.name === existing.result_name) || { name: existing.result_name, rarity: existing.result_rarity, image: null };
+    } else {
+      // Roll!
+      result = skinDraw.draw();
+      if (!result) return res.redirect("/draw?error=No skins in pool");
+
+      // Record and fulfill
+      skinDraw.recordDraw({
+        discord_id: session.metadata.discord_id,
+        result_name: result.name,
+        result_rarity: result.rarity,
+        stripe_session_id: sessionId,
+      });
+
+      // Grant the skin
+      try {
+        const axios = require("axios");
+        await axios.post(
+          `${config.apiBaseUrl}/itemsUser/updateDiscordUserItemFromDiscord`,
+          { discord_id: session.metadata.discord_id, item_name: result.name, request_type: "set", quantity: 1 },
+          { params: { token: config.backendToken }, timeout: 15000, headers: { "Content-Type": "application/json" } }
+        );
+        console.log(`Skin Draw: granted "${result.name}" (${result.rarity}) to ${session.metadata.discord_id}`);
+      } catch (grantErr) {
+        console.error("Skin Draw grant error:", grantErr.response?.data?.message || grantErr.message);
+        sendWebhookError("Skin Draw Grant", `Failed to grant "${result.name}" to ${session.metadata.discord_id}: ${grantErr.message}`);
+      }
+
+      const { sendWebhook } = require("./webhook");
+      sendWebhook({
+        title: "Skin Draw!",
+        description: `Someone rolled a **${result.rarity.toUpperCase()}** — **${result.name}**!`,
+        color: result.rarity === "epic" ? 0x9a60b4 : result.rarity === "rare" ? 0x5470c6 : result.rarity === "uncommon" ? 0x91cc75 : 0x9a9a9a,
+      });
+    }
+
+    const pool = skinDraw.getDropRates();
+
+    res.render("draw-result", {
+      page: "draw",
+      pageTitle: "Skin Draw Result",
+      pageDescription: "You got a new skin!",
+      user,
+      result: JSON.stringify(result),
+      poolJson: JSON.stringify(pool),
+    });
+  } catch (err) {
+    console.error("Draw result error:", err.message);
+    res.redirect("/draw");
+  }
+});
+
 // ── Store / Build page ──
 
 // Build page admin guard
@@ -554,10 +701,12 @@ app.post("/build/checkout", requireAdminForBuild, async (req, res) => {
 
   // Build Stripe line items from the cart — use Stripe price IDs if synced, otherwise inline
   const lineItems = [];
+  const cartProducts = []; // track product IDs + quantities for fulfillment
   for (const item of cart) {
     const product = store.getProductById(parseInt(item.id));
     if (!product || !product.active) continue;
     const qty = Math.max(1, Math.min(99, parseInt(item.qty) || 1));
+    cartProducts.push({ id: product.id, name: product.name, qty });
 
     if (product.stripe_price_id) {
       lineItems.push({ price: product.stripe_price_id, quantity: qty });
@@ -587,6 +736,7 @@ app.post("/build/checkout", requireAdminForBuild, async (req, res) => {
       metadata: {
         discord_id: req.session.user?.discord_id || "guest",
         username: req.session.user?.username || "guest",
+        cart_items: JSON.stringify(cartProducts),
       },
     });
     res.redirect(303, session.url);
@@ -631,17 +781,116 @@ app.post("/build/webhook", async (req, res) => {
       }
       console.log(`Stripe: recorded ${lineItems.data.length} line items for session ${session.id}`);
 
-      // TODO: Call your backend API to grant skins/cash/VIP as needed
+      // Fulfill — grant items to the buyer via backend API
+      const discordId = session.metadata?.discord_id;
+      const cartItems = session.metadata?.cart_items ? JSON.parse(session.metadata.cart_items) : [];
+      const fulfilled = [];
+      const fulfillErrors = [];
+
+      if (discordId && discordId !== "guest" && cartItems.length > 0) {
+        const axios = require("axios");
+        const apiBaseUrl = config.apiBaseUrl;
+        const backendToken = config.backendToken;
+
+        for (const cartItem of cartItems) {
+          const product = store.getProductById(cartItem.id);
+          if (!product) {
+            fulfillErrors.push(`Product ID ${cartItem.id} not found in DB`);
+            continue;
+          }
+
+          try {
+            await axios.post(
+              `${apiBaseUrl}/itemsUser/updateDiscordUserItemFromDiscord`,
+              { discord_id: discordId, item_name: product.name, request_type: "set", quantity: cartItem.qty },
+              { params: { token: backendToken }, timeout: 15000, headers: { "Content-Type": "application/json" } }
+            );
+            fulfilled.push(product.name);
+            console.log(`Stripe fulfillment: granted "${product.name}" x${cartItem.qty} to ${discordId}`);
+          } catch (itemErr) {
+            const msg = itemErr.response?.data?.message || itemErr.message;
+            fulfillErrors.push(`${product.name}: ${msg}`);
+            console.error(`Stripe fulfillment error for "${product.name}":`, msg);
+          }
+        }
+      }
 
       const { sendWebhook } = require("./webhook");
+      const fulfillSummary = fulfilled.length > 0 ? `\nDelivered: ${fulfilled.join(", ")}` : "";
+      const errorSummary = fulfillErrors.length > 0 ? `\nErrors: ${fulfillErrors.join("; ")}` : "";
       sendWebhook({
         title: "Purchase Completed",
-        description: `**$${(session.amount_total / 100).toFixed(2)}** — ${lineItems.data.length} item(s)`,
-        color: 0x22c55e,
+        description: `**$${(session.amount_total / 100).toFixed(2)}** — ${lineItems.data.length} item(s)${fulfillSummary}${errorSummary}`,
+        color: fulfillErrors.length > 0 ? 0xF59E0B : 0x22c55e,
       });
+
+      if (fulfillErrors.length > 0) {
+        sendWebhookError("Stripe Fulfillment Errors", fulfillErrors.join("\n"));
+      }
     } catch (fulfillErr) {
       console.error("Order fulfillment error:", fulfillErr.message);
       sendWebhookError("Stripe Fulfillment", fulfillErr.message);
+    }
+  }
+
+  // ── Chargeback / Refund — revoke items ──
+  if (event.type === "charge.disputed" || event.type === "charge.refunded") {
+    const charge = event.data.object;
+    const isDispute = event.type === "charge.disputed";
+    const label = isDispute ? "Chargeback" : "Refund";
+
+    console.log(`Stripe ${label}: charge ${charge.id} — $${((charge.amount || 0) / 100).toFixed(2)}`);
+
+    try {
+      // Get the checkout session from the payment intent
+      const paymentIntentId = charge.payment_intent;
+      if (paymentIntentId) {
+        const sessions = await stripe.checkout.sessions.list({ payment_intent: paymentIntentId, limit: 1 });
+        const session = sessions.data[0];
+
+        if (session?.metadata?.discord_id && session.metadata.discord_id !== "guest" && session.metadata.cart_items) {
+          const discordId = session.metadata.discord_id;
+          const cartItems = JSON.parse(session.metadata.cart_items);
+          const axios = require("axios");
+          const revoked = [];
+
+          for (const cartItem of cartItems) {
+            const product = store.getProductById(cartItem.id);
+            if (!product) continue;
+
+            try {
+              await axios.post(
+                `${config.apiBaseUrl}/itemsUser/updateDiscordUserItemFromDiscord`,
+                { discord_id: discordId, item_name: product.name, request_type: "remove", quantity: cartItem.qty },
+                { params: { token: config.backendToken }, timeout: 15000, headers: { "Content-Type": "application/json" } }
+              );
+              revoked.push(product.name);
+              console.log(`Stripe ${label}: revoked "${product.name}" from ${discordId}`);
+            } catch (revokeErr) {
+              console.error(`Stripe ${label}: failed to revoke "${product.name}":`, revokeErr.response?.data?.message || revokeErr.message);
+            }
+          }
+
+          // Update purchase status in DB
+          if (session.id) {
+            try {
+              const storeDb = require("better-sqlite3")(require("path").join(__dirname, "data", "store.db"));
+              storeDb.prepare("UPDATE store_purchases SET status = ? WHERE stripe_session_id = ?").run(isDispute ? "disputed" : "refunded", session.id);
+              storeDb.close();
+            } catch {}
+          }
+
+          sendWebhookError(`${label} — Items Revoked`, `**$${((charge.amount || 0) / 100).toFixed(2)}** from Discord user ${discordId}\nRevoked: ${revoked.length > 0 ? revoked.join(", ") : "none (lookup failed)"}`);
+
+          const auditLog = require("./audit-log");
+          auditLog.log("store", label, `$${((charge.amount || 0) / 100).toFixed(2)} — revoked ${revoked.join(", ")} from ${discordId}`, { username: "Stripe", discord_id: null });
+        } else {
+          sendWebhookError(`${label} — Manual Review Needed`, `**$${((charge.amount || 0) / 100).toFixed(2)}** — could not find session metadata to auto-revoke items. Charge: ${charge.id}`);
+        }
+      }
+    } catch (revokeErr) {
+      console.error(`Stripe ${label} handler error:`, revokeErr.message);
+      sendWebhookError(`${label} Error`, revokeErr.message);
     }
   }
 

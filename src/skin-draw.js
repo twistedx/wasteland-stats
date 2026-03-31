@@ -1,0 +1,86 @@
+const fs = require("fs");
+const path = require("path");
+const Database = require("better-sqlite3");
+const crypto = require("crypto");
+
+const DB_DIR = path.join(__dirname, "..", "data");
+const DB_FILE = path.join(DB_DIR, "store.db");
+
+let db = null;
+
+function init() {
+  db = new Database(DB_FILE);
+  db.pragma("journal_mode = WAL");
+}
+
+function getPool() {
+  return db.prepare("SELECT * FROM skin_draw_pool WHERE active = 1 ORDER BY weight DESC").all();
+}
+
+function getAllPool() {
+  return db.prepare("SELECT * FROM skin_draw_pool ORDER BY rarity, weight DESC").all();
+}
+
+function getPoolItem(id) {
+  return db.prepare("SELECT * FROM skin_draw_pool WHERE id = ?").get(id);
+}
+
+function addToPool({ name, skin_key, rarity, weight, image }) {
+  return db.prepare("INSERT INTO skin_draw_pool (name, skin_key, rarity, weight, image) VALUES (?, ?, ?, ?, ?)")
+    .run(name, skin_key, rarity || "common", weight || 100, image || null);
+}
+
+function updatePoolItem(id, { name, skin_key, rarity, weight, image, active }) {
+  return db.prepare("UPDATE skin_draw_pool SET name = ?, skin_key = ?, rarity = ?, weight = ?, image = ?, active = ? WHERE id = ?")
+    .run(name, skin_key, rarity, weight, image || null, active, id);
+}
+
+function removeFromPool(id) {
+  return db.prepare("DELETE FROM skin_draw_pool WHERE id = ?").run(id);
+}
+
+// Weighted random draw — cryptographically secure
+function draw() {
+  const pool = getPool();
+  if (pool.length === 0) return null;
+
+  const totalWeight = pool.reduce((sum, item) => sum + item.weight, 0);
+  const roll = crypto.randomInt(0, totalWeight);
+
+  let cumulative = 0;
+  for (const item of pool) {
+    cumulative += item.weight;
+    if (roll < cumulative) {
+      return item;
+    }
+  }
+  return pool[pool.length - 1]; // fallback
+}
+
+function recordDraw({ discord_id, result_name, result_rarity, stripe_session_id }) {
+  return db.prepare("INSERT INTO skin_draw_history (discord_id, result_name, result_rarity, stripe_session_id) VALUES (?, ?, ?, ?)")
+    .run(discord_id || null, result_name, result_rarity, stripe_session_id || null);
+}
+
+function getRecentDraws(limit) {
+  return db.prepare("SELECT result_name, result_rarity, created_at FROM skin_draw_history ORDER BY created_at DESC LIMIT ?").all(limit || 20);
+}
+
+function getDrawStats() {
+  const total = db.prepare("SELECT COUNT(*) as cnt FROM skin_draw_history").get().cnt;
+  const byRarity = db.prepare("SELECT result_rarity, COUNT(*) as cnt FROM skin_draw_history GROUP BY result_rarity ORDER BY cnt DESC").all();
+  const byItem = db.prepare("SELECT result_name, result_rarity, COUNT(*) as cnt FROM skin_draw_history GROUP BY result_name ORDER BY cnt DESC LIMIT 10").all();
+  return { total, byRarity, byItem };
+}
+
+// Calculate drop rates for display
+function getDropRates() {
+  const pool = getPool();
+  const totalWeight = pool.reduce((sum, item) => sum + item.weight, 0);
+  return pool.map(item => ({
+    ...item,
+    dropRate: totalWeight > 0 ? ((item.weight / totalWeight) * 100).toFixed(1) : "0.0",
+  }));
+}
+
+module.exports = { init, getPool, getAllPool, getPoolItem, addToPool, updatePoolItem, removeFromPool, draw, recordDraw, getRecentDraws, getDrawStats, getDropRates };

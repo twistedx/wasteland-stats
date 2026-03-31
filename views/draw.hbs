@@ -1,0 +1,82 @@
+<div class="hero" style="background-image: url('/img/image3.jpg');">
+  <div class="hero-overlay">
+    <h2 class="hero-title">Skin Draw</h2>
+    <p class="hero-subtitle">Try your luck — $14.99 per roll for a random skin!</p>
+  </div>
+</div>
+
+<section class="info-section store-section">
+  <div style="text-align:center;margin-bottom:2rem;">
+    {{#if canDraw}}
+      <form method="POST" action="/draw/checkout">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <button type="submit" class="btn btn-discord btn-large draw-btn">Roll for a Skin — $14.99</button>
+      </form>
+    {{else}}
+      <p style="color:var(--text-secondary);margin-bottom:1rem;">Log in with Discord to roll.</p>
+      <a href="/auth/discord" class="btn btn-discord btn-large">Login with Discord</a>
+    {{/if}}
+    {{#if (lookup this "canceled")}}
+      <p style="color:var(--danger);margin-top:1rem;">Draw canceled. Try again when you're ready!</p>
+    {{/if}}
+  </div>
+
+  <h2>Drop Pool</h2>
+  <p style="color:var(--text-secondary);margin-bottom:1.5rem;">Here's what you could win. Rarer skins have lower drop rates.</p>
+
+  <div class="feature-grid store-grid" id="draw-pool">
+  </div>
+
+  <div class="admin-form-card" style="margin-top:2rem;">
+    <h3>Recent Draws</h3>
+    <div id="recent-draws"></div>
+  </div>
+</section>
+
+<script>
+(function() {
+  var pool = {{{poolJson}}};
+  var recentDraws = {{{recentDrawsJson}}};
+
+  var rarityColors = { common: '#9a9a9a', uncommon: '#91cc75', rare: '#5470c6', epic: '#9a60b4', legendary: '#fac858' };
+  var rarityLabels = { common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
+
+  var grid = document.getElementById('draw-pool');
+  grid.innerHTML = pool.map(function(p) {
+    var color = rarityColors[p.rarity] || '#9a9a9a';
+    return '<div class="feature-card store-card" style="border-top:3px solid ' + color + ';">' +
+      (p.image ? '<div class="store-image-wrap"><img src="' + p.image + '" alt="' + p.name + '" class="card-image" style="height:280px;object-fit:contain;background:#0d0d0d;"></div>' : '') +
+      '<div class="card-body">' +
+      '<h4>' + p.name + '</h4>' +
+      '<span style="color:' + color + ';font-weight:700;font-size:0.85rem;text-transform:uppercase;">' + (rarityLabels[p.rarity] || p.rarity) + '</span>' +
+      '<p style="color:var(--text-secondary);font-size:0.85rem;margin-top:0.5rem;">' + p.dropRate + '% drop rate</p>' +
+      '</div></div>';
+  }).join('');
+
+  var recentEl = document.getElementById('recent-draws');
+  if (recentDraws.length === 0) {
+    recentEl.innerHTML = '<p style="color:var(--text-secondary);">No draws yet. Be the first!</p>';
+  } else {
+    recentEl.innerHTML = '<table><thead><tr><th>Skin</th><th>Rarity</th><th>When</th></tr></thead><tbody>' +
+      recentDraws.map(function(d) {
+        var color = rarityColors[d.result_rarity] || '#9a9a9a';
+        return '<tr><td style="font-weight:600;">' + d.result_name + '</td>' +
+          '<td style="color:' + color + ';font-weight:700;text-transform:uppercase;">' + (rarityLabels[d.result_rarity] || d.result_rarity) + '</td>' +
+          '<td style="color:var(--text-secondary);">' + new Date(d.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + '</td></tr>';
+      }).join('') +
+      '</tbody></table>';
+  }
+})();
+</script>
+
+<style>
+.draw-btn {
+  font-size: 1.2rem;
+  padding: 1rem 3rem;
+  animation: draw-pulse 2s ease-in-out infinite;
+}
+@keyframes draw-pulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(88, 101, 242, 0.3); }
+  50% { box-shadow: 0 0 30px rgba(88, 101, 242, 0.6); }
+}
+</style>

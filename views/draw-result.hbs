@@ -1,0 +1,157 @@
+<div class="hero" style="background-image: url('/img/image3.jpg');">
+  <div class="hero-overlay">
+    <h2 class="hero-title">Skin Draw</h2>
+    <p class="hero-subtitle">Your result is in...</p>
+  </div>
+</div>
+
+<section class="info-section store-section" style="text-align:center;">
+
+  <!-- Spinner -->
+  <div id="draw-spinner" class="draw-spinner-container">
+    <div class="draw-spinner-track" id="spinner-track">
+    </div>
+    <div class="draw-spinner-indicator"></div>
+  </div>
+
+  <!-- Result reveal (hidden until animation ends) -->
+  <div id="draw-reveal" style="display:none;">
+    <div id="result-card" class="draw-result-card">
+    </div>
+    <div style="margin-top:2rem;">
+      <a href="/draw" class="btn btn-discord btn-large">Roll Again — $14.99</a>
+    </div>
+  </div>
+
+</section>
+
+<script>
+(function() {
+  var result = {{{result}}};
+  var pool = {{{poolJson}}};
+
+  var rarityColors = { common: '#9a9a9a', uncommon: '#91cc75', rare: '#5470c6', epic: '#9a60b4', legendary: '#fac858' };
+  var rarityLabels = { common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
+  var rarityGlow = { common: 'rgba(154,154,154,0.3)', uncommon: 'rgba(145,204,117,0.4)', rare: 'rgba(84,112,198,0.5)', epic: 'rgba(154,96,180,0.5)', legendary: 'rgba(250,200,88,0.6)' };
+
+  // Build spinner items — repeat pool items to fill the track, with result placed near the end
+  var track = document.getElementById('spinner-track');
+  var items = [];
+  // Fill ~40 items, place result at position ~35
+  var resultIndex = 35;
+  for (var i = 0; i < 40; i++) {
+    if (i === resultIndex) {
+      items.push(result);
+    } else {
+      items.push(pool[Math.floor(Math.random() * pool.length)]);
+    }
+  }
+
+  track.innerHTML = items.map(function(item, idx) {
+    var color = rarityColors[item.rarity] || '#9a9a9a';
+    var isResult = idx === resultIndex;
+    return '<div class="draw-spinner-item" style="border-top:3px solid ' + color + ';" data-index="' + idx + '">' +
+      (item.image ? '<img src="' + item.image + '" alt="' + item.name + '" style="width:100%;height:120px;object-fit:contain;background:#0d0d0d;border-radius:4px;">' : '<div style="height:120px;display:flex;align-items:center;justify-content:center;background:#0d0d0d;border-radius:4px;"><span style="color:' + color + ';font-size:2rem;font-weight:700;">' + (rarityLabels[item.rarity] || '?')[0] + '</span></div>') +
+      '<div style="margin-top:0.5rem;font-weight:600;font-size:0.8rem;">' + item.name + '</div>' +
+      '<div style="color:' + color + ';font-size:0.7rem;font-weight:700;text-transform:uppercase;">' + (rarityLabels[item.rarity] || item.rarity) + '</div>' +
+      '</div>';
+  }).join('');
+
+  // Animate spinner
+  var itemWidth = 160; // px per item including gap
+  var targetScroll = (resultIndex * itemWidth) - (window.innerWidth / 2) + (itemWidth / 2);
+  // Add some randomness so it doesn't land dead center every time
+  targetScroll += (Math.random() - 0.5) * 40;
+
+  track.style.transition = 'none';
+  track.style.transform = 'translateX(0)';
+
+  setTimeout(function() {
+    track.style.transition = 'transform 4s cubic-bezier(0.15, 0.85, 0.25, 1)';
+    track.style.transform = 'translateX(-' + targetScroll + 'px)';
+  }, 300);
+
+  // After animation, show result
+  setTimeout(function() {
+    document.getElementById('draw-spinner').style.display = 'none';
+    document.getElementById('draw-reveal').style.display = 'block';
+
+    var color = rarityColors[result.rarity] || '#9a9a9a';
+    var glow = rarityGlow[result.rarity] || 'rgba(154,154,154,0.3)';
+    var card = document.getElementById('result-card');
+    card.style.borderColor = color;
+    card.style.boxShadow = '0 0 40px ' + glow + ', 0 0 80px ' + glow;
+    card.innerHTML =
+      (result.image ? '<img src="' + result.image + '" style="width:100%;max-width:300px;height:300px;object-fit:contain;background:#0d0d0d;border-radius:4px;margin-bottom:1rem;">' : '') +
+      '<h2 style="font-family:Orbitron,sans-serif;color:' + color + ';margin-bottom:0.5rem;">' + result.name + '</h2>' +
+      '<span style="color:' + color + ';font-size:1.1rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;">' + (rarityLabels[result.rarity] || result.rarity) + '</span>' +
+      '<p style="color:var(--text-secondary);margin-top:1rem;">This skin has been added to your account!</p>';
+  }, 4500);
+})();
+</script>
+
+<style>
+.draw-spinner-container {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  margin: 2rem auto;
+  overflow: hidden;
+  height: 220px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.draw-spinner-track {
+  display: flex;
+  gap: 10px;
+  position: absolute;
+  top: 10px;
+  left: 0;
+  will-change: transform;
+}
+.draw-spinner-item {
+  flex-shrink: 0;
+  width: 150px;
+  padding: 0.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  text-align: center;
+}
+.draw-spinner-indicator {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3px;
+  height: 100%;
+  background: #ff3e3e;
+  z-index: 10;
+  box-shadow: 0 0 10px rgba(255,62,62,0.5);
+}
+.draw-spinner-indicator::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 10px solid #ff3e3e;
+}
+.draw-result-card {
+  display: inline-block;
+  background: var(--bg-card);
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  padding: 2rem 3rem;
+  text-align: center;
+  animation: result-pop 0.5s ease-out;
+}
+@keyframes result-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+</style>
