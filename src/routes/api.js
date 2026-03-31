@@ -125,6 +125,9 @@ router.post("/store-sync", (req, res) => {
   }
 
   try {
+    // Ensure skin draw tables exist before syncing
+    skinDraw.init();
+
     const summary = {};
     if (categories || products) {
       const storeResult = store.upsertSyncData({
