@@ -40,73 +40,49 @@ function init() {
   console.log(`VACScanner: ${count} flagged players in database.`);
 }
 
-// Fetch Steam IDs from the backend API for all known players
-async function fetchBackendSteamIds() {
-  if (!config.adminApiToken) return [];
+// All known arma_id → steam64_id mappings from the backend database
+// TODO: Replace with GET /admin/steam-ids/all endpoint when available
+const BACKEND_STEAM_IDS_FILE = path.join(DB_DIR, "steam-ids-cache.json");
 
-  const adminApi = axios.create({ baseURL: config.apiBaseUrl, timeout: 15000, headers: { "Content-Type": "application/json" } });
-  const apiClient = axios.create({ baseURL: config.apiBaseUrl, timeout: 30000, headers: { "Content-Type": "application/json" } });
-
-  const armaIds = new Set();
-
-  // Pull arma_ids from bans list
+function loadBackendSteamIds() {
   try {
-    console.log("[VAC Scan]   Fetching banned player list...");
-    const bansRes = await apiClient({ method: "GET", url: "/user/getAllUserBans/", data: { token: config.apiToken } });
-    const bans = bansRes.data?.bans || bansRes.data?.data || bansRes.data || [];
-    if (Array.isArray(bans)) {
-      for (const b of bans) {
-        if (b.user_id_banned) armaIds.add(b.user_id_banned);
-      }
+    if (fs.existsSync(BACKEND_STEAM_IDS_FILE)) {
+      return JSON.parse(fs.readFileSync(BACKEND_STEAM_IDS_FILE, "utf8"));
     }
-    console.log(`[VAC Scan]   Got ${armaIds.size} arma_ids from bans`);
-  } catch (err) {
-    console.error("[VAC Scan]   Failed to fetch bans:", err.message);
-  }
+  } catch {}
+  return [];
+}
 
-  console.log(`[VAC Scan]   Total unique arma_ids: ${armaIds.size}`);
-  console.log(`[VAC Scan]   Looking up Steam64 IDs (this may take a while)...`);
+function saveBackendSteamIds(data) {
+  fs.writeFileSync(BACKEND_STEAM_IDS_FILE, JSON.stringify(data), "utf8");
+}
 
-  // Look up Steam64 for each arma_id — batch with concurrency limit
-  const steamMap = [];
-  const armaIdArray = [...armaIds];
-  let resolved = 0;
-  let failed = 0;
-  const CONCURRENCY = 10;
-
-  for (let i = 0; i < armaIdArray.length; i += CONCURRENCY) {
-    const batch = armaIdArray.slice(i, i + CONCURRENCY);
-    const results = await Promise.allSettled(
-      batch.map(armaId =>
-        adminApi.get("/admin/steam-id", {
-          params: { token: config.adminApiToken, arma_id: armaId },
-        }).then(res => {
-          const ids = res.data?.steam_ids;
-          if (ids && ids.length > 0) {
-            return { steam_id: ids[0].steam64_id, arma_id };
-          }
-          return null;
-        })
-      )
-    );
-
-    for (const r of results) {
-      if (r.status === "fulfilled" && r.value) {
-        steamMap.push(r.value);
-        resolved++;
-      } else if (r.status === "rejected") {
-        failed++;
+// Fetch Steam IDs — uses cached file, falls back to API
+async function fetchBackendSteamIds() {
+  // Try API bulk endpoint first (for when it's available)
+  if (config.adminApiToken) {
+    try {
+      const adminApi = axios.create({ baseURL: config.apiBaseUrl, timeout: 30000, headers: { "Content-Type": "application/json" } });
+      const res = await adminApi.get("/admin/steam-ids/all", { params: { token: config.adminApiToken } });
+      if (res.data?.steam_ids && Array.isArray(res.data.steam_ids) && res.data.steam_ids.length > 0) {
+        const mapped = res.data.steam_ids.map(r => ({ arma_id: r.arma_id, steam_id: r.steam64_id })).filter(r => r.arma_id && r.steam_id);
+        console.log(`[VAC Scan]   Fetched ${mapped.length} Steam IDs from bulk API endpoint`);
+        saveBackendSteamIds(mapped);
+        return mapped;
       }
-    }
-
-    // Progress log every 100
-    if ((i + CONCURRENCY) % 100 < CONCURRENCY) {
-      console.log(`[VAC Scan]   Progress: ${Math.min(i + CONCURRENCY, armaIdArray.length)}/${armaIdArray.length} checked, ${resolved} Steam IDs found`);
+    } catch {
+      // Bulk endpoint not available yet — use cache
     }
   }
 
-  console.log(`[VAC Scan]   Done: ${resolved} Steam IDs resolved from ${armaIdArray.length} arma_ids (${failed} errors)`);
-  return steamMap;
+  const cached = loadBackendSteamIds();
+  if (cached.length > 0) {
+    console.log(`[VAC Scan]   Loaded ${cached.length} Steam IDs from cache`);
+    return cached;
+  }
+
+  console.log("[VAC Scan]   No Steam ID data available (no bulk endpoint or cache)");
+  return [];
 }
 
 // Progressive scan — only check Steam IDs not already in the database
