@@ -9,6 +9,7 @@
     {{/if}}
     {{#if user.isAdmin}}
       <button class="tab analytics-tab" data-tab="tab-audit" type="button">Audit Log</button>
+      <button class="tab analytics-tab" data-tab="tab-vac" type="button">VAC Bans</button>
       <button class="tab analytics-tab" data-tab="tab-security" type="button">Security</button>
     {{/if}}
   </div>
@@ -466,6 +467,105 @@
     </div>
   </div>
 
+  <!-- ═══════════════ VAC BANS TAB (Admin Only) ═══════════════ -->
+  <div id="tab-vac" style="display:none;">
+
+    <div class="analytics-cards">
+      <div class="stat-card primary">
+        <div class="stat-value">{{formatNumber vacStats.total}}</div>
+        <div class="stat-label">Players Scanned</div>
+      </div>
+      <div class="stat-card" style="border-top:3px solid #ef4444;">
+        <div class="stat-value" style="color:#f87171;">{{formatNumber vacStats.vacBanned}}</div>
+        <div class="stat-label">VAC Banned</div>
+      </div>
+      <div class="stat-card" style="border-top:3px solid #f59e0b;">
+        <div class="stat-value" style="color:#fbbf24;">{{formatNumber vacStats.gameBanned}}</div>
+        <div class="stat-label">Game Banned</div>
+      </div>
+      <div class="stat-card" style="border-top:3px solid #22c55e;">
+        <div class="stat-value" style="color:#4ade80;">{{formatNumber vacStats.clean}}</div>
+        <div class="stat-label">Clean</div>
+      </div>
+    </div>
+
+    <div class="admin-form-card" style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+      <div>
+        <span style="color:var(--text-secondary);font-size:0.85rem;">
+          {{#if vacLastScan}}Last scan: {{formatDate vacLastScan}}{{else}}Never scanned{{/if}}
+          — Runs automatically at 4 AM and 4 PM EST.
+        </span>
+      </div>
+      <div style="display:flex;gap:0.5rem;align-items:center;">
+        <form method="POST" action="/admin/vac/scan" style="margin:0;" onsubmit="startVacScan(this);return true;">
+          <input type="hidden" name="_csrf" value="{{csrfToken}}">
+          <button type="submit" class="btn btn-admin" style="background:#ef4444;">Scan New Players</button>
+        </form>
+        <form method="POST" action="/admin/vac/scan" style="margin:0;" onsubmit="if(!confirm('Re-scan ALL players? This may take a while.'))return false;startVacScan(this);return true;">
+          <input type="hidden" name="_csrf" value="{{csrfToken}}">
+          <input type="hidden" name="full" value="1">
+          <button type="submit" class="btn btn-admin" style="background:var(--bg-card);border:1px solid var(--border);">Re-scan All</button>
+        </form>
+        <div id="vac-spinner" style="display:none;">
+          <div class="vac-spinner"></div>
+          <span style="color:var(--text-secondary);font-size:0.85rem;margin-left:0.5rem;">Scanning Steam accounts...</span>
+        </div>
+      </div>
+    </div>
+
+    {{#if vacFlagged.length}}
+    <div class="admin-form-card">
+      <h3>Flagged Players ({{vacFlagged.length}})</h3>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Discord User</th>
+              <th>Arma ID</th>
+              <th>Steam ID</th>
+              <th>Status</th>
+              <th>Bans</th>
+              <th>Days Since</th>
+              <th>Scanned</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each vacFlagged}}
+              <tr>
+                <td>{{#if this.discord_username}}{{this.discord_username}}{{else}}<span style="color:var(--text-secondary);">—</span>{{/if}}</td>
+                <td>{{#if this.arma_id}}<code>{{this.arma_id}}</code>{{else}}<span style="color:var(--text-secondary);">—</span>{{/if}}</td>
+                <td style="font-family:monospace;font-size:0.85rem;">
+                  <a href="https://steamcommunity.com/profiles/{{this.steam_id}}" target="_blank" rel="noopener" style="color:var(--accent);">{{this.steam_id}}</a>
+                </td>
+                <td>
+                  {{#if this.vac_banned}}
+                    <span class="badge badge-danger">VAC BANNED</span>
+                  {{else}}
+                    <span class="badge badge-warning">GAME BAN</span>
+                  {{/if}}
+                  {{#if this.community_banned}}
+                    <span class="badge badge-danger" style="margin-left:0.25rem;">COMMUNITY</span>
+                  {{/if}}
+                </td>
+                <td style="font-weight:600;">
+                  {{#if this.vac_banned}}{{this.number_of_vac_bans}} VAC{{/if}}
+                  {{#if this.number_of_game_bans}}{{#if this.vac_banned}} + {{/if}}{{this.number_of_game_bans}} Game{{/if}}
+                </td>
+                <td>{{this.days_since_last_ban}}d ago</td>
+                <td>{{formatDate this.scanned_at}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {{else}}
+      <div class="admin-form-card">
+        <div class="empty-state">No flagged players. {{#unless vacLastScan}}Run a scan to check.{{/unless}}</div>
+      </div>
+    {{/if}}
+  </div>
+
   <!-- ═══════════════ SECURITY TAB (Admin Only) ═══════════════ -->
   <div id="tab-security" style="display:none;">
 
@@ -569,6 +669,8 @@
       if (storeEl) storeEl.style.display = 'none';
       var auditEl = document.getElementById('tab-audit');
       if (auditEl) auditEl.style.display = 'none';
+      var vacEl = document.getElementById('tab-vac');
+      if (vacEl) vacEl.style.display = 'none';
       var securityEl = document.getElementById('tab-security');
       if (securityEl) securityEl.style.display = 'none';
       document.getElementById(this.getAttribute('data-tab')).style.display = '';
@@ -580,5 +682,28 @@
       }
     });
   });
+
+  window.startVacScan = function(form) {
+    form.querySelector('button').disabled = true;
+    form.querySelector('button').style.opacity = '0.5';
+    document.getElementById('vac-spinner').style.display = 'flex';
+  };
 })();
 </script>
+
+<style>
+.vac-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: vac-spin 0.8s linear infinite;
+}
+@keyframes vac-spin {
+  to { transform: rotate(360deg); }
+}
+#vac-spinner {
+  align-items: center;
+}
+</style>

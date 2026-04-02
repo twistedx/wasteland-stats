@@ -4,6 +4,8 @@ const config = require("./config");
 const adminUsers = require("./admin-users");
 const discordStats = require("./discord-stats");
 const tasks = require("./tasks");
+const { sendWebhook } = require("./webhook");
+const auditLog = require("./audit-log");
 
 let client = null;
 
@@ -60,13 +62,27 @@ async function init() {
         .setRequired(false)
     );
 
+  const watchlistCommand = new SlashCommandBuilder()
+    .setName("watchlist")
+    .setDescription("Add a player to the watchlist")
+    .addStringOption(opt =>
+      opt.setName("player")
+        .setDescription("Player username to search for")
+        .setRequired(true)
+    )
+    .addStringOption(opt =>
+      opt.setName("reason")
+        .setDescription("Reason for watchlisting")
+        .setRequired(false)
+    );
+
   try {
     console.log(`DiscordBot: Discord API: PUT /applications/${config.discord.clientId}/guilds/${config.discordGuildId}/commands (register commands)`);
     await rest.put(
       Routes.applicationGuildCommands(config.discord.clientId, config.discordGuildId),
-      { body: [verifyCommand.toJSON(), ticketCommand.toJSON()] }
+      { body: [verifyCommand.toJSON(), ticketCommand.toJSON(), watchlistCommand.toJSON()] }
     );
-    console.log("DiscordBot: /verify and /ticket commands registered.");
+    console.log("DiscordBot: /verify, /ticket, and /watchlist commands registered.");
   } catch (err) {
     console.error("DiscordBot: failed to register commands:", err.message);
     return;
@@ -170,6 +186,74 @@ async function init() {
         console.error("DiscordBot: /ticket error:", err.message);
         return interaction.editReply({
           content: `Failed to create ticket: ${err.message}`,
+        });
+      }
+    }
+
+    // ── /watchlist ──
+    if (interaction.commandName === "watchlist") {
+      const playerSearch = interaction.options.getString("player").trim();
+      const reason = (interaction.options.getString("reason") || "").trim();
+      const username = interaction.user.username;
+      const discordId = interaction.user.id;
+
+      console.log(`DiscordBot: /watchlist called by ${username} (${discordId}) — search="${playerSearch}"`);
+
+      await interaction.deferReply({ flags: 64 });
+
+      try {
+        const apiClient = axios.create({ baseURL: config.apiBaseUrl, timeout: 15000, headers: { "Content-Type": "application/json" } });
+        const adminApi = axios.create({ baseURL: config.apiBaseUrl, timeout: 15000, headers: { "Content-Type": "application/json" } });
+
+        // Search for the player
+        const searchRes = await apiClient({
+          method: "GET",
+          url: "/user/searchUsersByUsername/",
+          data: { search: playerSearch, token: config.apiToken },
+        });
+
+        const data = searchRes.data?.users || searchRes.data?.data || searchRes.data;
+        const players = Array.isArray(data) ? data : [];
+
+        if (players.length === 0) {
+          return interaction.editReply({ content: `No players found matching "${playerSearch}".` });
+        }
+
+        // Use first match
+        const player = players[0];
+        const armaId = player.arma_id;
+        const playerName = player.username || player.arma_username || armaId;
+
+        // Add to watchlist
+        await adminApi.post("/admin/watchlist", {
+          token: config.adminApiToken,
+          arma_id: armaId,
+          is_watchlisted: true,
+        });
+
+        // Add notes if provided
+        if (reason) {
+          await adminApi.post("/admin/bans/webNotes", {
+            token: config.adminApiToken,
+            arma_id: armaId,
+            web_notes: `[${username}] ${reason}`,
+          });
+        }
+
+        auditLog.log("moderation", "Added to Watchlist", `${playerName} (${armaId}) via Discord by ${username}`, { username, discord_id: discordId });
+        sendWebhook({
+          title: "Player Added to Watchlist",
+          description: `<@${discordId}> added **${playerName}** (\`${armaId}\`) to the watchlist${reason ? `\nReason: ${reason}` : ""}`,
+          color: 0xf59e0b,
+        });
+
+        return interaction.editReply({
+          content: `**${playerName}** (\`${armaId}\`) added to the watchlist.${reason ? `\nReason: ${reason}` : ""}\n\nView on the admin panel: **armawasteland.com/admin/watchlist**`,
+        });
+      } catch (err) {
+        console.error("DiscordBot: /watchlist error:", err.message);
+        return interaction.editReply({
+          content: `Failed to add player to watchlist: ${err.response?.data?.message || err.message}`,
         });
       }
     }

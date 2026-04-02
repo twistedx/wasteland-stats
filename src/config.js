@@ -26,6 +26,7 @@ const config = {
   },
   armaHqApiKey: process.env.ARMAHQ_API_KEY || "",
   adminApiToken: process.env.ADMIN_API_TOKEN || "",
+  steamApiKey: process.env.STEAM_API_KEY || "",
   watchlistWebhookUrl: process.env.WATCHLISTWH || "",
   productionSyncUrl: process.env.PRODUCTION_SYNC_URL || "",
   ssh: {

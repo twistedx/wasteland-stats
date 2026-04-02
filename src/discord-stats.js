@@ -41,12 +41,29 @@ function initDb() {
   db.prepare("DELETE FROM online_snapshots WHERE ts < ?").run(cutoff);
 }
 
+async function fetchMembersWithRetry(guild, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await guild.members.fetch();
+      return true;
+    } catch (err) {
+      if (err.message.includes("rate limited") && i < retries - 1) {
+        const delay = Math.min((i + 1) * 2000, 10000);
+        await new Promise(r => setTimeout(r, delay));
+      } else {
+        throw err;
+      }
+    }
+  }
+  return false;
+}
+
 async function takeSnapshot() {
   if (!client || !client.isReady() || !db) return;
   try {
     const guild = client.guilds.cache.get(guildId);
     if (!guild) return;
-    await guild.members.fetch();
+    await fetchMembersWithRetry(guild);
     const members = guild.members.cache;
     const humans = members.filter(m => !m.user.bot).size;
     const online = members.filter(m => m.presence?.status === "online").size;
@@ -96,7 +113,7 @@ async function getStats() {
     if (!guild) return null;
 
     // Fetch all members (needed for accurate counts)
-    await guild.members.fetch();
+    await fetchMembersWithRetry(guild);
 
     const members = guild.members.cache;
     const totalMembers = guild.memberCount;

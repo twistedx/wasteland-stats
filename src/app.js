@@ -22,6 +22,8 @@ const auditLog = require("./audit-log");
 const skinDraw = require("./skin-draw");
 const tasks = require("./tasks");
 const ipBlock = require("./ip-block");
+const vacScanner = require("./vac-scanner");
+const cron = require("node-cron");
 const subscriptionPerks = require("./subscription-perks");
 const { marked } = require("marked");
 
@@ -351,6 +353,27 @@ auditLog.init();
 skinDraw.init();
 tasks.init();
 ipBlock.init();
+vacScanner.init();
+
+// VAC scan cron — 4 AM and 4 PM EST
+cron.schedule("0 4,16 * * *", async () => {
+  console.log("VAC cron: starting scheduled scan...");
+  try {
+    const result = await vacScanner.scan();
+    if (result.flagged > 0) {
+      const { sendWebhook } = require("./webhook");
+      sendWebhook({
+        title: "Scheduled VAC Scan",
+        description: `Scanned ${result.scanned} players, **${result.flagged} flagged** with bans.`,
+        color: 0xef4444,
+      });
+    }
+    console.log(`VAC cron: done — ${result.scanned} scanned, ${result.flagged} flagged`);
+  } catch (err) {
+    console.error("VAC cron error:", err.message);
+  }
+}, { timezone: "America/New_York" });
+
 require("./discord-bot").init();
 
 app.use(analytics.middleware);

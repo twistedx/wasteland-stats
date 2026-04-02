@@ -14,6 +14,8 @@ const auditLog = require("../audit-log");
 const skinDraw = require("../skin-draw");
 const tasks = require("../tasks");
 const ipBlock = require("../ip-block");
+const vacChecker = require("../vac-checker");
+const vacScanner = require("../vac-scanner");
 const multer = require("multer");
 const sharp = require("sharp");
 const path = require("path");
@@ -690,10 +692,11 @@ router.get("/watchlist", async (req, res) => {
       const data = searchRes.data?.users || searchRes.data?.data || searchRes.data;
       const matchList = Array.isArray(data) ? data : [];
 
-      // Check watchlist status for each matched player
+      // Check watchlist status and Steam ID for each matched player
       const checks = matchList.slice(0, 20).map(async (p) => {
         let isWatchlisted = false;
         let webNotes = "";
+        let steam_id = null;
         try {
           const wlRes = await adminApiClient.get("/admin/watchlist", {
             params: { token: config.adminApiToken, arma_id: p.arma_id },
@@ -706,14 +709,30 @@ router.get("/watchlist", async (req, res) => {
           });
           webNotes = notesRes.data?.web_notes || "";
         } catch {}
+        try {
+          const steamRes = await adminApiClient.get("/admin/steam-id", {
+            params: { token: config.adminApiToken, arma_id: p.arma_id },
+          });
+          steam_id = steamRes.data?.steam64_id || null;
+        } catch {}
         return {
           arma_id: p.arma_id || "-",
           arma_username: p.arma_username || "Unknown",
           isWatchlisted,
           webNotes,
+          steam_id,
         };
       });
       players = await Promise.all(checks);
+
+      // Check VAC bans for players with Steam IDs
+      if (config.steamApiKey) {
+        try {
+          players = await vacChecker.enrichPlayers(players);
+        } catch (err) {
+          console.error("VAC check error:", err.message);
+        }
+      }
     } catch (error) {
       console.error("Watchlist search error:", error.message);
       watchlistError = true;
@@ -1051,6 +1070,9 @@ router.get("/analytics", async (req, res) => {
     auditStats,
     blockedIPs: user.isAdmin ? ipBlock.getAll() : [],
     ipBlockStats: user.isAdmin ? ipBlock.getStats() : { total: 0, today: 0 },
+    vacFlagged: user.isAdmin ? vacScanner.getFlagged() : [],
+    vacStats: user.isAdmin ? vacScanner.getStats() : { total: 0, vacBanned: 0, gameBanned: 0, clean: 0 },
+    vacLastScan: user.isAdmin ? vacScanner.getLastScan() : null,
   });
 });
 
@@ -1623,6 +1645,58 @@ router.post("/store/sync-production", requireWriteAdmin, async (req, res) => {
     console.error("Production sync error:", err.message);
     const msg = err.response?.data?.error || err.message;
     res.redirect("/admin/store?error=" + encodeURIComponent("Sync failed: " + msg));
+  }
+});
+
+// ── VAC Scanner ──
+
+router.post("/vac/scan", requireWriteAdmin, async (req, res) => {
+  try {
+    const full = req.body.full === "1";
+    const result = await vacScanner.scan({ full });
+    auditLog.log("security", "VAC Scan", `Scanned ${result.scanned} players, ${result.flagged} flagged`, req.session.user);
+
+    // Auto-watchlist flagged players
+    const flagged = vacScanner.getFlagged();
+    let watchlisted = 0;
+    for (const player of flagged) {
+      if (!player.discord_id) continue;
+      try {
+        // Look up arma_id from discord_id
+        const playerRes = await apiClient({
+          method: "GET",
+          url: "/user/getPlayerStatsByDiscordID/",
+          data: { discord_id: player.discord_id, token: config.apiToken },
+        });
+        const armaId = playerRes.data?.arma_id;
+        if (!armaId) continue;
+
+        await adminApiClient.post("/admin/watchlist", {
+          token: config.adminApiToken,
+          arma_id: armaId,
+          is_watchlisted: true,
+        });
+
+        // Add note about VAC ban
+        const banType = player.vac_banned ? `${player.number_of_vac_bans} VAC ban(s)` : `${player.number_of_game_bans} game ban(s)`;
+        await adminApiClient.post("/admin/bans/webNotes", {
+          token: config.adminApiToken,
+          arma_id: armaId,
+          web_notes: `[Auto] ${banType}, ${player.days_since_last_ban} days ago — Steam: ${player.steam_id}`,
+        });
+
+        watchlisted++;
+      } catch (err) {
+        // Player might not have arma account — skip
+      }
+    }
+
+    const msg = `VAC scan complete: ${result.scanned} new, ${result.skipped} skipped, ${result.flagged} flagged, ${watchlisted} auto-watchlisted.`;
+    sendWebhook({ title: "VAC Scan Complete", description: msg, color: result.flagged > 0 ? 0xef4444 : 0x22c55e });
+    res.redirect("/admin/analytics?success=" + encodeURIComponent(msg));
+  } catch (err) {
+    console.error("VAC scan error:", err.message);
+    res.redirect("/admin/analytics?error=" + encodeURIComponent("VAC scan failed: " + err.message));
   }
 });
 

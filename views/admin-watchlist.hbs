@@ -40,6 +40,7 @@
             <tr>
               <th>Username</th>
               <th>Arma ID</th>
+              <th>VAC</th>
               <th>Status</th>
               <th>Web Notes</th>
               <th>Actions</th>
@@ -50,6 +51,21 @@
               <tr>
                 <td class="player-name">{{this.arma_username}}</td>
                 <td><code>{{this.arma_id}}</code></td>
+                <td>
+                  {{#if this.vac}}
+                    {{#if this.vac.vacBanned}}
+                      <span class="badge badge-danger" title="{{this.vac.numberOfVACBans}} VAC ban(s), {{this.vac.daysSinceLastBan}} days ago">VAC BANNED</span>
+                    {{else if this.vac.numberOfGameBans}}
+                      <span class="badge badge-warning" title="{{this.vac.numberOfGameBans}} game ban(s)">GAME BAN</span>
+                    {{else}}
+                      <span class="badge badge-clean">Clean</span>
+                    {{/if}}
+                  {{else if this.steam_id}}
+                    <span class="badge badge-neutral" title="Steam: {{this.steam_id}}">—</span>
+                  {{else}}
+                    <span style="color:var(--text-secondary);font-size:0.8rem;">No Steam</span>
+                  {{/if}}
+                </td>
                 <td>
                   {{#if this.isWatchlisted}}
                     <span class="badge badge-danger">Watchlisted</span>
@@ -98,3 +114,28 @@
     <p class="result-count" style="text-align:center;padding:2rem 0;color:var(--text-secondary);">Search for a player by username to view or update their watchlist status.</p>
   {{/if}}
 </section>
+
+{{> ban-modal}}
+
+<style>
+.badge-warning {
+  background: rgba(245,158,11,0.2);
+  color: #fbbf24;
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.badge-clean {
+  background: rgba(34,197,94,0.15);
+  color: #4ade80;
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+</style>
