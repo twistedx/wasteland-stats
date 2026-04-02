@@ -3,6 +3,7 @@ const axios = require("axios");
 const config = require("./config");
 const adminUsers = require("./admin-users");
 const discordStats = require("./discord-stats");
+const tasks = require("./tasks");
 
 let client = null;
 
@@ -12,9 +13,9 @@ async function init() {
     return;
   }
 
-  // Register the /verify slash command
+  // Register slash commands
   const rest = new REST({ version: "10" }).setToken(config.discordBotToken);
-  const command = new SlashCommandBuilder()
+  const verifyCommand = new SlashCommandBuilder()
     .setName("verify")
     .setDescription("Link your Discord account to your ArmaWasteland.com account")
     .addStringOption(opt =>
@@ -23,13 +24,49 @@ async function init() {
         .setRequired(true)
     );
 
+  const ticketCommand = new SlashCommandBuilder()
+    .setName("ticket")
+    .setDescription("Create a task ticket on the admin board")
+    .addStringOption(opt =>
+      opt.setName("title")
+        .setDescription("Short title for the ticket (e.g. Fix AK-74n recoil with PBS suppressor)")
+        .setRequired(true)
+    )
+    .addStringOption(opt =>
+      opt.setName("type")
+        .setDescription("Type of ticket")
+        .setRequired(false)
+        .addChoices(
+          { name: "Bug", value: "bug" },
+          { name: "Improvement", value: "improvement" },
+          { name: "Feature", value: "feature" },
+          { name: "Ticket", value: "ticket" },
+        )
+    )
+    .addStringOption(opt =>
+      opt.setName("priority")
+        .setDescription("Priority level")
+        .setRequired(false)
+        .addChoices(
+          { name: "Low", value: "low" },
+          { name: "Normal", value: "normal" },
+          { name: "High", value: "high" },
+          { name: "Critical", value: "critical" },
+        )
+    )
+    .addStringOption(opt =>
+      opt.setName("description")
+        .setDescription("Optional details about the issue")
+        .setRequired(false)
+    );
+
   try {
-    console.log(`DiscordBot: Discord API: PUT /applications/${config.discord.clientId}/guilds/${config.discordGuildId}/commands (register /verify)`);
+    console.log(`DiscordBot: Discord API: PUT /applications/${config.discord.clientId}/guilds/${config.discordGuildId}/commands (register commands)`);
     await rest.put(
       Routes.applicationGuildCommands(config.discord.clientId, config.discordGuildId),
-      { body: [command.toJSON()] }
+      { body: [verifyCommand.toJSON(), ticketCommand.toJSON()] }
     );
-    console.log("DiscordBot: /verify command registered.");
+    console.log("DiscordBot: /verify and /ticket commands registered.");
   } catch (err) {
     console.error("DiscordBot: failed to register commands:", err.message);
     return;
@@ -52,46 +89,89 @@ async function init() {
   });
 
   client.on("interactionCreate", async (interaction) => {
-    if (!interaction.isChatInputCommand() || interaction.commandName !== "verify") return;
+    if (!interaction.isChatInputCommand()) return;
 
-    const code = interaction.options.getString("code").trim().toUpperCase();
-    const discordId = interaction.user.id;
-    console.log(`DiscordBot: /verify called by ${interaction.user.username} (${discordId}) with code=${code}`);
+    // ── /verify ──
+    if (interaction.commandName === "verify") {
+      const code = interaction.options.getString("code").trim().toUpperCase();
+      const discordId = interaction.user.id;
+      console.log(`DiscordBot: /verify called by ${interaction.user.username} (${discordId}) with code=${code}`);
 
-    // Acknowledge immediately so Discord doesn't time out
-    await interaction.deferReply({ flags: 64 }); // 64 = ephemeral
+      await interaction.deferReply({ flags: 64 });
 
-    try {
-      // Try 1: Link Arma account via backend game API (in-game temp password)
-      let armaLinked = false;
       try {
-        console.log(`DiscordBot: trying backend verify — temp_password=${code} discord_id=${discordId}`);
-        const apiClient = axios.create({ baseURL: config.apiBaseUrl, timeout: 15000, headers: { "Content-Type": "application/json" } });
-        const armaRes = await apiClient.post("/user/verifyUsersByTempPassword/", {
-          temp_password: code,
-          discord_id: discordId,
-          token: config.apiToken,
-        });
-        console.log(`DiscordBot: backend verify response:`, armaRes.status, JSON.stringify(armaRes.data).slice(0, 200));
-        armaLinked = true;
-      } catch (armaErr) {
-        console.log(`DiscordBot: backend verify failed (${armaErr.response?.status || armaErr.message}) — trying admin email verify`);
-      }
+        let armaLinked = false;
+        try {
+          console.log(`DiscordBot: trying backend verify — temp_password=${code} discord_id=${discordId}`);
+          const apiClient = axios.create({ baseURL: config.apiBaseUrl, timeout: 15000, headers: { "Content-Type": "application/json" } });
+          const armaRes = await apiClient.post("/user/verifyUsersByTempPassword/", {
+            temp_password: code,
+            discord_id: discordId,
+            token: config.apiToken,
+          });
+          console.log(`DiscordBot: backend verify response:`, armaRes.status, JSON.stringify(armaRes.data).slice(0, 200));
+          armaLinked = true;
+        } catch (armaErr) {
+          console.log(`DiscordBot: backend verify failed (${armaErr.response?.status || armaErr.message}) — trying admin email verify`);
+        }
 
-      if (armaLinked) {
+        if (armaLinked) {
+          return interaction.editReply({
+            content: `Game account linked successfully! Your Discord is now connected to your Arma player.\n\nYou can now purchase items from the store at **armawasteland.com/store**`,
+          });
+        }
+
         return interaction.editReply({
-          content: `Game account linked successfully! Your Discord is now connected to your Arma player.\n\nYou can now purchase items from the store at **armawasteland.com/store**`,
+          content: "Invalid or expired verification code. Make sure you're using the code from in-game (press Escape to find it).",
+        });
+      } catch (err) {
+        console.error("DiscordBot: /verify error:", err.message);
+        return interaction.editReply({
+          content: `Something went wrong: ${err.message}. Your account may still have been linked — try logging out and back in.`,
         });
       }
+    }
 
-      return interaction.editReply({
-        content: "Invalid or expired verification code. Make sure you're using the code from in-game (press Escape to find it).",
-      });
-    } catch (err) {
-      console.error("DiscordBot: /verify error:", err.message);
-      return interaction.editReply({
-        content: `Something went wrong: ${err.message}. Your account may still have been linked — try logging out and back in.`,
-      });
+    // ── /ticket ──
+    if (interaction.commandName === "ticket") {
+      const title = interaction.options.getString("title").trim();
+      const type = interaction.options.getString("type") || "bug";
+      const priority = interaction.options.getString("priority") || "normal";
+      const description = (interaction.options.getString("description") || "").trim();
+      const username = interaction.user.username;
+      const discordId = interaction.user.id;
+
+      console.log(`DiscordBot: /ticket called by ${username} (${discordId}) — "${title}"`);
+
+      await interaction.deferReply({ flags: 64 });
+
+      try {
+        // Build Discord message link from the interaction context
+        const guildId = interaction.guildId;
+        const channelId = interaction.channelId;
+        const messageLink = guildId
+          ? `https://discord.com/channels/${guildId}/${channelId}/${interaction.id}`
+          : null;
+
+        const taskId = tasks.create({
+          title,
+          description,
+          type,
+          priority,
+          created_by: username,
+          created_by_discord_id: discordId,
+          link: messageLink,
+        });
+
+        return interaction.editReply({
+          content: `Ticket **#${taskId}** created!\n\n**${title}**\nType: ${type} | Priority: ${priority}\n\nView it on the admin task board at **armawasteland.com/admin/tasks**`,
+        });
+      } catch (err) {
+        console.error("DiscordBot: /ticket error:", err.message);
+        return interaction.editReply({
+          content: `Failed to create ticket: ${err.message}`,
+        });
+      }
     }
   });
 

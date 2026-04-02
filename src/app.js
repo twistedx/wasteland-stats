@@ -20,6 +20,7 @@ const adminUsers = require("./admin-users");
 const store = require("./store");
 const auditLog = require("./audit-log");
 const skinDraw = require("./skin-draw");
+const tasks = require("./tasks");
 const subscriptionPerks = require("./subscription-perks");
 const { marked } = require("marked");
 
@@ -288,6 +289,7 @@ adminUsers.init();
 store.init();
 auditLog.init();
 skinDraw.init();
+tasks.init();
 require("./discord-bot").init();
 
 app.use(analytics.middleware);
@@ -900,6 +902,7 @@ app.post("/store/checkout", async (req, res) => {
       success_url: `${config.siteUrl}/store?success=1`,
       cancel_url: `${config.siteUrl}/store?canceled=1`,
       metadata: {
+        app: "armawasteland",
         discord_id: req.session.user?.discord_id || "guest",
         username: req.session.user?.username || "guest",
         cart_items: JSON.stringify(cartProducts),
@@ -909,6 +912,7 @@ app.post("/store/checkout", async (req, res) => {
     if (isSubscription) {
       sessionParams.subscription_data = {
         metadata: {
+          app: "armawasteland",
           discord_id: req.session.user?.discord_id || "guest",
           cart_items: JSON.stringify(cartProducts),
         },
@@ -1097,6 +1101,7 @@ app.post("/store/webhook", async (req, res) => {
   // ── Subscription canceled — revoke perks ──
   if (event.type === "customer.subscription.deleted" || event.type === "customer.subscription.updated") {
     const subscription = event.data.object;
+    if (subscription.metadata?.app) return res.json({ received: true });
     const isCanceled = subscription.status === "canceled" || subscription.status === "unpaid";
 
     if (isCanceled) {

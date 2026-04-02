@@ -1,0 +1,62 @@
+<div class="task-card status-{{this.status}}" data-task-id="{{this.id}}">
+  <div class="task-card-header">
+    <div class="task-card-title">{{this.title}}{{#if this.notes}}<span class="task-notes-indicator" title="Has notes"></span>{{/if}}</div>
+    {{#if this.description}}
+      <div class="task-card-desc">{{this.description}}</div>
+    {{/if}}
+    <div class="task-card-meta">
+      <span class="task-type {{this.type}}">{{this.type}}</span>
+      <span class="task-priority {{this.priority}}">{{this.priority}}</span>
+      <span>{{this.created_by}}</span>
+      {{#if this.assigned_to}}
+        <span>→ {{this.assigned_to}}</span>
+      {{/if}}
+    </div>
+  </div>
+  <div class="task-card-expand" style="display:none;">
+    <form method="POST" action="/admin/tasks/{{this.id}}/notes" class="task-notes-form">
+      <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+      <textarea name="notes" class="task-notes-input" rows="3" placeholder="Add notes..." onclick="event.stopPropagation();">{{this.notes}}</textarea>
+      <button type="submit" class="task-btn" style="margin-top:0.35rem;" onclick="event.stopPropagation();">Save Notes</button>
+    </form>
+    <div class="task-card-actions">
+      {{#unless (eq this.status 'not_started')}}
+        <form method="POST" action="/admin/tasks/{{this.id}}/status">
+          <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+          <input type="hidden" name="status" value="not_started">
+          <button type="submit" class="task-btn">Not Started</button>
+        </form>
+      {{/unless}}
+      {{#unless (eq this.status 'in_progress')}}
+        <form method="POST" action="/admin/tasks/{{this.id}}/status">
+          <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+          <input type="hidden" name="status" value="in_progress">
+          <button type="submit" class="task-btn">In Progress</button>
+        </form>
+      {{/unless}}
+      {{#unless (eq this.status 'blocked')}}
+        <form method="POST" action="/admin/tasks/{{this.id}}/status">
+          <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+          <input type="hidden" name="status" value="blocked">
+          <button type="submit" class="task-btn">Blocked</button>
+        </form>
+      {{/unless}}
+      {{#unless (eq this.status 'completed')}}
+        <form method="POST" action="/admin/tasks/{{this.id}}/status">
+          <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+          <input type="hidden" name="status" value="completed">
+          <button type="submit" class="task-btn">Complete</button>
+        </form>
+      {{/unless}}
+      <div class="task-actions-right">
+        {{#if this.link}}
+          <a href="{{this.link}}" target="_blank" rel="noopener" class="task-btn task-btn-link" onclick="event.stopPropagation();">View Issue</a>
+        {{/if}}
+        <form method="POST" action="/admin/tasks/{{this.id}}/delete" onsubmit="return confirm('Delete this task?');">
+          <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+          <button type="submit" class="task-btn delete">Delete</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

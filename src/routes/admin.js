@@ -12,6 +12,7 @@ const systemStats = require("../system-stats");
 const store = require("../store");
 const auditLog = require("../audit-log");
 const skinDraw = require("../skin-draw");
+const tasks = require("../tasks");
 const multer = require("multer");
 const sharp = require("sharp");
 const path = require("path");
@@ -1620,6 +1621,75 @@ router.post("/store/sync-production", requireWriteAdmin, async (req, res) => {
     const msg = err.response?.data?.error || err.message;
     res.redirect("/admin/store?error=" + encodeURIComponent("Sync failed: " + msg));
   }
+});
+
+// ── Task Board ──
+
+router.get("/tasks", (req, res) => {
+  const user = req.session.user;
+  buildAvatarUrl(user);
+  const allTasks = tasks.getAll();
+  res.render("admin-tasks", {
+    page: "admin",
+    pageTitle: "Task Board",
+    activeTab: "tasks",
+    user,
+    notStarted: allTasks.filter(t => t.status === "not_started"),
+    inProgress: allTasks.filter(t => t.status === "in_progress"),
+    blocked: allTasks.filter(t => t.status === "blocked"),
+    completed: allTasks.filter(t => t.status === "completed"),
+    stats: tasks.getStats(),
+    successMessage: req.query.success || null,
+    errorMessage: req.query.error || null,
+  });
+});
+
+router.post("/tasks", (req, res) => {
+  const { title, description, type, priority, assigned_to, link } = req.body;
+  if (!title || !title.trim()) {
+    return res.redirect("/admin/tasks?error=" + encodeURIComponent("Title is required."));
+  }
+  tasks.create({
+    title: title.trim(),
+    description: (description || "").trim(),
+    type: type || "bug",
+    priority: priority || "normal",
+    created_by: req.session.user.username,
+    created_by_discord_id: req.session.user.discord_id || null,
+    assigned_to: (assigned_to || "").trim() || null,
+    link: (link || "").trim() || null,
+  });
+  auditLog.log("tasks", "Task Created", title.trim(), req.session.user);
+  res.redirect("/admin/tasks?success=" + encodeURIComponent(`Task "${title.trim()}" created.`));
+});
+
+router.post("/tasks/:id/status", (req, res) => {
+  const { status } = req.body;
+  const validStatuses = ["not_started", "in_progress", "blocked", "completed"];
+  if (!validStatuses.includes(status)) {
+    return res.redirect("/admin/tasks?error=" + encodeURIComponent("Invalid status."));
+  }
+  const task = tasks.getById(req.params.id);
+  if (!task) return res.redirect("/admin/tasks?error=" + encodeURIComponent("Task not found."));
+  tasks.updateStatus(req.params.id, status);
+  auditLog.log("tasks", "Task Status Changed", `"${task.title}" → ${status}`, req.session.user);
+  res.redirect("/admin/tasks");
+});
+
+router.post("/tasks/:id/notes", (req, res) => {
+  const task = tasks.getById(req.params.id);
+  if (!task) return res.redirect("/admin/tasks?error=" + encodeURIComponent("Task not found."));
+  const notes = (req.body.notes || "").trim();
+  tasks.updateNotes(req.params.id, notes);
+  res.redirect("/admin/tasks");
+});
+
+router.post("/tasks/:id/delete", (req, res) => {
+  const task = tasks.getById(req.params.id);
+  if (!task) return res.redirect("/admin/tasks?error=" + encodeURIComponent("Task not found."));
+  tasks.remove(req.params.id);
+  auditLog.log("tasks", "Task Deleted", task.title, req.session.user);
+  res.redirect("/admin/tasks?success=" + encodeURIComponent(`Task "${task.title}" deleted.`));
 });
 
 module.exports = router;

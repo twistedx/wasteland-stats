@@ -1,0 +1,434 @@
+<section id="admin-section">
+  {{> admin-nav}}
+
+  {{#if successMessage}}
+    <div class="notice success-notice">
+      <strong>Success</strong>
+      <p>{{successMessage}}</p>
+    </div>
+  {{/if}}
+
+  {{#if errorMessage}}
+    <div class="error">{{errorMessage}}</div>
+  {{/if}}
+
+  <!-- Create task form -->
+  <div class="admin-form-card" style="margin-bottom:1.5rem;">
+    <h3 class="task-form-toggle" id="task-form-toggle" style="font-family:'Orbitron',sans-serif;font-size:0.85rem;color:var(--accent);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0;cursor:pointer;display:flex;align-items:center;gap:0.5rem;user-select:none;">
+      <span class="toggle-arrow" id="toggle-arrow">&#9662;</span> Create Task
+    </h3>
+    <div id="task-form-body" style="display:none;margin-top:1rem;">
+    <form method="POST" action="/admin/tasks" class="money-form">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <div class="form-group">
+          <label class="form-label">Title</label>
+          <input type="text" name="title" class="filter-input" placeholder="e.g. Fix AK-74n recoil with PBS suppressor" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <select name="type" class="filter-select">
+            <option value="bug" selected>Bug</option>
+            <option value="improvement">Improvement</option>
+            <option value="feature">Feature</option>
+            <option value="ticket">Ticket</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:0.75rem;">
+        <div class="form-group">
+          <label class="form-label">Priority</label>
+          <select name="priority" class="filter-select">
+            <option value="low">Low</option>
+            <option value="normal" selected>Normal</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:0.75rem;">
+        <label class="form-label">Description (optional)</label>
+        <textarea name="description" class="filter-input" rows="2" placeholder="Additional details..."></textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:0.75rem;">
+        <div class="form-group">
+          <label class="form-label">Link (optional)</label>
+          <input type="url" name="link" class="filter-input" placeholder="https://github.com/...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Assign To (optional)</label>
+          <input type="text" name="assigned_to" class="filter-input" placeholder="Username">
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-end;">
+          <button type="submit" class="btn btn-discord">Create Task</button>
+        </div>
+      </div>
+    </form>
+    </div>
+  </div>
+
+  <!-- Task board -->
+  <div class="task-board">
+    <div class="task-column" data-status="not_started">
+      <div class="task-column-header not-started">
+        <h3>Not Started</h3>
+        <span class="task-count">{{stats.not_started}}</span>
+      </div>
+      <div class="task-column-body">
+        {{#each notStarted}}
+          {{> task-card}}
+        {{/each}}
+      </div>
+    </div>
+
+    <div class="task-column" data-status="in_progress">
+      <div class="task-column-header in-progress">
+        <h3>In Progress</h3>
+        <span class="task-count">{{stats.in_progress}}</span>
+      </div>
+      <div class="task-column-body">
+        {{#each inProgress}}
+          {{> task-card}}
+        {{/each}}
+      </div>
+    </div>
+
+    <div class="task-column" data-status="blocked">
+      <div class="task-column-header blocked">
+        <h3>Blocked</h3>
+        <span class="task-count">{{stats.blocked}}</span>
+      </div>
+      <div class="task-column-body">
+        {{#each blocked}}
+          {{> task-card}}
+        {{/each}}
+      </div>
+    </div>
+
+    <div class="task-column" data-status="completed">
+      <div class="task-column-header completed">
+        <h3>Completed</h3>
+        <span class="task-count">{{stats.completed}}</span>
+      </div>
+      <div class="task-column-body">
+        {{#each completed}}
+          {{> task-card}}
+        {{/each}}
+      </div>
+    </div>
+  </div>
+</section>
+
+{{> ban-modal}}
+
+<style>
+.task-board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+@media (max-width: 1024px) {
+  .task-board { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .task-board { grid-template-columns: 1fr; }
+}
+
+.task-column {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+}
+
+.task-column-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid var(--border);
+  border-radius: 8px 8px 0 0;
+}
+.task-column-header h3 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0;
+}
+.task-column-header.not-started { border-bottom-color: #6b7280; }
+.task-column-header.not-started h3 { color: #9ca3af; }
+.task-column-header.in-progress { border-bottom-color: #3b82f6; }
+.task-column-header.in-progress h3 { color: #60a5fa; }
+.task-column-header.blocked { border-bottom-color: #ef4444; }
+.task-column-header.blocked h3 { color: #f87171; }
+.task-column-header.completed { border-bottom-color: #22c55e; }
+.task-column-header.completed h3 { color: #4ade80; }
+
+.task-count {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.task-column-body {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.task-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem;
+  transition: border-color 0.15s;
+}
+.task-card:hover { border-color: var(--accent); }
+.task-card.status-not_started { border-left: 3px solid #6b7280; background: rgba(107,114,128,0.05); }
+.task-card.status-in_progress { border-left: 3px solid #3b82f6; background: rgba(59,130,246,0.05); }
+.task-card.status-blocked { border-left: 3px solid #ef4444; background: rgba(239,68,68,0.05); }
+.task-card.status-completed { border-left: 3px solid #22c55e; background: rgba(34,197,94,0.05); }
+
+.task-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+.task-link:hover { text-decoration: underline; }
+
+.task-card-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+.task-card-desc {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+.task-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.task-priority {
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.task-type {
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.task-type.bug { background: rgba(239,68,68,0.2); color: #f87171; }
+.task-type.improvement { background: rgba(59,130,246,0.2); color: #60a5fa; }
+.task-type.feature { background: rgba(139,92,246,0.2); color: #a78bfa; }
+.task-type.ticket { background: rgba(245,158,11,0.2); color: #fbbf24; }
+
+.task-priority.low { background: rgba(107,114,128,0.2); color: #9ca3af; }
+.task-priority.normal { background: rgba(59,130,246,0.2); color: #60a5fa; }
+.task-priority.high { background: rgba(245,158,11,0.2); color: #fbbf24; }
+.task-priority.critical { background: rgba(239,68,68,0.2); color: #f87171; }
+
+.task-card-actions {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+.task-card-actions form { margin: 0; }
+.task-btn {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.task-btn:hover { background: var(--bg-card); color: var(--text-primary); }
+.task-btn.delete { color: var(--danger); }
+.task-btn.delete:hover { background: rgba(239,68,68,0.15); }
+.task-btn-link {
+  text-decoration: none;
+  color: var(--accent);
+  border-color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+}
+.task-btn-link:hover { background: rgba(79,195,247,0.1); color: var(--accent); }
+.task-actions-right {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.task-card-header { cursor: pointer; }
+.task-card.expanded { border-color: var(--accent); }
+.task-card-expand {
+  border-top: 1px solid var(--border);
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+}
+.task-notes-input {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.8rem;
+  padding: 0.5rem;
+  resize: vertical;
+  line-height: 1.4;
+}
+.task-notes-input:focus { outline: none; border-color: var(--accent); }
+.task-notes-indicator {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-left: 0.35rem;
+  vertical-align: middle;
+}
+
+.task-form-toggle:hover { color: var(--text-primary); }
+.toggle-arrow {
+  display: inline-block;
+  transition: transform 0.2s;
+  font-size: 0.75rem;
+}
+.toggle-arrow.open { transform: rotate(0deg); }
+.toggle-arrow.closed { transform: rotate(-90deg); }
+
+.task-card.dragging {
+  opacity: 0.4;
+  border: 1px dashed var(--accent);
+}
+.task-column-body.drag-over {
+  background: rgba(79,195,247,0.05);
+  border-radius: 0 0 8px 8px;
+}
+</style>
+
+<script>
+// Collapse toggle
+document.getElementById('task-form-toggle').addEventListener('click', function() {
+  var body = document.getElementById('task-form-body');
+  var arrow = document.getElementById('toggle-arrow');
+  if (body.style.display === 'none') {
+    body.style.display = 'block';
+    arrow.className = 'toggle-arrow open';
+  } else {
+    body.style.display = 'none';
+    arrow.className = 'toggle-arrow closed';
+  }
+});
+
+// Expand/collapse cards + Drag and drop
+(function() {
+  var didDrag = false;
+  var dragCard = null;
+  var dragId = null;
+
+  document.querySelectorAll('.task-card').forEach(function(card) {
+    var header = card.querySelector('.task-card-header');
+
+    // Click to expand — only if we didn't just drag
+    header.addEventListener('click', function(e) {
+      if (didDrag) { didDrag = false; return; }
+      if (e.target.closest('a')) return; // don't toggle on link clicks
+      var expand = card.querySelector('.task-card-expand');
+      var isOpen = expand.style.display !== 'none';
+      // Close all
+      document.querySelectorAll('.task-card-expand').forEach(function(el) {
+        el.style.display = 'none';
+        el.closest('.task-card').classList.remove('expanded');
+      });
+      if (!isOpen) {
+        expand.style.display = 'block';
+        card.classList.add('expanded');
+      }
+    });
+
+    // Drag
+    card.setAttribute('draggable', 'true');
+    card.addEventListener('dragstart', function(e) {
+      didDrag = true;
+      dragCard = card;
+      var form = card.querySelector('form[action*="/status"]');
+      dragId = form ? form.action.match(/tasks\/(\d+)\/status/)[1] : null;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', function() {
+      card.classList.remove('dragging');
+      document.querySelectorAll('.task-column-body').forEach(function(col) {
+        col.classList.remove('drag-over');
+      });
+    });
+  });
+
+  document.querySelectorAll('.task-column-body').forEach(function(col) {
+    col.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      col.classList.add('drag-over');
+    });
+    col.addEventListener('dragleave', function() {
+      col.classList.remove('drag-over');
+    });
+    col.addEventListener('drop', function(e) {
+      e.preventDefault();
+      col.classList.remove('drag-over');
+      if (!dragId) return;
+      var newStatus = col.closest('.task-column').dataset.status;
+
+      // Submit status change via hidden form
+      var form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/admin/tasks/' + dragId + '/status';
+      form.style.display = 'none';
+      var csrf = document.createElement('input');
+      csrf.type = 'hidden';
+      csrf.name = '_csrf';
+      csrf.value = '{{csrfToken}}';
+      var status = document.createElement('input');
+      status.type = 'hidden';
+      status.name = 'status';
+      status.value = newStatus;
+      form.appendChild(csrf);
+      form.appendChild(status);
+      document.body.appendChild(form);
+      form.submit();
+    });
+  });
+})();
+</script>
