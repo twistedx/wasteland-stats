@@ -519,7 +519,7 @@
       <div class="vac-accordion">
         {{#each vacFlagged}}
         <div class="vac-item {{#if this.vac_banned}}vac-border-red{{else}}vac-border-yellow{{/if}}">
-          <div class="vac-item-header" onclick="this.parentElement.classList.toggle('open')">
+          <div class="vac-item-header">
             <div class="vac-item-summary">
               <span class="vac-item-name">{{#if this.discord_username}}{{this.discord_username}}{{else}}Unknown{{/if}}</span>
               {{#if this.vac_banned}}
@@ -726,6 +726,13 @@
     var targetTab = document.querySelector('.analytics-tab[data-tab="tab-' + urlTab + '"]');
     if (targetTab) targetTab.click();
   }
+
+  // VAC accordion toggle
+  document.querySelectorAll('.vac-item-header').forEach(function(header) {
+    header.addEventListener('click', function() {
+      header.closest('.vac-item').classList.toggle('open');
+    });
+  });
 
   window.startVacScan = function(form) {
     form.querySelector('button').disabled = true;
