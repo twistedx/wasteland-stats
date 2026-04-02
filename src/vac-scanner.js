@@ -149,6 +149,28 @@ async function scan({ full = false } = {}) {
     }
   }
 
+  // Resolve arma_ids for Discord-linked players that don't have one
+  const needArmaLookup = [...steamEntries.entries()].filter(([_, e]) => !e.arma_id && e.discord_id);
+  if (needArmaLookup.length > 0) {
+    console.log(`[VAC Scan]   Resolving arma_ids for ${needArmaLookup.length} Discord-linked players...`);
+    const lookupApi = axios.create({ baseURL: config.apiBaseUrl, timeout: 15000, headers: { "Content-Type": "application/json" } });
+    let resolved = 0;
+    for (let i = 0; i < needArmaLookup.length; i += 10) {
+      const batch = needArmaLookup.slice(i, i + 10);
+      await Promise.allSettled(batch.map(async ([, entry]) => {
+        try {
+          const res = await lookupApi({ method: "GET", url: "/user/getPlayerStatsByDiscordID/", data: { discord_id: entry.discord_id, token: config.apiToken } });
+          const armaId = res.data?.arma_id;
+          if (armaId) {
+            entry.arma_id = armaId;
+            resolved++;
+          }
+        } catch {}
+      }));
+    }
+    console.log(`[VAC Scan]   Resolved ${resolved}/${needArmaLookup.length} arma_ids from Discord IDs`);
+  }
+
   console.log(`[VAC Scan] Step 3: Merged ${steamEntries.size} unique Steam IDs from both sources`);
 
   if (steamEntries.size === 0) {
