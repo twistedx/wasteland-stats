@@ -35,6 +35,23 @@ function init() {
   // Add Stripe columns if they don't exist (migration-safe)
   try { db.exec("ALTER TABLE store_products ADD COLUMN stripe_product_id TEXT DEFAULT NULL"); } catch {}
   try { db.exec("ALTER TABLE store_products ADD COLUMN stripe_price_id TEXT DEFAULT NULL"); } catch {}
+  try { db.exec("ALTER TABLE store_products ADD COLUMN game_item_name TEXT DEFAULT NULL"); } catch {}
+
+  // Backfill game_item_name for existing loadout products
+  const GAME_NAME_MAP = {
+    "The Sheen Out": "🌴 Wasteland Loadout Drop — The Sheen Out",
+    "The Cowboy": "🤠 Wasteland Loadout Drop — The Cowboy",
+    "The LumberJack": "🪓 Wasteland Loadout Drop — TheLumberJack",
+    "The Corsair": "🏴‍☠️ Wasteland Loadout Drop — The Corsair",
+    "The Burglar": "🔑 Wasteland Loadout Drop — The Burglar",
+    "The Prepper": "🔫 Wasteland Loadout Drop — The Prepper",
+    "The Slav Specter": "👻 Wasteland Loadout Drop — The Slav Specter",
+    "The Packer": "🎒 Wasteland Loadout Drop — The Packer",
+  };
+  const backfillStmt = db.prepare("UPDATE store_products SET game_item_name = ? WHERE name = ? AND game_item_name IS NULL");
+  for (const [storeName, gameName] of Object.entries(GAME_NAME_MAP)) {
+    backfillStmt.run(gameName, storeName);
+  }
 
   try { db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_store_products_name ON store_products (name)"); } catch {}
 
@@ -53,6 +70,10 @@ function init() {
     )
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_purchases_ts ON store_purchases (created_at)`);
+
+  // Add discord user columns to existing databases
+  try { db.exec(`ALTER TABLE store_purchases ADD COLUMN discord_id TEXT DEFAULT NULL`); } catch (e) { /* exists */ }
+  try { db.exec(`ALTER TABLE store_purchases ADD COLUMN discord_username TEXT DEFAULT NULL`); } catch (e) { /* exists */ }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS store_categories (
@@ -83,14 +104,14 @@ function init() {
 
 function seed() {
   const products = [
-    { name: "The Sheen Out", description: "Clean casual look with cargo shorts and a fresh white tee.", price: 1999, image: "/img/store/charliesheen 1.png", category: "loadout", badge: "new", sort_order: 1 },
-    { name: "The Cowboy", description: "Saddle up with a classic western hat and rugged denim.", price: 2499, image: "/img/store/cowboy.png", category: "loadout", badge: "new", sort_order: 2 },
-    { name: "The LumberJack", description: "Flannel and denim — built for chopping wood and enemies.", price: 2499, image: "/img/store/lumberjack 1.png", category: "loadout", badge: "new", sort_order: 3 },
-    { name: "The Corsair", description: "Pirate-inspired loadout with a tricorn hat and leather boots.", price: 2999, image: "/img/store/pirate 1.png", category: "loadout", badge: "new", sort_order: 4 },
-    { name: "The Burglar", description: "Dark hoodie and tactical pants — move unseen in the shadows.", price: 2999, image: "/img/store/burgler 1.png", category: "loadout", badge: "new", sort_order: 5 },
-    { name: "The Prepper", description: "Survival-ready gear with a cap and earth-tone fatigues.", price: 2999, image: "/img/store/prepper 1.png", category: "loadout", badge: "new", sort_order: 6 },
-    { name: "The Slav Specter", description: "Full camo loadout for blending into the wilderness.", price: 2999, image: "/img/store/theslav 1.png", category: "loadout", badge: "new", sort_order: 7 },
-    { name: "The Packer", description: "Green tactical jacket and cargo pants — ready for anything.", price: 2999, image: "/img/store/thepacker 1.png", category: "loadout", badge: "new", sort_order: 8 },
+    { name: "The Sheen Out", description: "Clean casual look with cargo shorts and a fresh white tee.", price: 1999, image: "/img/store/charliesheen 1.png", category: "loadout", badge: "new", sort_order: 1, game_item_name: "🌴 Wasteland Loadout Drop — The Sheen Out" },
+    { name: "The Cowboy", description: "Saddle up with a classic western hat and rugged denim.", price: 2499, image: "/img/store/cowboy.png", category: "loadout", badge: "new", sort_order: 2, game_item_name: "🤠 Wasteland Loadout Drop — The Cowboy" },
+    { name: "The LumberJack", description: "Flannel and denim — built for chopping wood and enemies.", price: 2499, image: "/img/store/lumberjack 1.png", category: "loadout", badge: "new", sort_order: 3, game_item_name: "🪓 Wasteland Loadout Drop — TheLumberJack" },
+    { name: "The Corsair", description: "Pirate-inspired loadout with a tricorn hat and leather boots.", price: 2999, image: "/img/store/pirate 1.png", category: "loadout", badge: "new", sort_order: 4, game_item_name: "🏴‍☠️ Wasteland Loadout Drop — The Corsair" },
+    { name: "The Burglar", description: "Dark hoodie and tactical pants — move unseen in the shadows.", price: 2999, image: "/img/store/burgler 1.png", category: "loadout", badge: "new", sort_order: 5, game_item_name: "🔑 Wasteland Loadout Drop — The Burglar" },
+    { name: "The Prepper", description: "Survival-ready gear with a cap and earth-tone fatigues.", price: 2999, image: "/img/store/prepper 1.png", category: "loadout", badge: "new", sort_order: 6, game_item_name: "🔫 Wasteland Loadout Drop — The Prepper" },
+    { name: "The Slav Specter", description: "Full camo loadout for blending into the wilderness.", price: 2999, image: "/img/store/theslav 1.png", category: "loadout", badge: "new", sort_order: 7, game_item_name: "👻 Wasteland Loadout Drop — The Slav Specter" },
+    { name: "The Packer", description: "Green tactical jacket and cargo pants — ready for anything.", price: 2999, image: "/img/store/thepacker 1.png", category: "loadout", badge: "new", sort_order: 8, game_item_name: "🎒 Wasteland Loadout Drop — The Packer" },
     { name: "Wanderer", description: "Start your journey — entry-level supporter tier with exclusive perks.", price: 2500, image: "/img/store/wanderer.png", category: "supporter", sort_order: 1 },
     { name: "Scout", description: "Survival tier — elevated supporter status with bonus rewards.", price: 5000, image: "/img/store/scout.png", category: "supporter", sort_order: 2 },
     { name: "Ranger", description: "Elite tier — serious commitment with premium community benefits.", price: 10000, image: "/img/store/ranger.png", category: "supporter", sort_order: 3 },
@@ -318,11 +339,11 @@ async function syncToStripe() {
 }
 
 // ── Purchases ──
-function recordPurchase({ stripe_session_id, product_name, quantity, amount }) {
+function recordPurchase({ stripe_session_id, product_name, quantity, amount, discord_id, discord_username }) {
   return db.prepare(`
-    INSERT INTO store_purchases (stripe_session_id, product_name, quantity, amount)
-    VALUES (?, ?, ?, ?)
-  `).run(stripe_session_id || null, product_name, quantity || 1, amount);
+    INSERT INTO store_purchases (stripe_session_id, product_name, quantity, amount, discord_id, discord_username)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(stripe_session_id || null, product_name, quantity || 1, amount, discord_id || null, discord_username || null);
 }
 
 function getStoreStats() {
@@ -369,9 +390,8 @@ function getStoreStats() {
     });
   }
 
-  // Recent purchases (no PII, just product/amount/time)
   const recentPurchases = db.prepare(`
-    SELECT product_name, quantity, amount, created_at FROM store_purchases WHERE status = 'completed'
+    SELECT product_name, quantity, amount, discord_username, discord_id, created_at FROM store_purchases WHERE status = 'completed'
     ORDER BY created_at DESC LIMIT 15
   `).all();
 

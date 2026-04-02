@@ -950,6 +950,8 @@ app.post("/store/webhook", async (req, res) => {
 
     // Record purchases (no PII stored — only Stripe session ID, product, amount)
     try {
+      const discordIdForRecord = session.metadata?.discord_id || null;
+      const discordUsernameForRecord = session.metadata?.username || null;
       const lineItems = await stripe.checkout.sessions.listLineItems(session.id);
       for (const item of lineItems.data) {
         store.recordPurchase({
@@ -957,6 +959,8 @@ app.post("/store/webhook", async (req, res) => {
           product_name: item.description || "Unknown",
           quantity: item.quantity || 1,
           amount: item.amount_total || 0,
+          discord_id: discordIdForRecord,
+          discord_username: discordUsernameForRecord,
         });
       }
       console.log(`Stripe: recorded ${lineItems.data.length} line items for session ${session.id}`);
@@ -991,14 +995,15 @@ app.post("/store/webhook", async (req, res) => {
             continue;
           }
 
+          const gameItemName = product.game_item_name || product.name;
           try {
             await axios.post(
               `${apiBaseUrl}/itemsUser/updateDiscordUserItemFromDiscord`,
-              { discord_id: discordId, item_name: product.name, request_type: "set", quantity: cartItem.qty },
+              { discord_id: discordId, item_name: gameItemName, request_type: "set", quantity: cartItem.qty },
               { params: { token: backendToken }, timeout: 15000, headers: { "Content-Type": "application/json" } }
             );
             fulfilled.push(product.name);
-            console.log(`Stripe fulfillment: granted "${product.name}" x${cartItem.qty} to ${discordId}`);
+            console.log(`Stripe fulfillment: granted "${gameItemName}" x${cartItem.qty} to ${discordId}`);
           } catch (itemErr) {
             const msg = itemErr.response?.data?.message || itemErr.message;
             fulfillErrors.push(`${product.name}: ${msg}`);
@@ -1008,12 +1013,15 @@ app.post("/store/webhook", async (req, res) => {
       }
 
 
+      const buyerLabel = discordIdForRecord && discordIdForRecord !== "guest"
+        ? `<@${discordIdForRecord}>`
+        : (discordUsernameForRecord || "Guest");
       const fulfillSummary = fulfilled.length > 0 ? `\nDelivered: ${fulfilled.join(", ")}` : "";
       const skippedSummary = skipped.length > 0 ? `\nManual fulfillment needed: ${skipped.join(", ")}` : "";
       const errorSummary = fulfillErrors.length > 0 ? `\nErrors: ${fulfillErrors.join("; ")}` : "";
       sendWebhook({
         title: "Purchase Completed",
-        description: `**$${(session.amount_total / 100).toFixed(2)}** — ${lineItems.data.length} item(s)${fulfillSummary}${skippedSummary}${errorSummary}`,
+        description: `${buyerLabel} spent **$${(session.amount_total / 100).toFixed(2)}** — ${lineItems.data.length} item(s)${fulfillSummary}${skippedSummary}${errorSummary}`,
         color: fulfillErrors.length > 0 ? 0xF59E0B : 0x22c55e,
       });
 
@@ -1067,14 +1075,15 @@ app.post("/store/webhook", async (req, res) => {
             const product = store.getProductById(cartItem.id);
             if (!product) continue;
 
+            const revokeItemName = product.game_item_name || product.name;
             try {
               await axios.post(
                 `${config.apiBaseUrl}/itemsUser/updateDiscordUserItemFromDiscord`,
-                { discord_id: discordId, item_name: product.name, request_type: "remove", quantity: cartItem.qty },
+                { discord_id: discordId, item_name: revokeItemName, request_type: "remove", quantity: cartItem.qty },
                 { params: { token: config.backendToken }, timeout: 15000, headers: { "Content-Type": "application/json" } }
               );
               revoked.push(product.name);
-              console.log(`Stripe ${label}: revoked "${product.name}" from ${discordId}`);
+              console.log(`Stripe ${label}: revoked "${revokeItemName}" from ${discordId}`);
             } catch (revokeErr) {
               console.error(`Stripe ${label}: failed to revoke "${product.name}":`, revokeErr.response?.data?.message || revokeErr.message);
             }

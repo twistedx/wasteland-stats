@@ -362,6 +362,7 @@
           <table>
             <thead>
               <tr>
+                <th>Buyer</th>
                 <th>Product</th>
                 <th>Qty</th>
                 <th>Amount</th>
@@ -371,6 +372,7 @@
             <tbody>
               {{#each storeStats.recentPurchases}}
                 <tr>
+                  <td>{{#if this.discord_username}}{{this.discord_username}}{{else}}<span style="color:var(--text-secondary);">—</span>{{/if}}</td>
                   <td>{{this.product_name}}</td>
                   <td>{{this.quantity}}</td>
                   <td style="color:#22c55e;font-weight:600;">${{this.amount}}</td>
