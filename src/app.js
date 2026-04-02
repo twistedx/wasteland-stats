@@ -21,6 +21,7 @@ const store = require("./store");
 const auditLog = require("./audit-log");
 const skinDraw = require("./skin-draw");
 const tasks = require("./tasks");
+const ipBlock = require("./ip-block");
 const subscriptionPerks = require("./subscription-perks");
 const { marked } = require("marked");
 
@@ -32,6 +33,65 @@ const DOMPurify = createDOMPurify(window);
 
 const app = express();
 app.set("trust proxy", 1);
+
+// Auto-block IPs that probe for exploit paths
+const ipStrikes = new Map(); // ip -> { count, firstSeen } (in-memory for speed)
+const BLOCK_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+const STRIKE_WINDOW = 60 * 1000; // 1 minute
+const MAX_STRIKES = 3;
+const HONEYPOT_PATHS = [
+  "/xmlrpc.php", "/wp-login.php", "/wp-admin", "/wp-content",
+  "/wp-includes", "/.env", "/.git", "/phpmyadmin", "/pma",
+  "/admin.php", "/administrator", "/cgi-bin", "/config.php",
+  "/setup.php", "/install.php", "/.well-known/security.txt",
+  "/solr", "/actuator", "/api/v1/pods", "/_profiler",
+  "/telescope", "/debug", "/console", "/manager/html",
+  "/invoker", "/jmx-console", "/web-console",
+];
+
+app.use((req, res, next) => {
+  const ip = req.ip;
+
+  // Check if already blocked in DB
+  if (ipBlock.isBlocked(ip)) {
+    return res.status(403).end();
+  }
+
+  // Check for honeypot paths
+  const lowerPath = req.path.toLowerCase();
+  const isProbe = HONEYPOT_PATHS.some(p => lowerPath.startsWith(p));
+  if (isProbe) {
+    const now = Date.now();
+    const strikes = ipStrikes.get(ip) || { count: 0, firstSeen: now };
+
+    if (now - strikes.firstSeen > STRIKE_WINDOW) {
+      strikes.count = 0;
+      strikes.firstSeen = now;
+    }
+
+    strikes.count++;
+    ipStrikes.set(ip, strikes);
+
+    if (strikes.count >= MAX_STRIKES) {
+      ipBlock.block(ip, `Port scan: ${strikes.count} probe attempts`, BLOCK_DURATION);
+      ipStrikes.delete(ip);
+      console.warn(`Blocked IP ${ip} for 24h — ${strikes.count} probe attempts`);
+    }
+
+    return res.status(404).end();
+  }
+
+  next();
+});
+
+// Prune expired blocks and stale strikes every hour
+setInterval(() => {
+  ipBlock.prune();
+  const now = Date.now();
+  for (const [ip, s] of ipStrikes) {
+    if (now - s.firstSeen > STRIKE_WINDOW) ipStrikes.delete(ip);
+  }
+}, 60 * 60 * 1000);
 
 // Security headers
 app.use(helmet({
@@ -290,6 +350,7 @@ store.init();
 auditLog.init();
 skinDraw.init();
 tasks.init();
+ipBlock.init();
 require("./discord-bot").init();
 
 app.use(analytics.middleware);

@@ -83,7 +83,7 @@ async function init() {
     ],
   });
 
-  client.on("ready", () => {
+  client.on("clientReady", () => {
     console.log(`DiscordBot: logged in as ${client.user.tag}`);
     discordStats.init(client, config.discordGuildId);
   });

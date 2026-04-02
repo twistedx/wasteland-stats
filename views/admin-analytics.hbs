@@ -9,6 +9,7 @@
     {{/if}}
     {{#if user.isAdmin}}
       <button class="tab analytics-tab" data-tab="tab-audit" type="button">Audit Log</button>
+      <button class="tab analytics-tab" data-tab="tab-security" type="button">Security</button>
     {{/if}}
   </div>
 
@@ -464,6 +465,86 @@
       {{/if}}
     </div>
   </div>
+
+  <!-- ═══════════════ SECURITY TAB (Admin Only) ═══════════════ -->
+  <div id="tab-security" style="display:none;">
+
+    <div class="analytics-cards">
+      <div class="stat-card primary">
+        <div class="stat-value">{{formatNumber ipBlockStats.total}}</div>
+        <div class="stat-label">Blocked IPs</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{formatNumber ipBlockStats.today}}</div>
+        <div class="stat-label">Blocked Today</div>
+      </div>
+    </div>
+
+    <div class="admin-form-card">
+      <h3>Blocked IPs</h3>
+      {{#if blockedIPs.length}}
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>IP Address</th>
+                <th>Reason</th>
+                <th>Strikes</th>
+                <th>Blocked At</th>
+                <th>Expires</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each blockedIPs}}
+                <tr>
+                  <td style="font-family:monospace;font-size:0.85rem;">{{this.ip}}</td>
+                  <td style="color:var(--text-secondary);">{{this.reason}}</td>
+                  <td style="font-weight:600;">{{this.strikes}}</td>
+                  <td>{{formatDate this.blocked_at}}</td>
+                  <td>{{formatDate this.expires_at}}</td>
+                  <td>
+                    <form method="POST" action="/admin/security/unblock" style="margin:0;" onsubmit="return confirm('Unblock this IP?');">
+                      <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                      <input type="hidden" name="ip" value="{{this.ip}}">
+                      <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Unblock</button>
+                    </form>
+                  </td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        </div>
+      {{else}}
+        <div class="empty-state">No blocked IPs.</div>
+      {{/if}}
+    </div>
+
+    <div class="admin-form-card" style="margin-top:1rem;">
+      <h3>Manually Block IP</h3>
+      <form method="POST" action="/admin/security/block" style="display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <div class="form-group" style="flex:1;min-width:180px;">
+          <label class="form-label">IP Address</label>
+          <input type="text" name="ip" class="filter-input" placeholder="e.g. 192.168.1.1" required>
+        </div>
+        <div class="form-group" style="flex:1;min-width:180px;">
+          <label class="form-label">Reason</label>
+          <input type="text" name="reason" class="filter-input" placeholder="e.g. Port scanning" required>
+        </div>
+        <div class="form-group" style="min-width:120px;">
+          <label class="form-label">Duration</label>
+          <select name="duration" class="filter-select">
+            <option value="3600000">1 hour</option>
+            <option value="86400000" selected>24 hours</option>
+            <option value="604800000">7 days</option>
+            <option value="2592000000">30 days</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-discord">Block IP</button>
+      </form>
+    </div>
+  </div>
   {{/if}}
 
 </section>
@@ -488,6 +569,8 @@
       if (storeEl) storeEl.style.display = 'none';
       var auditEl = document.getElementById('tab-audit');
       if (auditEl) auditEl.style.display = 'none';
+      var securityEl = document.getElementById('tab-security');
+      if (securityEl) securityEl.style.display = 'none';
       document.getElementById(this.getAttribute('data-tab')).style.display = '';
 
       // Render Discord charts on first tab switch (ECharts needs visible container)

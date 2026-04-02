@@ -13,6 +13,7 @@ const store = require("../store");
 const auditLog = require("../audit-log");
 const skinDraw = require("../skin-draw");
 const tasks = require("../tasks");
+const ipBlock = require("../ip-block");
 const multer = require("multer");
 const sharp = require("sharp");
 const path = require("path");
@@ -1048,6 +1049,8 @@ router.get("/analytics", async (req, res) => {
     storeStatsJson: JSON.stringify(storeStats || {}),
     auditEntries,
     auditStats,
+    blockedIPs: user.isAdmin ? ipBlock.getAll() : [],
+    ipBlockStats: user.isAdmin ? ipBlock.getStats() : { total: 0, today: 0 },
   });
 });
 
@@ -1621,6 +1624,26 @@ router.post("/store/sync-production", requireWriteAdmin, async (req, res) => {
     const msg = err.response?.data?.error || err.message;
     res.redirect("/admin/store?error=" + encodeURIComponent("Sync failed: " + msg));
   }
+});
+
+// ── Security: IP Block ──
+
+router.post("/security/block", requireWriteAdmin, (req, res) => {
+  const { ip, reason, duration } = req.body;
+  if (!ip || !reason) {
+    return res.redirect("/admin/analytics?error=" + encodeURIComponent("IP and reason are required."));
+  }
+  ipBlock.block(ip.trim(), reason.trim(), parseInt(duration) || 86400000);
+  auditLog.log("security", "IP Blocked", `${ip.trim()} — ${reason.trim()}`, req.session.user);
+  res.redirect("/admin/analytics?success=" + encodeURIComponent(`Blocked ${ip.trim()}.`));
+});
+
+router.post("/security/unblock", requireWriteAdmin, (req, res) => {
+  const { ip } = req.body;
+  if (!ip) return res.redirect("/admin/analytics");
+  ipBlock.unblock(ip.trim());
+  auditLog.log("security", "IP Unblocked", ip.trim(), req.session.user);
+  res.redirect("/admin/analytics?success=" + encodeURIComponent(`Unblocked ${ip.trim()}.`));
 });
 
 // ── Task Board ──
