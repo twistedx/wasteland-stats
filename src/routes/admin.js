@@ -756,9 +756,10 @@ router.get("/watchlist", async (req, res) => {
 
 // POST /admin/watchlist — toggle watchlist status
 router.post("/watchlist", async (req, res) => {
-  const { arma_id, action, search } = req.body;
+  const { arma_id, action, search, from } = req.body;
   const user = req.session.user;
   const searchParam = search ? "&search=" + encodeURIComponent(search) : "";
+  const returnUrl = from === "vac" ? "/admin/analytics?tab=vac" : null;
 
   if (!arma_id) {
     return res.redirect("/admin/watchlist?error=Arma ID is required." + searchParam);
@@ -780,14 +781,22 @@ router.post("/watchlist", async (req, res) => {
       color: isWatchlisted ? 0xf59e0b : 0x22c55e,
     });
 
-    res.redirect("/admin/watchlist?success=" + encodeURIComponent(
-      `Player ${arma_id} has been ${isWatchlisted ? "added to" : "removed from"} the watchlist.`
-    ) + searchParam);
+    if (returnUrl) {
+      res.redirect(returnUrl + "&success=" + encodeURIComponent(`Player ${arma_id} added to watchlist.`));
+    } else {
+      res.redirect("/admin/watchlist?success=" + encodeURIComponent(
+        `Player ${arma_id} has been ${isWatchlisted ? "added to" : "removed from"} the watchlist.`
+      ) + searchParam);
+    }
   } catch (error) {
     console.error("Watchlist update error:", error.message);
     const apiMsg = error.response?.data?.message || error.message;
     sendWebhookError("Watchlist Update", apiMsg);
-    res.redirect("/admin/watchlist?error=" + encodeURIComponent("Failed to update watchlist. Please try again.") + searchParam);
+    if (returnUrl) {
+      res.redirect(returnUrl + "&error=" + encodeURIComponent("Failed to update watchlist."));
+    } else {
+      res.redirect("/admin/watchlist?error=" + encodeURIComponent("Failed to update watchlist. Please try again.") + searchParam);
+    }
   }
 });
 
@@ -1695,29 +1704,36 @@ router.post("/vac/scan", requireWriteAdmin, async (req, res) => {
     const result = await vacScanner.scan({ full });
     auditLog.log("security", "VAC Scan", `Scanned ${result.scanned} players, ${result.flagged} flagged`, req.session.user);
 
-    // Auto-watchlist flagged players
+    // Auto-watchlist flagged players with VAC bans
     const flagged = vacScanner.getFlagged();
     let watchlisted = 0;
     for (const player of flagged) {
-      if (!player.discord_id) continue;
-      try {
-        // Look up arma_id from discord_id
-        const playerRes = await apiClient({
-          method: "GET",
-          url: "/user/getPlayerStatsByDiscordID/",
-          data: { discord_id: player.discord_id, token: config.apiToken },
-        });
-        const armaId = playerRes.data?.arma_id;
-        if (!armaId) continue;
+      if (!player.vac_banned) continue; // only auto-watchlist VAC bans
 
+      let armaId = player.arma_id;
+
+      // If no arma_id stored, try looking up via discord_id
+      if (!armaId && player.discord_id) {
+        try {
+          const playerRes = await apiClient({
+            method: "GET",
+            url: "/user/getPlayerStatsByDiscordID/",
+            data: { discord_id: player.discord_id, token: config.apiToken },
+          });
+          armaId = playerRes.data?.arma_id;
+        } catch {}
+      }
+
+      if (!armaId) continue;
+
+      try {
         await adminApiClient.post("/admin/watchlist", {
           token: config.adminApiToken,
           arma_id: armaId,
           is_watchlisted: true,
         });
 
-        // Add note about VAC ban
-        const banType = player.vac_banned ? `${player.number_of_vac_bans} VAC ban(s)` : `${player.number_of_game_bans} game ban(s)`;
+        const banType = `${player.number_of_vac_bans} VAC ban(s)`;
         await adminApiClient.post("/admin/bans/webNotes", {
           token: config.adminApiToken,
           arma_id: armaId,
@@ -1732,10 +1748,10 @@ router.post("/vac/scan", requireWriteAdmin, async (req, res) => {
 
     const msg = `VAC scan complete: ${result.scanned} new, ${result.skipped} skipped, ${result.flagged} flagged, ${watchlisted} auto-watchlisted.`;
     sendWebhook({ title: "VAC Scan Complete", description: msg, color: result.flagged > 0 ? 0xef4444 : 0x22c55e });
-    res.redirect("/admin/analytics?success=" + encodeURIComponent(msg));
+    res.redirect("/admin/analytics?success=" + encodeURIComponent(msg) + "&tab=vac");
   } catch (err) {
     console.error("VAC scan error:", err.message);
-    res.redirect("/admin/analytics?error=" + encodeURIComponent("VAC scan failed: " + err.message));
+    res.redirect("/admin/analytics?error=" + encodeURIComponent("VAC scan failed: " + err.message) + "&tab=vac");
   }
 });
 

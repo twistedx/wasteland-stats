@@ -516,63 +516,84 @@
     {{#if vacFlagged.length}}
     <div class="admin-form-card">
       <h3>Flagged Players ({{vacFlagged.length}})</h3>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Discord User</th>
-              <th>Arma ID</th>
-              <th>Steam ID</th>
-              <th>VAC Status</th>
-              <th>Bans</th>
-              <th>Days Since</th>
-              <th>Server</th>
-              <th>Watchlist</th>
-              <th>Scanned</th>
-            </tr>
-          </thead>
-          <tbody>
-            {{#each vacFlagged}}
-              <tr>
-                <td>{{#if this.discord_username}}{{this.discord_username}}{{else}}<span style="color:var(--text-secondary);">—</span>{{/if}}</td>
-                <td>{{#if this.arma_id}}<code style="font-size:0.75rem;">{{this.arma_id}}</code>{{else}}<span style="color:var(--text-secondary);">—</span>{{/if}}</td>
-                <td style="font-family:monospace;font-size:0.8rem;">
-                  <a href="https://steamcommunity.com/profiles/{{this.steam_id}}" target="_blank" rel="noopener" style="color:var(--accent);">{{this.steam_id}}</a>
-                </td>
-                <td>
-                  {{#if this.vac_banned}}
-                    <span class="badge badge-danger">VAC BANNED</span>
-                  {{else}}
-                    <span class="badge badge-warning">GAME BAN</span>
-                  {{/if}}
-                  {{#if this.community_banned}}
-                    <span class="badge badge-danger" style="margin-left:0.25rem;">COMMUNITY</span>
-                  {{/if}}
-                </td>
-                <td style="font-weight:600;">
-                  {{#if this.vac_banned}}{{this.number_of_vac_bans}} VAC{{/if}}
-                  {{#if this.number_of_game_bans}}{{#if this.vac_banned}} + {{/if}}{{this.number_of_game_bans}} Game{{/if}}
-                </td>
-                <td>{{this.days_since_last_ban}}d ago</td>
-                <td>
-                  {{#if this.isServerBanned}}
-                    <span class="badge badge-danger">BANNED</span>
-                  {{else}}
-                    <span class="badge badge-clean">Active</span>
-                  {{/if}}
-                </td>
-                <td>
-                  {{#if this.isWatchlisted}}
-                    <span class="badge badge-warning">Watched</span>
-                  {{else}}
-                    <span style="color:var(--text-secondary);font-size:0.8rem;">No</span>
-                  {{/if}}
-                </td>
-                <td>{{formatDate this.scanned_at}}</td>
-              </tr>
-            {{/each}}
-          </tbody>
-        </table>
+      <div class="vac-accordion">
+        {{#each vacFlagged}}
+        <div class="vac-item {{#if this.vac_banned}}vac-border-red{{else}}vac-border-yellow{{/if}}">
+          <div class="vac-item-header" onclick="this.parentElement.classList.toggle('open')">
+            <div class="vac-item-summary">
+              <span class="vac-item-name">{{#if this.discord_username}}{{this.discord_username}}{{else}}Unknown{{/if}}</span>
+              {{#if this.vac_banned}}
+                <span class="badge badge-danger">VAC BANNED</span>
+              {{else}}
+                <span class="badge badge-warning">GAME BAN</span>
+              {{/if}}
+              {{#if this.isServerBanned}}
+                <span class="badge badge-danger">BANNED</span>
+              {{else}}
+                <span class="badge badge-clean">Active</span>
+              {{/if}}
+              {{#if this.isWatchlisted}}
+                <span class="badge badge-warning">Watched</span>
+              {{/if}}
+            </div>
+            <div class="vac-item-right">
+              <span style="color:var(--text-secondary);font-size:0.8rem;">{{this.days_since_last_ban}}d ago</span>
+              <span class="vac-arrow">&#9662;</span>
+            </div>
+          </div>
+          <div class="vac-item-body">
+            <div class="vac-detail-grid">
+              <div class="vac-detail">
+                <span class="vac-detail-label">Arma ID</span>
+                <code style="font-size:0.8rem;">{{#if this.arma_id}}{{this.arma_id}}{{else}}—{{/if}}</code>
+              </div>
+              <div class="vac-detail">
+                <span class="vac-detail-label">Steam ID</span>
+                <a href="https://steamcommunity.com/profiles/{{this.steam_id}}" target="_blank" rel="noopener" style="color:var(--accent);font-family:monospace;font-size:0.8rem;">{{this.steam_id}}</a>
+              </div>
+              <div class="vac-detail">
+                <span class="vac-detail-label">VAC Bans</span>
+                <span style="font-weight:600;">{{this.number_of_vac_bans}}</span>
+              </div>
+              <div class="vac-detail">
+                <span class="vac-detail-label">Game Bans</span>
+                <span style="font-weight:600;">{{this.number_of_game_bans}}</span>
+              </div>
+              <div class="vac-detail">
+                <span class="vac-detail-label">Community Banned</span>
+                <span>{{#if this.community_banned}}Yes{{else}}No{{/if}}</span>
+              </div>
+              <div class="vac-detail">
+                <span class="vac-detail-label">Days Since Last Ban</span>
+                <span>{{this.days_since_last_ban}}</span>
+              </div>
+              <div class="vac-detail">
+                <span class="vac-detail-label">Server Status</span>
+                {{#if this.isServerBanned}}<span class="badge badge-danger">BANNED</span>{{else}}<span class="badge badge-clean">Active</span>{{/if}}
+              </div>
+              <div class="vac-detail">
+                <span class="vac-detail-label">Watchlist</span>
+                {{#if this.isWatchlisted}}<span class="badge badge-warning">Watched</span>{{else}}<span style="color:var(--text-secondary);">No</span>{{/if}}
+              </div>
+              <div class="vac-detail">
+                <span class="vac-detail-label">Scanned</span>
+                <span>{{formatDate this.scanned_at}}</span>
+              </div>
+            </div>
+            {{#unless this.isWatchlisted}}
+              {{#if this.arma_id}}
+              <form method="POST" action="/admin/watchlist" style="margin-top:0.75rem;">
+                <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                <input type="hidden" name="arma_id" value="{{this.arma_id}}">
+                <input type="hidden" name="action" value="add">
+                <input type="hidden" name="from" value="vac">
+                <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Add to Watchlist</button>
+              </form>
+              {{/if}}
+            {{/unless}}
+          </div>
+        </div>
+        {{/each}}
       </div>
     </div>
     {{else}}
@@ -699,6 +720,13 @@
     });
   });
 
+  // Auto-switch to tab from URL param
+  var urlTab = new URLSearchParams(window.location.search).get('tab');
+  if (urlTab) {
+    var targetTab = document.querySelector('.analytics-tab[data-tab="tab-' + urlTab + '"]');
+    if (targetTab) targetTab.click();
+  }
+
   window.startVacScan = function(form) {
     form.querySelector('button').disabled = true;
     form.querySelector('button').style.opacity = '0.5';
@@ -708,6 +736,57 @@
 </script>
 
 <style>
+.vac-accordion { display: flex; flex-direction: column; gap: 0.5rem; }
+.vac-item {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  overflow: hidden;
+}
+.vac-border-red { border-left: 3px solid #ef4444; }
+.vac-border-yellow { border-left: 3px solid #f59e0b; }
+.vac-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.65rem 0.85rem;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.vac-item-header:hover { background: var(--bg-primary); }
+.vac-item-summary { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.vac-item-name { font-weight: 600; font-size: 0.9rem; color: var(--text-primary); }
+.vac-item-right { display: flex; align-items: center; gap: 0.75rem; }
+.vac-arrow {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  transition: transform 0.2s;
+}
+.vac-item.open .vac-arrow { transform: rotate(180deg); }
+.vac-item-body {
+  display: none;
+  padding: 0 0.85rem 0.85rem;
+  border-top: 1px solid var(--border);
+}
+.vac-item.open .vac-item-body { display: block; }
+.vac-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+.vac-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.vac-detail-label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .vac-spinner {
   width: 18px;
   height: 18px;
