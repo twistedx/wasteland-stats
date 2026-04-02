@@ -523,9 +523,11 @@
               <th>Discord User</th>
               <th>Arma ID</th>
               <th>Steam ID</th>
-              <th>Status</th>
+              <th>VAC Status</th>
               <th>Bans</th>
               <th>Days Since</th>
+              <th>Server</th>
+              <th>Watchlist</th>
               <th>Scanned</th>
             </tr>
           </thead>
@@ -533,8 +535,8 @@
             {{#each vacFlagged}}
               <tr>
                 <td>{{#if this.discord_username}}{{this.discord_username}}{{else}}<span style="color:var(--text-secondary);">—</span>{{/if}}</td>
-                <td>{{#if this.arma_id}}<code>{{this.arma_id}}</code>{{else}}<span style="color:var(--text-secondary);">—</span>{{/if}}</td>
-                <td style="font-family:monospace;font-size:0.85rem;">
+                <td>{{#if this.arma_id}}<code style="font-size:0.75rem;">{{this.arma_id}}</code>{{else}}<span style="color:var(--text-secondary);">—</span>{{/if}}</td>
+                <td style="font-family:monospace;font-size:0.8rem;">
                   <a href="https://steamcommunity.com/profiles/{{this.steam_id}}" target="_blank" rel="noopener" style="color:var(--accent);">{{this.steam_id}}</a>
                 </td>
                 <td>
@@ -552,6 +554,20 @@
                   {{#if this.number_of_game_bans}}{{#if this.vac_banned}} + {{/if}}{{this.number_of_game_bans}} Game{{/if}}
                 </td>
                 <td>{{this.days_since_last_ban}}d ago</td>
+                <td>
+                  {{#if this.isServerBanned}}
+                    <span class="badge badge-danger">BANNED</span>
+                  {{else}}
+                    <span class="badge badge-clean">Active</span>
+                  {{/if}}
+                </td>
+                <td>
+                  {{#if this.isWatchlisted}}
+                    <span class="badge badge-warning">Watched</span>
+                  {{else}}
+                    <span style="color:var(--text-secondary);font-size:0.8rem;">No</span>
+                  {{/if}}
+                </td>
                 <td>{{formatDate this.scanned_at}}</td>
               </tr>
             {{/each}}

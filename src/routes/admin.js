@@ -1070,11 +1070,50 @@ router.get("/analytics", async (req, res) => {
     auditStats,
     blockedIPs: user.isAdmin ? ipBlock.getAll() : [],
     ipBlockStats: user.isAdmin ? ipBlock.getStats() : { total: 0, today: 0 },
-    vacFlagged: user.isAdmin ? vacScanner.getFlagged() : [],
+    vacFlagged: user.isAdmin ? await enrichVacFlagged() : [],
     vacStats: user.isAdmin ? vacScanner.getStats() : { total: 0, vacBanned: 0, gameBanned: 0, clean: 0 },
     vacLastScan: user.isAdmin ? vacScanner.getLastScan() : null,
   });
 });
+
+// Enrich VAC flagged players with server ban and watchlist status
+async function enrichVacFlagged() {
+  const flagged = vacScanner.getFlagged();
+  if (flagged.length === 0) return [];
+
+  // Fetch all server bans once
+  let serverBans = new Set();
+  try {
+    const bansRes = await apiClient({ method: "GET", url: "/user/getAllUserBans/", data: { token: config.apiToken } });
+    const bans = bansRes.data?.bans || bansRes.data?.data || bansRes.data || [];
+    if (Array.isArray(bans)) {
+      for (const b of bans) {
+        if (b.user_id_banned) serverBans.add(b.user_id_banned);
+      }
+    }
+  } catch {}
+
+  // Check watchlist + ban status for each flagged player
+  const enriched = await Promise.all(flagged.map(async (player) => {
+    const armaId = player.arma_id;
+    let isServerBanned = false;
+    let isWatchlisted = false;
+
+    if (armaId) {
+      isServerBanned = serverBans.has(armaId);
+      try {
+        const wlRes = await adminApiClient.get("/admin/watchlist", {
+          params: { token: config.adminApiToken, arma_id: armaId },
+        });
+        isWatchlisted = !!wlRes.data?.is_watchlisted;
+      } catch {}
+    }
+
+    return { ...player, isServerBanned, isWatchlisted };
+  }));
+
+  return enriched;
+}
 
 // Blog-admin middleware
 function requireBlogAdmin(req, res, next) {
