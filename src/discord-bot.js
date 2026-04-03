@@ -267,4 +267,8 @@ async function init() {
   }
 }
 
-module.exports = { init };
+function getClient() {
+  return client;
+}
+
+module.exports = { init, getClient };

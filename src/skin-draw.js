@@ -38,6 +38,32 @@ function init() {
 
   db.exec("CREATE INDEX IF NOT EXISTS idx_draw_history_ts ON skin_draw_history (created_at)");
   try { db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_draw_pool_name ON skin_draw_pool (name)"); } catch {}
+
+  // Add game_item_name column for backend API mapping
+  try { db.exec("ALTER TABLE skin_draw_pool ADD COLUMN game_item_name TEXT DEFAULT NULL"); } catch {}
+
+  // Backfill game_item_name for items that don't match the backend exactly
+  const SKIN_GAME_NAMES = {
+    "The Sheen Out": "\u{1F334} Wasteland Loadout Drop \u2014 The Sheen Out",
+    "The Cowboy": "\u{1F920} Wasteland Loadout Drop \u2014 The Cowboy",
+    "The Packer": "\u{1F392} Wasteland Loadout Drop \u2014 The Packer",
+    "The Burglar": "\u{1F511} Wasteland Loadout Drop \u2014 The Burglar",
+    "The Prepper": "\u{1F52B} Wasteland Loadout Drop \u2014 The Prepper",
+    "The Corsair": "\u{1F3F4}\u200D\u2620\uFE0F Wasteland Loadout Drop \u2014 The Corsair",
+    "The Slav Specter": "\u{1F47B} Wasteland Loadout Drop \u2014 The Slav Specter",
+    "The LumberJack": "\u{1FA93} Wasteland Loadout Drop \u2014 TheLumberJack",
+    "Nostalgia": "Nostaglia",
+    "R700 - \"Catacomb\"": "R700 - \u201cCatacomb\u201d",
+    "R700 - \"Biohazard\"": "R700 - \u201cBiohazard\u201d",
+    "R700 - \"Fracture Skin\" - Glowing": "R700 - \u201cFracture Skin\u201d - Glowing",
+    "R700 - \"Purple Haze\"": "R700 - \u201cPurple Haze\u201d",
+    "AK-105 \"Alien Metal\" Edition": "AK-105 \u201cAlien Metal\u201d Edition",
+    "6B13 \"Striped\" Vest": "6B13 \u201cStriped\u201d Vest",
+  };
+  const backfillSkin = db.prepare("UPDATE skin_draw_pool SET game_item_name = ? WHERE name = ? AND game_item_name IS NULL");
+  for (const [poolName, gameName] of Object.entries(SKIN_GAME_NAMES)) {
+    backfillSkin.run(gameName, poolName);
+  }
 }
 
 function getPool() {

@@ -79,12 +79,13 @@ async function grantSkins(discordId, count) {
 
   const results = await Promise.all(skins.map(async (skin) => {
     try {
+      const gameItemName = skin.game_item_name || skin.name;
       await apiClient.post(
         "/itemsUser/updateDiscordUserItemFromDiscord",
-        { discord_id: discordId, item_name: skin.name, request_type: "set", quantity: 1 },
+        { discord_id: discordId, item_name: gameItemName, request_type: "set", quantity: 1 },
         { params: { token: config.backendToken } }
       );
-      console.log(`SubscriptionPerks: granted "${skin.name}" (${skin.rarity}) to ${discordId}`);
+      console.log(`SubscriptionPerks: granted "${gameItemName}" (${skin.rarity}) to ${discordId}`);
       return { name: skin.name, rarity: skin.rarity, success: true };
     } catch (err) {
       const msg = err.response?.data?.message || err.message;
@@ -127,6 +128,30 @@ async function applyPerks(discordId, productName, cachedArmaId) {
     description: `**${productName}**\nBank limit: ${results.bankLimit ? tier.bankLimit.toLocaleString() : "FAILED"}${skinSummary}`,
     color: 0x22c55e,
   });
+
+  // DM the user about their skins
+  const successSkins = results.skins.filter(s => s.success);
+  if (successSkins.length > 0) {
+    try {
+      const { getClient } = require("./discord-bot");
+      const bot = getClient();
+      if (bot?.isReady()) {
+        const user = await bot.users.fetch(discordId);
+        if (user) {
+          const skinList = successSkins.map(s => `**${s.name}** (${s.rarity})`).join("\n");
+          await user.send(
+            `Your **${productName}** subscription perk has been delivered!\n\n` +
+            `You received:\n${skinList}\n\n` +
+            `${results.bankLimit ? `Your bank limit has been set to **${tier.bankLimit.toLocaleString()}**.` : ""}` +
+            `\nEnjoy your new gear on the wasteland!`
+          );
+          console.log(`SubscriptionPerks: DM sent to ${discordId}`);
+        }
+      }
+    } catch (dmErr) {
+      console.warn(`SubscriptionPerks: could not DM ${discordId}: ${dmErr.message}`);
+    }
+  }
 
   return results;
 }

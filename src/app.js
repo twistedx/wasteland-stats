@@ -719,7 +719,7 @@ app.get("/draw/result", async (req, res) => {
 
         await axios.post(
           `${config.apiBaseUrl}/itemsUser/updateDiscordUserItemFromDiscord`,
-          { discord_id: session.metadata.discord_id, item_name: result.name, request_type: "set", quantity: 1 },
+          { discord_id: session.metadata.discord_id, item_name: result.game_item_name || result.name, request_type: "set", quantity: 1 },
           { params: { token: config.backendToken }, timeout: 15000, headers: { "Content-Type": "application/json" } }
         );
         console.log(`Skin Draw: granted "${result.name}" (${result.rarity}) to ${session.metadata.discord_id}`);
