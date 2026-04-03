@@ -29,7 +29,12 @@ async function resolveArmaId(discordId) {
     // Some responses don't have arma_id but have arma_username — try to get arma_id from username
     if (res.data?.arma_username) {
       const idRes = await apiClient({ method: "GET", url: "/user/getPlayerIDsByName", data: { arma_username: res.data.arma_username, token: config.apiToken } });
-      if (idRes.data?.data?.[0]?.arma_id) return idRes.data.data[0].arma_id;
+      // API returns plain array: ["uuid"] or { data: ["uuid"] }
+      const ids = Array.isArray(idRes.data) ? idRes.data : idRes.data?.data;
+      if (Array.isArray(ids) && ids.length > 0) {
+        const id = typeof ids[0] === "string" ? ids[0] : ids[0]?.arma_id;
+        if (id) return id;
+      }
     }
     return null;
   } catch (err) {
