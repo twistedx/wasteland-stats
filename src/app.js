@@ -963,7 +963,9 @@ app.post("/store/checkout", async (req, res) => {
   // Build Stripe line items
   const lineItems = [];
   for (const { product, qty } of items) {
-    if (product.stripe_price_id) {
+    if (product.stripe_price_id && !isSubscription) {
+      // Only use pre-synced Stripe prices for one-time purchases
+      // Subscriptions need price_data with recurring interval
       lineItems.push({ price: product.stripe_price_id, quantity: qty });
     } else {
       const effectivePrice = store.getEffectivePrice(product);
