@@ -1114,6 +1114,26 @@ app.post("/store/webhook", async (req, res) => {
       if (fulfillErrors.length > 0) {
         sendWebhookError("Stripe Fulfillment Errors", fulfillErrors.join("\n"));
       }
+
+      // Assign Donator role to the buyer
+      if (discordIdForRecord && discordIdForRecord !== "guest") {
+        try {
+          const { getClient } = require("./discord-bot");
+          const bot = getClient();
+          if (bot?.isReady()) {
+            const guild = bot.guilds.cache.get(config.discordGuildId);
+            if (guild) {
+              const member = await guild.members.fetch(discordIdForRecord).catch(() => null);
+              if (member) {
+                await member.roles.add("1282418153925640402");
+                console.log(`Donator role assigned to ${discordIdForRecord}`);
+              }
+            }
+          }
+        } catch (roleErr) {
+          console.warn(`Failed to assign donator role to ${discordIdForRecord}: ${roleErr.message}`);
+        }
+      }
     } catch (fulfillErr) {
       console.error("Order fulfillment error:", fulfillErr.message);
       sendWebhookError("Stripe Fulfillment", fulfillErr.message);
