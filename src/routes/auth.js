@@ -212,7 +212,20 @@ router.post("/login", (req, res, next) => {
   try {
     const user = await adminUsers.authenticate(email, password);
     if (!user) {
-      console.warn(`Login: failed attempt for ${email}`);
+      console.warn(`Login: failed attempt for ${email} from ${req.ip}`);
+      // Track failed login attempts for brute force detection
+      try {
+        const ipBlock = require("../ip-block");
+        const key = `login:${req.ip}`;
+        const failKey = `_loginFails_${req.ip}`;
+        const fails = (req.app.get(failKey) || 0) + 1;
+        req.app.set(failKey, fails);
+        if (fails >= 10) {
+          ipBlock.block(req.ip, `Brute force: ${fails} failed login attempts`, 24 * 60 * 60 * 1000);
+          req.app.set(failKey, 0);
+          console.warn(`Blocked IP ${req.ip} for 24h — ${fails} failed logins`);
+        }
+      } catch {}
       return res.redirect("/auth/login?error=Invalid email or password.");
     }
 

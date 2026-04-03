@@ -243,7 +243,7 @@ router.post("/bans", async (req, res) => {
       method: "POST",
       url: "/user/banByArmaID/",
       data: {
-        token: config.apiToken,
+        token: config.backendToken,
         arma_id,
         reason,
         duration_hours: hours,
@@ -281,7 +281,7 @@ router.post("/bans/unban", async (req, res) => {
       method: "POST",
       url: "/user/removeUserBanByID/",
       data: {
-        token: config.apiToken,
+        token: config.backendToken,
         arma_id,
       },
     });

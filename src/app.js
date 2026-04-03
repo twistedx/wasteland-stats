@@ -36,20 +36,38 @@ const DOMPurify = createDOMPurify(window);
 const app = express();
 app.set("trust proxy", 1);
 
-// Auto-block IPs that probe for exploit paths
-const ipStrikes = new Map(); // ip -> { count, firstSeen } (in-memory for speed)
-const BLOCK_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-const STRIKE_WINDOW = 60 * 1000; // 1 minute
-const MAX_STRIKES = 3;
-const HONEYPOT_PATHS = [
+// Auto-block IPs: port scans, exploit probes, brute force
+const ipStrikes = new Map();    // ip -> { count, firstSeen }
+const requestLog = new Map();   // ip -> { count, firstSeen } — rate flood detection
+const BLOCK_DURATION = 24 * 60 * 60 * 1000;      // 24 hours
+const BLOCK_DURATION_LONG = 7 * 24 * 60 * 60 * 1000; // 7 days for repeat offenders
+const STRIKE_WINDOW = 60 * 1000;  // 1 minute
+const MAX_STRIKES = 1;            // instant block on first probe hit
+
+// Paths that no legitimate user would ever hit
+const INSTANT_BLOCK_PATHS = [
   "/xmlrpc.php", "/wp-login.php", "/wp-admin", "/wp-content",
   "/wp-includes", "/.env", "/.git", "/phpmyadmin", "/pma",
   "/admin.php", "/administrator", "/cgi-bin", "/config.php",
-  "/setup.php", "/install.php", "/.well-known/security.txt",
-  "/solr", "/actuator", "/api/v1/pods", "/_profiler",
-  "/telescope", "/debug", "/console", "/manager/html",
-  "/invoker", "/jmx-console", "/web-console",
+  "/setup.php", "/install.php", "/solr", "/actuator",
+  "/api/v1/pods", "/_profiler", "/telescope", "/console",
+  "/manager/html", "/invoker", "/jmx-console", "/web-console",
+  "/.aws", "/.docker", "/.ssh", "/.svn", "/.htaccess", "/.htpasswd",
+  "/etc/passwd", "/proc/self", "/wp-json", "/wp-cron.php",
+  "/license.php", "/readme.html", "/config.json", "/package.json",
+  "/composer.json", "/config.yml", "/database.yml", "/credentials",
+  "/.well-known/security.txt",
 ];
+
+// Suspicious file extensions — scanning for vulnerabilities
+const SUSPICIOUS_EXTENSIONS = [
+  ".php", ".asp", ".aspx", ".jsp", ".cgi", ".pl",
+  ".sql", ".bak", ".old", ".orig", ".swp", ".DS_Store",
+];
+
+// Flood threshold — too many requests per minute = bot
+const FLOOD_WINDOW = 60 * 1000;
+const FLOOD_THRESHOLD = 200; // 200 requests/minute is clearly automated
 
 app.use((req, res, next) => {
   const ip = req.ip;
@@ -59,39 +77,59 @@ app.use((req, res, next) => {
     return res.status(403).end();
   }
 
-  // Check for honeypot paths
   const lowerPath = req.path.toLowerCase();
-  const isProbe = HONEYPOT_PATHS.some(p => lowerPath.startsWith(p));
+  const now = Date.now();
+
+  // 1. Instant block: known exploit/scan paths
+  const isProbe = INSTANT_BLOCK_PATHS.some(p => lowerPath.startsWith(p));
   if (isProbe) {
-    const now = Date.now();
+    ipBlock.block(ip, `Probe: ${req.path}`, BLOCK_DURATION);
+    console.warn(`Blocked IP ${ip} for 24h — probe: ${req.path}`);
+    return res.status(403).end();
+  }
+
+  // 2. Suspicious file extension on non-static paths
+  const ext = lowerPath.match(/\.[a-z0-9]+$/)?.[0];
+  if (ext && SUSPICIOUS_EXTENSIONS.includes(ext) && !lowerPath.startsWith("/img/") && !lowerPath.startsWith("/css/") && !lowerPath.startsWith("/js/") && !lowerPath.startsWith("/fonts/")) {
     const strikes = ipStrikes.get(ip) || { count: 0, firstSeen: now };
-
-    if (now - strikes.firstSeen > STRIKE_WINDOW) {
-      strikes.count = 0;
-      strikes.firstSeen = now;
-    }
-
+    if (now - strikes.firstSeen > STRIKE_WINDOW) { strikes.count = 0; strikes.firstSeen = now; }
     strikes.count++;
     ipStrikes.set(ip, strikes);
 
-    if (strikes.count >= MAX_STRIKES) {
-      ipBlock.block(ip, `Port scan: ${strikes.count} probe attempts`, BLOCK_DURATION);
+    if (strikes.count >= 3) {
+      ipBlock.block(ip, `Suspicious requests: ${strikes.count} hits (${ext})`, BLOCK_DURATION);
       ipStrikes.delete(ip);
-      console.warn(`Blocked IP ${ip} for 24h — ${strikes.count} probe attempts`);
+      console.warn(`Blocked IP ${ip} for 24h — ${strikes.count} suspicious extension requests`);
+      return res.status(403).end();
     }
-
     return res.status(404).end();
+  }
+
+  // 3. Request flood detection
+  const flood = requestLog.get(ip) || { count: 0, firstSeen: now };
+  if (now - flood.firstSeen > FLOOD_WINDOW) { flood.count = 0; flood.firstSeen = now; }
+  flood.count++;
+  requestLog.set(ip, flood);
+
+  if (flood.count > FLOOD_THRESHOLD) {
+    ipBlock.block(ip, `Request flood: ${flood.count} req/min`, BLOCK_DURATION);
+    requestLog.delete(ip);
+    console.warn(`Blocked IP ${ip} for 24h — request flood: ${flood.count}/min`);
+    return res.status(429).end();
   }
 
   next();
 });
 
-// Prune expired blocks and stale strikes every hour
+// Prune expired blocks and stale tracking every hour
 setInterval(() => {
   ipBlock.prune();
   const now = Date.now();
   for (const [ip, s] of ipStrikes) {
     if (now - s.firstSeen > STRIKE_WINDOW) ipStrikes.delete(ip);
+  }
+  for (const [ip, f] of requestLog) {
+    if (now - f.firstSeen > FLOOD_WINDOW) requestLog.delete(ip);
   }
 }, 60 * 60 * 1000);
 
@@ -1204,7 +1242,20 @@ app.post("/store/webhook", async (req, res) => {
 
           auditLog.log("store", label, `$${((charge.amount || 0) / 100).toFixed(2)} — revoked ${revoked.join(", ")} from ${discordId}`, { username: "Stripe", discord_id: null });
         } else {
-          sendWebhookError(`${label} — Manual Review Needed`, `**$${((charge.amount || 0) / 100).toFixed(2)}** — could not find session metadata to auto-revoke items. Charge: ${charge.id}`);
+          // Try to get discord_id from the charge metadata or customer
+          const discordId = session?.metadata?.discord_id || null;
+          if (discordId && discordId !== "guest") {
+            // Subscription refund — revoke subscription perks (bank limit)
+            try {
+              const subscriptionPerks = require("./subscription-perks");
+              await subscriptionPerks.revokePerks(discordId);
+              sendWebhookError(`${label} — Subscription Perks Revoked`, `**$${((charge.amount || 0) / 100).toFixed(2)}** from <@${discordId}>\nBank limit reset to default.`);
+            } catch (perkErr) {
+              sendWebhookError(`${label} — Manual Review Needed`, `**$${((charge.amount || 0) / 100).toFixed(2)}** from <@${discordId}> — auto-revoke failed: ${perkErr.message}. Charge: ${charge.id}`);
+            }
+          } else {
+            sendWebhookError(`${label} — Manual Review Needed`, `**$${((charge.amount || 0) / 100).toFixed(2)}** — could not find session metadata to auto-revoke items. Charge: ${charge.id}`);
+          }
         }
       }
     } catch (revokeErr) {
