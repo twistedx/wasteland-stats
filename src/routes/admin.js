@@ -1106,26 +1106,45 @@ async function enrichVacFlagged() {
   const flagged = vacScanner.getFlagged();
   if (flagged.length === 0) return [];
 
-  // Fetch all server bans once
-  let serverBans = new Set();
+  // Fetch all server bans once — also builds username map
+  const serverBans = new Set();
+  const usernameMap = new Map(); // arma_id -> arma_username
   try {
     const bansRes = await apiClient({ method: "GET", url: "/user/getAllUserBans/", data: { token: config.apiToken } });
     const bans = bansRes.data?.bans || bansRes.data?.data || bansRes.data || [];
     if (Array.isArray(bans)) {
       for (const b of bans) {
-        if (b.user_id_banned) serverBans.add(b.user_id_banned);
+        if (b.user_id_banned) {
+          serverBans.add(b.user_id_banned);
+          if (b.banned_arma_username) usernameMap.set(b.user_id_banned, b.banned_arma_username);
+        }
       }
     }
   } catch {}
 
-  // Check watchlist + ban status for each flagged player
+  // Check watchlist + ban status + resolve username for each flagged player
   const enriched = await Promise.all(flagged.map(async (player) => {
     const armaId = player.arma_id;
     let isServerBanned = false;
     let isWatchlisted = false;
+    let displayName = player.arma_username || player.discord_username || null;
 
     if (armaId) {
       isServerBanned = serverBans.has(armaId);
+
+      // Try username from bans map first
+      if (!displayName && usernameMap.has(armaId)) {
+        displayName = usernameMap.get(armaId);
+      }
+
+      // Look up username from API if still missing
+      if (!displayName) {
+        try {
+          const statsRes = await apiClient({ method: "GET", url: "/user/getPlayerStatsByID/", data: { arma_id: armaId, token: config.apiToken } });
+          displayName = statsRes.data?.arma_username || null;
+        } catch {}
+      }
+
       try {
         const wlRes = await adminApiClient.get("/admin/watchlist", {
           params: { token: config.adminApiToken, arma_id: armaId },
@@ -1134,7 +1153,7 @@ async function enrichVacFlagged() {
       } catch {}
     }
 
-    return { ...player, isServerBanned, isWatchlisted };
+    return { ...player, displayName: displayName || "Unknown", isServerBanned, isWatchlisted };
   }));
 
   return enriched;

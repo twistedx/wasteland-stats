@@ -33,8 +33,9 @@ function init() {
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_vac_banned ON vac_results (vac_banned)`);
 
-  // Migration: add arma_id column
+  // Migrations
   try { db.exec("ALTER TABLE vac_results ADD COLUMN arma_id TEXT"); } catch (e) { /* exists */ }
+  try { db.exec("ALTER TABLE vac_results ADD COLUMN arma_username TEXT"); } catch (e) { /* exists */ }
 
   const count = db.prepare("SELECT COUNT(*) as cnt FROM vac_results WHERE vac_banned = 1 OR number_of_game_bans > 0").get().cnt;
   console.log(`VACScanner: ${count} flagged players in database.`);
@@ -102,7 +103,7 @@ async function scan({ full = false } = {}) {
   console.log("[VAC Scan] Step 2: Fetching Steam IDs from backend API...");
   const backendSteam = await fetchBackendSteamIds();
 
-  // Merge: steam_id -> { discord_id, discord_username, arma_id }
+  // Merge: steam_id -> { discord_id, discord_username, arma_id, arma_username }
   const steamEntries = new Map();
   for (const l of allLinks) {
     if (l.steam_id) {
@@ -110,17 +111,20 @@ async function scan({ full = false } = {}) {
         discord_id: l.discord_id,
         discord_username: l.discord_username,
         arma_id: null,
+        arma_username: null,
       });
     }
   }
   for (const b of backendSteam) {
     if (steamEntries.has(b.steam_id)) {
       steamEntries.get(b.steam_id).arma_id = b.arma_id;
+      steamEntries.get(b.steam_id).arma_username = b.arma_username || null;
     } else {
       steamEntries.set(b.steam_id, {
         discord_id: null,
         discord_username: null,
         arma_id: b.arma_id,
+        arma_username: b.arma_username || null,
       });
     }
   }
@@ -177,12 +181,13 @@ async function scan({ full = false } = {}) {
   const results = await vacChecker.checkBans(steamIds);
 
   const upsertStmt = db.prepare(`
-    INSERT INTO vac_results (steam_id, discord_id, discord_username, arma_id, vac_banned, number_of_vac_bans, days_since_last_ban, community_banned, number_of_game_bans, economy_ban, scanned_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    INSERT INTO vac_results (steam_id, discord_id, discord_username, arma_id, arma_username, vac_banned, number_of_vac_bans, days_since_last_ban, community_banned, number_of_game_bans, economy_ban, scanned_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(steam_id) DO UPDATE SET
       discord_id = COALESCE(excluded.discord_id, vac_results.discord_id),
       discord_username = COALESCE(excluded.discord_username, vac_results.discord_username),
       arma_id = COALESCE(excluded.arma_id, vac_results.arma_id),
+      arma_username = COALESCE(excluded.arma_username, vac_results.arma_username),
       vac_banned = excluded.vac_banned,
       number_of_vac_bans = excluded.number_of_vac_bans,
       days_since_last_ban = excluded.days_since_last_ban,
@@ -205,6 +210,7 @@ async function scan({ full = false } = {}) {
         entry.discord_id || null,
         entry.discord_username || null,
         entry.arma_id || null,
+        entry.arma_username || null,
         r.VACBanned ? 1 : 0,
         r.NumberOfVACBans || 0,
         r.DaysSinceLastBan || 0,
@@ -279,4 +285,36 @@ function getLastScan() {
   return row?.last || null;
 }
 
-module.exports = { init, scan, autoWatchlist, getFlagged, getAll, getStats, getLastScan };
+// Backfill arma_username for all records that have arma_id but no username
+async function refreshUsernames() {
+  if (!db) return 0;
+  const missing = db.prepare("SELECT steam_id, arma_id FROM vac_results WHERE arma_id IS NOT NULL AND (arma_username IS NULL OR arma_username = '')").all();
+  if (missing.length === 0) return 0;
+
+  console.log(`[VAC Scan] Refreshing usernames for ${missing.length} players...`);
+  const lookupApi = axios.create({ baseURL: config.apiBaseUrl, timeout: 15000, headers: { "Content-Type": "application/json" } });
+  const updateStmt = db.prepare("UPDATE vac_results SET arma_username = ? WHERE steam_id = ?");
+  let updated = 0;
+
+  for (let i = 0; i < missing.length; i += 10) {
+    const batch = missing.slice(i, i + 10);
+    await Promise.allSettled(batch.map(async (row) => {
+      try {
+        const res = await lookupApi({ method: "GET", url: "/user/getPlayerStatsByID/", data: { arma_id: row.arma_id, token: config.apiToken } });
+        const name = res.data?.arma_username;
+        if (name) {
+          updateStmt.run(name, row.steam_id);
+          updated++;
+        }
+      } catch {}
+    }));
+    if ((i + 10) % 100 < 10) {
+      console.log(`[VAC Scan]   Username refresh: ${Math.min(i + 10, missing.length)}/${missing.length}, ${updated} updated`);
+    }
+  }
+
+  console.log(`[VAC Scan] Username refresh complete: ${updated}/${missing.length} updated`);
+  return updated;
+}
+
+module.exports = { init, scan, autoWatchlist, refreshUsernames, getFlagged, getAll, getStats, getLastScan };
