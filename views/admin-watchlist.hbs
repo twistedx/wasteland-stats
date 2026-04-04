@@ -101,6 +101,7 @@
               {{/if}}
             </div>
             <div class="vac-item-right">
+              {{#if this.arma_id}}<a href="/admin/player/{{this.arma_id}}" class="btn btn-admin btn-small" style="text-decoration:none;background:#5865F2;color:#fff;font-size:0.65rem;padding:0.15rem 0.5rem;" onclick="event.stopPropagation();">View Player</a>{{/if}}
               <span style="color:var(--text-secondary);font-size:0.75rem;">Ban: {{this.days_since_last_ban}}d ago</span>
               <span style="color:var(--text-secondary);font-size:0.7rem;opacity:0.7;">Updated: {{formatDate this.scanned_at}}</span>
               <span class="vac-arrow">&#9662;</span>

@@ -144,12 +144,29 @@
     <!-- Notes -->
     <div class="admin-form-card">
       <h3>Admin Notes</h3>
-      <form method="POST" action="/admin/bans/notes" id="player-notes-form">
+      <form method="POST" action="/admin/player/{{profile.arma_id}}/note" style="display:flex;gap:0.5rem;align-items:flex-start;">
         <input type="hidden" name="_csrf" value="{{csrfToken}}">
-        <input type="hidden" name="arma_id" value="{{profile.arma_id}}">
-        <textarea name="web_notes" class="filter-input" rows="4" placeholder="Add notes about this player..." style="width:100%;resize:vertical;">{{profile.webNotes}}</textarea>
-        <button type="submit" class="btn btn-admin btn-small" style="margin-top:0.5rem;">Save Notes</button>
+        <textarea name="note" class="filter-input" rows="2" placeholder="Add a note..." style="flex:1;resize:vertical;"></textarea>
+        <button type="submit" class="btn btn-admin btn-small" style="margin-top:0.1rem;">Add Note</button>
       </form>
+
+      {{#if playerNotes.length}}
+      <div class="player-notes-timeline">
+        {{#each playerNotes}}
+          <div class="player-note">
+            <div class="player-note-header">
+              <span class="player-note-author">{{this.admin_username}}</span>
+              <span class="player-note-date">{{formatDate this.created_at}}</span>
+              <form method="POST" action="/admin/player/{{@root.profile.arma_id}}/note/{{this.id}}/delete" style="margin:0;" onsubmit="return confirm('Delete this note?');">
+                <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                <button type="submit" class="player-note-delete" title="Delete">&times;</button>
+              </form>
+            </div>
+            <div class="player-note-body">{{this.note}}</div>
+          </div>
+        {{/each}}
+      </div>
+      {{/if}}
     </div>
 
     <!-- Misc Stats -->
@@ -296,28 +313,52 @@
   font-size: 0.7rem;
   color: var(--text-secondary);
 }
+
+.player-notes-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+.player-note {
+  background: var(--bg-primary);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 4px 4px 0;
+  padding: 0.5rem 0.75rem;
+}
+.player-note-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+.player-note-author {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--accent);
+}
+.player-note-date {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+.player-note-delete {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  cursor: pointer;
+  line-height: 1;
+  margin-left: auto;
+  padding: 0 0.25rem;
+}
+.player-note-delete:hover { color: var(--danger); }
+.player-note-body {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
 </style>
 
-<script>
-// AJAX notes save
-document.getElementById('player-notes-form').addEventListener('submit', function(e) {
-  e.preventDefault();
-  var form = this;
-  var btn = form.querySelector('button');
-  btn.disabled = true;
-  btn.textContent = 'Saving...';
-  fetch('/admin/bans/notes', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '{{csrfToken}}' },
-    body: JSON.stringify({ arma_id: '{{profile.arma_id}}', web_notes: form.querySelector('textarea').value })
-  }).then(function(r) { return r.json(); }).then(function(data) {
-    btn.disabled = false;
-    btn.textContent = data.success ? 'Saved!' : 'Failed';
-    setTimeout(function() { btn.textContent = 'Save Notes'; }, 2000);
-  }).catch(function() {
-    btn.disabled = false;
-    btn.textContent = 'Failed';
-    setTimeout(function() { btn.textContent = 'Save Notes'; }, 2000);
-  });
-});
-</script>

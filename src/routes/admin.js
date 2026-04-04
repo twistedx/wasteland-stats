@@ -925,6 +925,8 @@ router.get("/player/:arma_id", async (req, res) => {
     }
   } catch {}
 
+  const playerNotes = auditLog.getPlayerNotes(armaId);
+
   res.render("admin-player", {
     page: "admin",
     pageTitle: profile.arma_username || armaId,
@@ -932,9 +934,27 @@ router.get("/player/:arma_id", async (req, res) => {
     activeTab: "player",
     user,
     profile,
+    playerNotes,
     successMessage: req.query.success || null,
     errorMessage: req.query.error || null,
   });
+});
+
+// POST /admin/player/:arma_id/note — add a note
+router.post("/player/:arma_id/note", (req, res) => {
+  const { note } = req.body;
+  const armaId = req.params.arma_id;
+  if (!note || !note.trim()) {
+    return res.redirect(`/admin/player/${armaId}?error=Note cannot be empty.`);
+  }
+  auditLog.addPlayerNote(armaId, note.trim(), req.session.user);
+  res.redirect(`/admin/player/${armaId}`);
+});
+
+// POST /admin/player/:arma_id/note/:id/delete — delete a note
+router.post("/player/:arma_id/note/:id/delete", (req, res) => {
+  auditLog.deletePlayerNote(req.params.id);
+  res.redirect(`/admin/player/${req.params.arma_id}`);
 });
 
 // GET /admin/kd-report — renders page immediately with spinner, data loaded via AJAX
@@ -1914,6 +1934,11 @@ router.post("/tasks", (req, res) => {
     link: (link || "").trim() || null,
   });
   auditLog.log("tasks", "Task Created", title.trim(), req.session.user);
+  sendWebhook({
+    title: "Task Created",
+    description: `**${title.trim()}**\nType: ${type || "bug"} | Priority: ${priority || "normal"}\nCreated by: ${req.session.user.username}${description ? "\n" + description.trim() : ""}`,
+    color: 0x5865F2,
+  });
   res.redirect("/admin/tasks?success=" + encodeURIComponent(`Task "${title.trim()}" created.`));
 });
 
@@ -1927,6 +1952,13 @@ router.post("/tasks/:id/status", (req, res) => {
   if (!task) return res.redirect("/admin/tasks?error=" + encodeURIComponent("Task not found."));
   tasks.updateStatus(req.params.id, status);
   auditLog.log("tasks", "Task Status Changed", `"${task.title}" → ${status}`, req.session.user);
+  const statusLabels = { not_started: "Not Started", in_progress: "In Progress", blocked: "Blocked", completed: "Completed" };
+  const statusColors = { not_started: 0x6b7280, in_progress: 0x3b82f6, blocked: 0xef4444, completed: 0x22c55e };
+  sendWebhook({
+    title: "Task Updated",
+    description: `**${task.title}**\n${statusLabels[task.status] || task.status} → **${statusLabels[status] || status}**\nBy: ${req.session.user.username}`,
+    color: statusColors[status] || 0x5865F2,
+  });
   res.redirect("/admin/tasks");
 });
 
@@ -1943,6 +1975,11 @@ router.post("/tasks/:id/delete", (req, res) => {
   if (!task) return res.redirect("/admin/tasks?error=" + encodeURIComponent("Task not found."));
   tasks.remove(req.params.id);
   auditLog.log("tasks", "Task Deleted", task.title, req.session.user);
+  sendWebhook({
+    title: "Task Deleted",
+    description: `**${task.title}**\nDeleted by: ${req.session.user.username}`,
+    color: 0xef4444,
+  });
   res.redirect("/admin/tasks?success=" + encodeURIComponent(`Task "${task.title}" deleted.`));
 });
 

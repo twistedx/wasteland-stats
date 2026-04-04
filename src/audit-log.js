@@ -31,6 +31,18 @@ function init() {
   const cutoff = new Date(Date.now() - RETENTION_DAYS * 86400000).toISOString().replace("T", " ").slice(0, 19);
   db.prepare("DELETE FROM audit_log WHERE created_at < ?").run(cutoff);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS player_notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      arma_id TEXT NOT NULL,
+      note TEXT NOT NULL,
+      admin_username TEXT NOT NULL,
+      admin_discord_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_player_notes_arma ON player_notes (arma_id)`);
+
   const count = db.prepare("SELECT COUNT(*) as cnt FROM audit_log").get().cnt;
   console.log(`AuditLog: ${count} entries in database.`);
 }
@@ -63,4 +75,21 @@ function getStats() {
   return { total, today, byCat, byAdmin };
 }
 
-module.exports = { init, log, getEntries, getCategories, getStats };
+function addPlayerNote(armaId, note, user) {
+  if (!db) return null;
+  const result = db.prepare("INSERT INTO player_notes (arma_id, note, admin_username, admin_discord_id) VALUES (?, ?, ?, ?)")
+    .run(armaId, note, user?.username || "unknown", user?.discord_id || null);
+  return result.lastInsertRowid;
+}
+
+function getPlayerNotes(armaId) {
+  if (!db) return [];
+  return db.prepare("SELECT * FROM player_notes WHERE arma_id = ? ORDER BY created_at DESC").all(armaId);
+}
+
+function deletePlayerNote(id) {
+  if (!db) return;
+  db.prepare("DELETE FROM player_notes WHERE id = ?").run(id);
+}
+
+module.exports = { init, log, getEntries, getCategories, getStats, addPlayerNote, getPlayerNotes, deletePlayerNote };

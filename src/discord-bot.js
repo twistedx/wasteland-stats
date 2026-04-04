@@ -190,6 +190,12 @@ async function init() {
           link: messageLink,
         });
 
+        sendWebhook({
+          title: "Task Created via Discord",
+          description: `**${title}**\nType: ${type} | Priority: ${priority}\nCreated by: <@${discordId}>${description ? "\n" + description : ""}`,
+          color: 0x5865F2,
+        });
+
         return interaction.editReply({
           content: `Ticket **#${taskId}** created!\n\n**${title}**\nType: ${type} | Priority: ${priority}\n\nView it on the admin task board at **armawasteland.com/admin/tasks**`,
         });
