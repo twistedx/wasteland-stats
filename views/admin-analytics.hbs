@@ -538,7 +538,7 @@
         <div class="vac-item {{#if this.vac_banned}}vac-border-red{{else}}vac-border-yellow{{/if}}" data-name="{{#if this.arma_username}}{{this.arma_username}}{{else}}{{this.displayName}}{{/if}}" data-steam="{{this.steam_id}}" data-arma="{{this.arma_id}}" data-bantype="{{#if this.vac_banned}}vac{{else}}game{{/if}}" data-watched="{{#if this.isWatchlisted}}yes{{else}}no{{/if}}" data-serverbanned="{{#if this.isServerBanned}}yes{{else}}no{{/if}}">
           <div class="vac-item-header">
             <div class="vac-item-summary">
-              <span class="vac-item-name">{{#if this.arma_username}}{{this.arma_username}}{{else}}{{this.displayName}}{{/if}}</span>
+              {{#if this.arma_id}}<a href="/admin/player/{{this.arma_id}}" class="vac-item-name" style="color:var(--text-primary);text-decoration:none;" onclick="event.stopPropagation();">{{#if this.arma_username}}{{this.arma_username}}{{else}}{{this.displayName}}{{/if}}</a>{{else}}<span class="vac-item-name">{{#if this.arma_username}}{{this.arma_username}}{{else}}{{this.displayName}}{{/if}}</span>{{/if}}
               {{#if this.vac_banned}}
                 <span class="badge badge-danger">VAC BANNED</span>
               {{else}}

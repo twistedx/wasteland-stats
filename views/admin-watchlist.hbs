@@ -49,7 +49,7 @@
           <tbody>
             {{#each players}}
               <tr>
-                <td class="player-name">{{this.arma_username}}</td>
+                <td class="player-name"><a href="/admin/player/{{this.arma_id}}" style="color:var(--text-primary);text-decoration:none;">{{this.arma_username}}</a></td>
                 <td><code>{{this.arma_id}}</code></td>
                 <td>
                   {{#if this.vac}}

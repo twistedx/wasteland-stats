@@ -383,7 +383,7 @@ app.use((req, res, next) => {
         console.log(`Session: invalid user data for session ${req.sessionID}, destroying`);
         return req.session.destroy(() => {
           res.clearCookie("connect.sid");
-          res.redirect("/auth/login");
+          res.redirect("/auth/discord");
         });
       }
     }
@@ -823,7 +823,7 @@ app.get("/draw/result", async (req, res) => {
 // Build page admin guard
 function requireAdminForBuild(req, res, next) {
   if (!req.session.user || (!req.session.user.discord_id && req.session.user.authMethod !== "email")) {
-    return res.redirect("/auth/login");
+    return res.redirect("/auth/discord");
   }
   if (!req.session.user.isAdmin) {
     return res.redirect("/");

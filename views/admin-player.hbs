@@ -1,0 +1,323 @@
+<section id="admin-section">
+  {{> admin-nav}}
+
+  {{#if successMessage}}
+    <div class="notice success-notice"><strong>Success</strong><p>{{successMessage}}</p></div>
+  {{/if}}
+  {{#if errorMessage}}
+    <div class="error">{{errorMessage}}</div>
+  {{/if}}
+
+  <!-- Player Header -->
+  <div class="player-profile-header">
+    <div>
+      <h1 class="player-profile-name">{{#if profile.arma_username}}{{profile.arma_username}}{{else}}Unknown Player{{/if}}</h1>
+      <div class="player-profile-meta">
+        <code>{{profile.arma_id}}</code>
+        {{#if profile.steamId}}
+          <a href="https://steamcommunity.com/profiles/{{profile.steamId}}" target="_blank" rel="noopener" class="player-steam-link">Steam Profile</a>
+        {{/if}}
+      </div>
+    </div>
+    <div class="player-profile-badges">
+      {{#if profile.watchlist}}
+        <span class="badge badge-warning">Watchlisted</span>
+      {{/if}}
+      {{#if profile.vacInfo}}
+        {{#if profile.vacInfo.vac_banned}}
+          <span class="badge badge-danger">VAC BANNED</span>
+        {{/if}}
+        {{#if profile.vacInfo.number_of_game_bans}}
+          <span class="badge badge-warning">GAME BAN</span>
+        {{/if}}
+      {{/if}}
+      {{#if profile.bans.length}}
+        <span class="badge badge-danger">SERVER BANNED</span>
+      {{else}}
+        <span class="badge badge-clean">Active</span>
+      {{/if}}
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="admin-form-card" style="display:flex;gap:0.75rem;flex-wrap:wrap;padding:0.75rem 1rem;align-items:center;">
+    {{#if profile.watchlist}}
+      <form method="POST" action="/admin/watchlist" style="margin:0;">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <input type="hidden" name="arma_id" value="{{profile.arma_id}}">
+        <input type="hidden" name="action" value="remove">
+        <button type="submit" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Remove from Watchlist</button>
+      </form>
+    {{else}}
+      <form method="POST" action="/admin/watchlist" style="margin:0;">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <input type="hidden" name="arma_id" value="{{profile.arma_id}}">
+        <input type="hidden" name="action" value="add">
+        <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Add to Watchlist</button>
+      </form>
+    {{/if}}
+    <a href="/admin/watchlist?search={{profile.arma_username}}" class="btn btn-admin btn-small" style="text-decoration:none;">View in Watchlist</a>
+  </div>
+
+  <div class="player-profile-grid">
+    <!-- Combat Stats -->
+    <div class="admin-form-card">
+      <h3>Combat Stats (Current Season)</h3>
+      {{#if profile.stats}}
+        <div class="player-stats-grid">
+          <div class="player-stat">
+            <span class="player-stat-value" style="color:#ef4444;">{{profile.stats.kill_count}}</span>
+            <span class="player-stat-label">Kills</span>
+          </div>
+          <div class="player-stat">
+            <span class="player-stat-value">{{profile.stats.deaths}}</span>
+            <span class="player-stat-label">Deaths</span>
+          </div>
+          <div class="player-stat">
+            <span class="player-stat-value" style="color:#4fc3f7;">{{profile.stats.kdRatio}}</span>
+            <span class="player-stat-label">K/D Ratio</span>
+          </div>
+          {{#if profile.stats.mostKilled}}
+            <div class="player-stat">
+              <span class="player-stat-value">{{profile.stats.mostKilled}}</span>
+              <span class="player-stat-label">Most Killed ({{profile.stats.mostKilledCount}}x)</span>
+            </div>
+          {{/if}}
+          {{#if profile.stats.mostKilledBy}}
+            <div class="player-stat">
+              <span class="player-stat-value">{{profile.stats.mostKilledBy}}</span>
+              <span class="player-stat-label">Nemesis ({{profile.stats.mostKilledByCount}}x)</span>
+            </div>
+          {{/if}}
+        </div>
+      {{else}}
+        <div class="empty-state">No combat stats available.</div>
+      {{/if}}
+    </div>
+
+    <!-- Economy -->
+    <div class="admin-form-card">
+      <h3>Economy</h3>
+      <div class="player-stats-grid">
+        {{#if profile.cashBalance}}
+          <div class="player-stat">
+            <span class="player-stat-value" style="color:#22c55e;">${{formatNumber profile.cashBalance}}</span>
+            <span class="player-stat-label">Cash Balance</span>
+          </div>
+        {{/if}}
+        <div class="player-stat">
+          <span class="player-stat-value">{{#if profile.atmLimit}}{{formatNumber profile.atmLimit}}{{else}}Default{{/if}}</span>
+          <span class="player-stat-label">ATM Limit</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- VAC Status -->
+    <div class="admin-form-card">
+      <h3>VAC Status</h3>
+      {{#if profile.vacInfo}}
+        <div class="player-stats-grid">
+          <div class="player-stat">
+            <span class="player-stat-value" style="color:{{#if profile.vacInfo.vac_banned}}#ef4444{{else}}#4ade80{{/if}};">{{#if profile.vacInfo.vac_banned}}BANNED{{else}}Clean{{/if}}</span>
+            <span class="player-stat-label">VAC Status</span>
+          </div>
+          <div class="player-stat">
+            <span class="player-stat-value">{{profile.vacInfo.number_of_vac_bans}}</span>
+            <span class="player-stat-label">VAC Bans</span>
+          </div>
+          <div class="player-stat">
+            <span class="player-stat-value">{{profile.vacInfo.number_of_game_bans}}</span>
+            <span class="player-stat-label">Game Bans</span>
+          </div>
+          <div class="player-stat">
+            <span class="player-stat-value">{{profile.vacInfo.days_since_last_ban}}d</span>
+            <span class="player-stat-label">Days Since Ban</span>
+          </div>
+        </div>
+      {{else if profile.steamId}}
+        <div class="empty-state">Not scanned yet. <a href="https://steamcommunity.com/profiles/{{profile.steamId}}" target="_blank" rel="noopener" style="color:var(--accent);">View Steam Profile</a></div>
+      {{else}}
+        <div class="empty-state">No Steam ID linked.</div>
+      {{/if}}
+    </div>
+
+    <!-- Notes -->
+    <div class="admin-form-card">
+      <h3>Admin Notes</h3>
+      <form method="POST" action="/admin/bans/notes" id="player-notes-form">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <input type="hidden" name="arma_id" value="{{profile.arma_id}}">
+        <textarea name="web_notes" class="filter-input" rows="4" placeholder="Add notes about this player..." style="width:100%;resize:vertical;">{{profile.webNotes}}</textarea>
+        <button type="submit" class="btn btn-admin btn-small" style="margin-top:0.5rem;">Save Notes</button>
+      </form>
+    </div>
+
+    <!-- Misc Stats -->
+    {{#if profile.miscStats.length}}
+    <div class="admin-form-card">
+      <h3>Detailed Stats</h3>
+      <div class="player-misc-grid">
+        {{#each profile.miscStats}}
+          <div class="player-misc-item">
+            <span class="player-misc-value">{{formatNumber this.value}}</span>
+            <span class="player-misc-label">{{this.label}}</span>
+          </div>
+        {{/each}}
+      </div>
+    </div>
+    {{/if}}
+
+    <!-- Ban History -->
+    <div class="admin-form-card">
+      <h3>Ban History</h3>
+      {{#if profile.bans.length}}
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Admin</th>
+                <th>Reason</th>
+                <th>Duration</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each profile.bans}}
+                <tr>
+                  <td class="player-name">{{this.admin_name}}</td>
+                  <td>{{this.reason}}</td>
+                  <td>{{#if (eq this.duration_hours -1)}}Permanent{{else}}{{this.duration_hours}}h{{/if}}</td>
+                  <td>{{formatDate this.time_stamp}}</td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        </div>
+      {{else}}
+        <div class="empty-state">No bans on record.</div>
+      {{/if}}
+    </div>
+  </div>
+</section>
+
+{{> ban-modal}}
+
+<style>
+.player-profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.player-profile-name {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.4rem;
+  color: var(--text-primary);
+  margin: 0;
+}
+.player-profile-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+}
+.player-profile-meta code {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+}
+.player-steam-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.8rem;
+}
+.player-steam-link:hover { text-decoration: underline; }
+.player-profile-badges {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.player-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1rem;
+}
+
+.player-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+.player-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0.5rem;
+  background: var(--bg-primary);
+  border-radius: 6px;
+}
+.player-stat-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.player-stat-label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 0.2rem;
+}
+
+.player-misc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+.player-misc-item {
+  display: flex;
+  flex-direction: column;
+  padding: 0.4rem 0.6rem;
+  border-left: 2px solid var(--border);
+}
+.player-misc-value {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+.player-misc-label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+</style>
+
+<script>
+// AJAX notes save
+document.getElementById('player-notes-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var form = this;
+  var btn = form.querySelector('button');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  fetch('/admin/bans/notes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '{{csrfToken}}' },
+    body: JSON.stringify({ arma_id: '{{profile.arma_id}}', web_notes: form.querySelector('textarea').value })
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    btn.disabled = false;
+    btn.textContent = data.success ? 'Saved!' : 'Failed';
+    setTimeout(function() { btn.textContent = 'Save Notes'; }, 2000);
+  }).catch(function() {
+    btn.disabled = false;
+    btn.textContent = 'Failed';
+    setTimeout(function() { btn.textContent = 'Save Notes'; }, 2000);
+  });
+});
+</script>

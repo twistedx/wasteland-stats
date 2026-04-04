@@ -60,7 +60,7 @@ const adminApiClient = axios.create({
 // Admin auth middleware — verify session has valid user with admin role
 router.use((req, res, next) => {
   if (!req.session.user || (!req.session.user.discord_id && req.session.user.authMethod !== "email")) {
-    return res.redirect("/auth/login");
+    return res.redirect("/auth/discord");
   }
   if (!req.session.user.isAdmin) {
     console.warn(`Unauthorized admin access attempt by ${req.session.user.username} (${req.session.user.discord_id})`);
@@ -839,6 +839,88 @@ router.post("/watchlist/notes", async (req, res) => {
     sendWebhookError("Web Notes Update", `${arma_id}: [${status}] ${apiMsg}`);
     res.redirect("/admin/watchlist?error=" + encodeURIComponent("Failed to update notes. Please try again.") + searchParam);
   }
+});
+
+// GET /admin/player/:arma_id — player profile page
+router.get("/player/:arma_id", async (req, res) => {
+  const user = req.session.user;
+  buildAvatarUrl(user);
+  const armaId = req.params.arma_id;
+
+  const profile = { arma_id: armaId, arma_username: null, stats: null, miscStats: [], watchlist: false, webNotes: "", steamId: null, atmLimit: null, vacInfo: null, bans: [], cashBalance: null };
+
+  // Fetch all data in parallel
+  const [statsRes, miscRes, wlRes, notesRes, steamRes, atmRes, cashRes] = await Promise.allSettled([
+    apiClient({ method: "GET", url: "/user/getPlayerStatsByIDCurrentSeason/", data: { arma_id: armaId, token: config.apiToken } }),
+    apiClient({ method: "GET", url: "/user/getUserMiscStats/", data: { arma_id: armaId, token: config.apiToken } }),
+    adminApiClient.get("/admin/watchlist", { params: { token: config.adminApiToken, arma_id: armaId } }),
+    adminApiClient.get("/admin/bans/webNotes", { params: { token: config.adminApiToken, arma_id: armaId } }),
+    adminApiClient.get("/admin/steam-id", { params: { token: config.adminApiToken, arma_id: armaId } }),
+    adminApiClient.get("/admin/atm-limit", { params: { token: config.adminApiToken, arma_id: armaId } }),
+    apiClient({ method: "GET", url: "/user/getUserCash/", data: { arma_id: armaId, token: config.apiToken } }),
+  ]);
+
+  if (statsRes.status === "fulfilled" && statsRes.value.data) {
+    profile.stats = statsRes.value.data;
+    profile.arma_username = statsRes.value.data.arma_username || null;
+  }
+
+  if (miscRes.status === "fulfilled" && miscRes.value.data) {
+    const MISC_FIELDS = [
+      { key: "ai_kills", label: "AI Kills" }, { key: "distance_walked", label: "Distance Walked (m)" },
+      { key: "distance_driven", label: "Distance Driven (m)" }, { key: "distance_as_occupant", label: "Distance as Passenger (m)" },
+      { key: "shots_fired", label: "Shots Fired" }, { key: "grenades_thrown", label: "Grenades Thrown" },
+      { key: "roadkills", label: "Roadkills" }, { key: "ai_roadkills", label: "AI Roadkills" },
+      { key: "players_died_in_vehicle", label: "Vehicle Deaths Caused" }, { key: "bandage_self", label: "Bandaged Self" },
+      { key: "bandage_friendlies", label: "Bandaged Friendlies" }, { key: "tourniquet_self", label: "Tourniquet Self" },
+      { key: "tourniquet_friendlies", label: "Tourniquet Friendlies" }, { key: "saline_self", label: "Saline Self" },
+      { key: "saline_friendlies", label: "Saline Friendlies" }, { key: "morphine_self", label: "Morphine Self" },
+      { key: "morphine_friendlies", label: "Morphine Friendlies" },
+    ];
+    const d = miscRes.value.data;
+    profile.miscStats = MISC_FIELDS.filter(f => d[f.key] !== undefined && d[f.key] !== null).map(f => ({ label: f.label, value: d[f.key] }));
+  }
+
+  if (wlRes.status === "fulfilled") profile.watchlist = !!wlRes.value.data?.is_watchlisted;
+  if (notesRes.status === "fulfilled") profile.webNotes = notesRes.value.data?.web_notes || "";
+  if (steamRes.status === "fulfilled" && steamRes.value.data?.steam_ids?.length > 0) {
+    profile.steamId = steamRes.value.data.steam_ids[0].steam64_id;
+    profile.arma_username = profile.arma_username || steamRes.value.data.arma_username || null;
+  }
+  if (atmRes.status === "fulfilled" && atmRes.value.data) {
+    profile.atmLimit = atmRes.value.data.atm_limit;
+    profile.arma_username = profile.arma_username || atmRes.value.data.arma_username || null;
+  }
+  if (cashRes.status === "fulfilled" && cashRes.value.data) {
+    profile.cashBalance = cashRes.value.data.cash || cashRes.value.data.amount || null;
+  }
+
+  // Check VAC status from local DB
+  const vacScanner = require("../vac-scanner");
+  if (profile.steamId) {
+    const vacRow = vacScanner.getAll().find(r => r.steam_id === profile.steamId);
+    if (vacRow) profile.vacInfo = vacRow;
+  }
+
+  // Get ban history from bans list
+  try {
+    const bansRes = await apiClient({ method: "GET", url: "/user/getAllUserBans/", data: { token: config.apiToken } });
+    const allBans = bansRes.data?.bans || bansRes.data?.data || bansRes.data || [];
+    if (Array.isArray(allBans)) {
+      profile.bans = allBans.filter(b => b.user_id_banned === armaId);
+    }
+  } catch {}
+
+  res.render("admin-player", {
+    page: "admin",
+    pageTitle: profile.arma_username || armaId,
+    pageDescription: "Player profile",
+    activeTab: "player",
+    user,
+    profile,
+    successMessage: req.query.success || null,
+    errorMessage: req.query.error || null,
+  });
 });
 
 // GET /admin/kd-report — renders page immediately with spinner, data loaded via AJAX
