@@ -398,15 +398,16 @@ cron.schedule("0 4,16 * * *", async () => {
   console.log("VAC cron: starting scheduled scan...");
   try {
     const result = await vacScanner.scan();
-    if (result.flagged > 0) {
+    const watchlisted = await vacScanner.autoWatchlist();
+    if (result.flagged > 0 || watchlisted > 0) {
       const { sendWebhook } = require("./webhook");
       sendWebhook({
         title: "Scheduled VAC Scan",
-        description: `Scanned ${result.scanned} players, **${result.flagged} flagged** with bans.`,
+        description: `Scanned ${result.scanned} players, **${result.flagged} flagged**, ${watchlisted} auto-watchlisted.`,
         color: 0xef4444,
       });
     }
-    console.log(`VAC cron: done — ${result.scanned} scanned, ${result.flagged} flagged`);
+    console.log(`VAC cron: done — ${result.scanned} scanned, ${result.flagged} flagged, ${watchlisted} watchlisted`);
   } catch (err) {
     console.error("VAC cron error:", err.message);
   }

@@ -506,6 +506,10 @@
           <input type="hidden" name="full" value="1">
           <button type="submit" class="btn btn-admin" style="background:var(--bg-card);border:1px solid var(--border);">Re-scan All</button>
         </form>
+        <form method="POST" action="/admin/vac/watchlist-all" style="margin:0;" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Adding...';">
+          <input type="hidden" name="_csrf" value="{{csrfToken}}">
+          <button type="submit" class="btn btn-admin" style="background:#f59e0b;color:#000;">Watchlist All VAC Bans</button>
+        </form>
         <div id="vac-spinner" style="display:none;">
           <div class="vac-spinner"></div>
           <span style="color:var(--text-secondary);font-size:0.85rem;margin-left:0.5rem;">Scanning Steam accounts...</span>

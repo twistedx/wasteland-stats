@@ -220,6 +220,30 @@ async function scan({ full = false } = {}) {
   return { scanned: results.length, flagged, skipped };
 }
 
+// Auto-watchlist all VAC-banned players
+async function autoWatchlist() {
+  const flagged = getFlagged().filter(p => p.vac_banned && p.arma_id);
+  if (flagged.length === 0) return 0;
+
+  const adminApi = axios.create({ baseURL: config.apiBaseUrl, timeout: 15000, headers: { "Content-Type": "application/json" } });
+  let watchlisted = 0;
+
+  for (const player of flagged) {
+    try {
+      await adminApi.post("/admin/watchlist", {
+        token: config.adminApiToken,
+        arma_id: player.arma_id,
+        is_watchlisted: true,
+      });
+      watchlisted++;
+      console.log(`[VAC Scan] Auto-watchlisted ${player.arma_id} (${player.discord_username || "unknown"}) — ${player.number_of_vac_bans} VAC ban(s)`);
+    } catch {}
+  }
+
+  console.log(`[VAC Scan] Auto-watchlisted ${watchlisted}/${flagged.length} VAC-banned players`);
+  return watchlisted;
+}
+
 function getFlagged() {
   if (!db) return [];
   return db.prepare("SELECT * FROM vac_results WHERE vac_banned = 1 OR number_of_game_bans > 0 ORDER BY days_since_last_ban ASC").all();
@@ -245,4 +269,4 @@ function getLastScan() {
   return row?.last || null;
 }
 
-module.exports = { init, scan, getFlagged, getAll, getStats, getLastScan };
+module.exports = { init, scan, autoWatchlist, getFlagged, getAll, getStats, getLastScan };

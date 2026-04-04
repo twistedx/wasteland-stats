@@ -140,12 +140,15 @@ router.get("/bans/notes", async (req, res) => {
   const armaId = (req.query.arma_id || "").trim();
   if (!armaId) return res.json({ web_notes: "" });
 
+  console.log(`[Notes] GET notes for arma_id=${armaId}`);
   try {
     const notesRes = await adminApiClient.get("/admin/bans/webNotes", {
       params: { token: config.adminApiToken, arma_id: armaId },
     });
+    console.log(`[Notes] GET response for ${armaId}: "${(notesRes.data?.web_notes || "").slice(0, 100)}"`);
     res.json({ web_notes: notesRes.data?.web_notes || "" });
-  } catch {
+  } catch (error) {
+    console.error(`[Notes] GET failed for ${armaId}: [${error.response?.status}] ${error.response?.data?.message || error.message}`);
     res.json({ web_notes: "" });
   }
 });
@@ -155,18 +158,22 @@ router.post("/bans/notes", async (req, res) => {
   const { arma_id, web_notes } = req.body;
   if (!arma_id) return res.status(400).json({ error: "Arma ID is required." });
 
+  console.log(`[Notes] Bans POST notes for arma_id=${arma_id}, notes="${(web_notes || "").slice(0, 100)}"`);
+  console.log(`[Notes] Using token: ${config.adminApiToken?.slice(0, 4)}... → POST ${config.apiBaseUrl}/admin/bans/webNotes`);
+
   try {
     const response = await adminApiClient.post("/admin/bans/webNotes", {
       token: config.adminApiToken,
       arma_id,
       web_notes: web_notes || "",
     });
-    console.log(`Ban notes saved for ${arma_id}: ${response.data?.message || response.status}`);
+    console.log(`[Notes] Bans POST success for ${arma_id}: ${response.data?.message || response.status}`);
     res.json({ success: true });
   } catch (error) {
     const status = error.response?.status;
     const apiMsg = error.response?.data?.message || error.message;
-    console.error(`Ban notes update error for ${arma_id}: [${status}] ${apiMsg}`);
+    console.error(`[Notes] Bans POST failed for ${arma_id}: [${status}] ${apiMsg}`);
+    console.error(`[Notes] Full error:`, error.response?.data || error.message);
     res.status(500).json({ error: `Failed to save notes: ${apiMsg}` });
   }
 });
@@ -812,18 +819,24 @@ router.post("/watchlist/notes", async (req, res) => {
     return res.redirect("/admin/watchlist?error=Arma ID is required." + searchParam);
   }
 
+  console.log(`[Notes] Watchlist POST notes for arma_id=${arma_id}, notes="${(web_notes || "").slice(0, 100)}"`);
+  console.log(`[Notes] Using token: ${config.adminApiToken?.slice(0, 4)}... → POST ${config.apiBaseUrl}/admin/bans/webNotes`);
+
   try {
-    await adminApiClient.post("/admin/bans/webNotes", {
+    const response = await adminApiClient.post("/admin/bans/webNotes", {
       token: config.adminApiToken,
       arma_id,
       web_notes: web_notes || "",
     });
 
+    console.log(`[Notes] Watchlist POST success for ${arma_id}: ${response.data?.message || response.status}`);
     res.redirect("/admin/watchlist?success=" + encodeURIComponent("Notes updated for " + arma_id + ".") + searchParam);
   } catch (error) {
-    console.error("Web notes update error:", error.message);
+    const status = error.response?.status;
     const apiMsg = error.response?.data?.message || error.message;
-    sendWebhookError("Web Notes Update", apiMsg);
+    console.error(`[Notes] Watchlist POST failed for ${arma_id}: [${status}] ${apiMsg}`);
+    console.error(`[Notes] Full error:`, error.response?.data || error.message);
+    sendWebhookError("Web Notes Update", `${arma_id}: [${status}] ${apiMsg}`);
     res.redirect("/admin/watchlist?error=" + encodeURIComponent("Failed to update notes. Please try again.") + searchParam);
   }
 });
@@ -1705,49 +1718,8 @@ router.post("/vac/scan", requireWriteAdmin, async (req, res) => {
   try {
     const full = req.body.full === "1";
     const result = await vacScanner.scan({ full });
-    auditLog.log("security", "VAC Scan", `Scanned ${result.scanned} players, ${result.flagged} flagged`, req.session.user);
-
-    // Auto-watchlist flagged players with VAC bans
-    const flagged = vacScanner.getFlagged();
-    let watchlisted = 0;
-    for (const player of flagged) {
-      if (!player.vac_banned) continue; // only auto-watchlist VAC bans
-
-      let armaId = player.arma_id;
-
-      // If no arma_id stored, try looking up via discord_id
-      if (!armaId && player.discord_id) {
-        try {
-          const playerRes = await apiClient({
-            method: "GET",
-            url: "/user/getPlayerStatsByDiscordID/",
-            data: { discord_id: player.discord_id, token: config.apiToken },
-          });
-          armaId = playerRes.data?.arma_id;
-        } catch {}
-      }
-
-      if (!armaId) continue;
-
-      try {
-        await adminApiClient.post("/admin/watchlist", {
-          token: config.adminApiToken,
-          arma_id: armaId,
-          is_watchlisted: true,
-        });
-
-        const banType = `${player.number_of_vac_bans} VAC ban(s)`;
-        await adminApiClient.post("/admin/bans/webNotes", {
-          token: config.adminApiToken,
-          arma_id: armaId,
-          web_notes: `[Auto] ${banType}, ${player.days_since_last_ban} days ago — Steam: ${player.steam_id}`,
-        });
-
-        watchlisted++;
-      } catch (err) {
-        // Player might not have arma account — skip
-      }
-    }
+    const watchlisted = await vacScanner.autoWatchlist();
+    auditLog.log("security", "VAC Scan", `Scanned ${result.scanned} players, ${result.flagged} flagged, ${watchlisted} watchlisted`, req.session.user);
 
     const msg = `VAC scan complete: ${result.scanned} new, ${result.skipped} skipped, ${result.flagged} flagged, ${watchlisted} auto-watchlisted.`;
     sendWebhook({ title: "VAC Scan Complete", description: msg, color: result.flagged > 0 ? 0xef4444 : 0x22c55e });
@@ -1755,6 +1727,17 @@ router.post("/vac/scan", requireWriteAdmin, async (req, res) => {
   } catch (err) {
     console.error("VAC scan error:", err.message);
     res.redirect("/admin/analytics?error=" + encodeURIComponent("VAC scan failed: " + err.message) + "&tab=vac");
+  }
+});
+
+router.post("/vac/watchlist-all", requireWriteAdmin, async (req, res) => {
+  try {
+    const watchlisted = await vacScanner.autoWatchlist();
+    auditLog.log("security", "VAC Watchlist All", `${watchlisted} players auto-watchlisted`, req.session.user);
+    res.redirect("/admin/analytics?success=" + encodeURIComponent(`${watchlisted} VAC-banned players added to watchlist.`) + "&tab=vac");
+  } catch (err) {
+    console.error("VAC watchlist-all error:", err.message);
+    res.redirect("/admin/analytics?error=" + encodeURIComponent("Failed: " + err.message) + "&tab=vac");
   }
 });
 
