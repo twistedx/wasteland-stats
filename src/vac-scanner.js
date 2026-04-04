@@ -322,4 +322,9 @@ async function refreshUsernames() {
   return updated;
 }
 
-module.exports = { init, scan, autoWatchlist, refreshUsernames, getFlagged, getAll, getStats, getLastScan };
+function touchPlayer(armaId) {
+  if (!db) return;
+  db.prepare("UPDATE vac_results SET scanned_at = datetime('now') WHERE arma_id = ?").run(armaId);
+}
+
+module.exports = { init, scan, autoWatchlist, refreshUsernames, getFlagged, getAll, getStats, getLastScan, touchPlayer };

@@ -789,6 +789,7 @@ router.post("/watchlist", async (req, res) => {
     });
 
     auditLog.log("moderation", isWatchlisted ? "Added to Watchlist" : "Removed from Watchlist", `Arma ID: ${arma_id}`, user);
+    vacScanner.touchPlayer(arma_id);
 
     // Look up Steam profile for webhook
     let steamLink = "";
@@ -953,6 +954,7 @@ router.post("/player/:arma_id/note", (req, res) => {
     return res.redirect(`/admin/player/${armaId}?error=Note cannot be empty.`);
   }
   auditLog.addPlayerNote(armaId, note.trim(), req.session.user);
+  vacScanner.touchPlayer(armaId);
   res.redirect(`/admin/player/${armaId}`);
 });
 
