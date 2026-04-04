@@ -225,6 +225,16 @@ app.engine(
           hour: "2-digit", minute: "2-digit",
         });
       },
+      formatDateEST: (val) => {
+        if (!val) return "-";
+        const d = new Date(val);
+        if (isNaN(d)) return val;
+        return d.toLocaleDateString("en-US", {
+          year: "numeric", month: "short", day: "numeric",
+          hour: "2-digit", minute: "2-digit",
+          timeZone: "America/New_York",
+        }) + " EST";
+      },
       markdown: (val) => {
         if (!val) return "";
         return DOMPurify.sanitize(marked(val));
