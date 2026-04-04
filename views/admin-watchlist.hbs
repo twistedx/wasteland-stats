@@ -2,140 +2,276 @@
   {{> admin-nav}}
 
   {{#if successMessage}}
-    <div class="notice success-notice">
-      <strong>Success</strong>
-      <p>{{successMessage}}</p>
-    </div>
+    <div class="notice success-notice"><strong>Success</strong><p>{{successMessage}}</p></div>
   {{/if}}
-
   {{#if errorMessage}}
     <div class="error">{{errorMessage}}</div>
   {{/if}}
 
-  <h1 style="font-family:'Orbitron',sans-serif;font-size:1.1rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent);margin-bottom:1rem;">Add Someone to the Watchlist</h1>
+  <!-- ═══════════════ VAC BANS ═══════════════ -->
+  <div id="tab-vac">
 
-  <form class="filter-bar" method="GET" action="/admin/watchlist">
-    <input
-      type="text"
-      name="search"
-      class="filter-input"
-      placeholder="Search players by username..."
-      value="{{search}}"
-    >
-    <div class="filter-actions">
-      <button type="submit" class="btn btn-admin">Search</button>
-    </div>
-  </form>
-
-  {{#if watchlistError}}
-    <div class="error">Failed to search players. Please try again.</div>
-  {{else if search}}
-    <p class="result-count">{{playerCount}} player{{#unless (eq playerCount 1)}}s{{/unless}} found</p>
-
-    {{#if players.length}}
-      <!-- Desktop table -->
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Username</th>
-              <th>Arma ID</th>
-              <th>VAC</th>
-              <th>Status</th>
-              <th>Web Notes</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {{#each players}}
-              <tr>
-                <td class="player-name"><a href="/admin/player/{{this.arma_id}}" style="color:var(--text-primary);text-decoration:none;">{{this.arma_username}}</a></td>
-                <td><code>{{this.arma_id}}</code></td>
-                <td>
-                  {{#if this.vac}}
-                    {{#if this.vac.vacBanned}}
-                      <span class="badge badge-danger" title="{{this.vac.numberOfVACBans}} VAC ban(s), {{this.vac.daysSinceLastBan}} days ago">VAC BANNED</span>
-                    {{else if this.vac.numberOfGameBans}}
-                      <span class="badge badge-warning" title="{{this.vac.numberOfGameBans}} game ban(s)">GAME BAN</span>
-                    {{else}}
-                      <span class="badge badge-clean">Clean</span>
-                    {{/if}}
-                  {{else if this.steam_id}}
-                    <span class="badge badge-neutral" title="Steam: {{this.steam_id}}">—</span>
-                  {{else}}
-                    <span style="color:var(--text-secondary);font-size:0.8rem;">No Steam</span>
-                  {{/if}}
-                </td>
-                <td>
-                  {{#if this.isWatchlisted}}
-                    <span class="badge badge-danger">Watchlisted</span>
-                  {{else}}
-                    <span class="badge badge-neutral">Not Watched</span>
-                  {{/if}}
-                </td>
-                <td class="web-notes-cell">
-                  <form method="POST" action="/admin/watchlist/notes" class="notes-inline-form">
-                    <input type="hidden" name="_csrf" value="{{../csrfToken}}">
-                    <input type="hidden" name="search" value="{{../search}}">
-                    <input type="hidden" name="arma_id" value="{{this.arma_id}}">
-                    <input type="text" name="web_notes" class="filter-input notes-input" value="{{this.webNotes}}" placeholder="Add notes...">
-                    <button type="submit" class="btn btn-admin btn-small">Save</button>
-                  </form>
-                </td>
-                <td>
-                  {{#if this.isWatchlisted}}
-                    <form method="POST" action="/admin/watchlist" style="display:inline;">
-                      <input type="hidden" name="_csrf" value="{{../csrfToken}}">
-                      <input type="hidden" name="search" value="{{../search}}">
-                      <input type="hidden" name="arma_id" value="{{this.arma_id}}">
-                      <input type="hidden" name="action" value="remove">
-                      <button type="submit" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Remove</button>
-                    </form>
-                  {{else}}
-                    <form method="POST" action="/admin/watchlist" style="display:inline;">
-                      <input type="hidden" name="_csrf" value="{{../csrfToken}}">
-                      <input type="hidden" name="search" value="{{../search}}">
-                      <input type="hidden" name="arma_id" value="{{this.arma_id}}">
-                      <input type="hidden" name="action" value="add">
-                      <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Add to Watchlist</button>
-                    </form>
-                  {{/if}}
-                </td>
-              </tr>
-            {{/each}}
-          </tbody>
-        </table>
+    <div class="analytics-cards">
+      <div class="stat-card primary">
+        <div class="stat-value">{{formatNumber vacStats.total}}</div>
+        <div class="stat-label">Players Scanned</div>
       </div>
+      <div class="stat-card" style="border-top:3px solid #ef4444;">
+        <div class="stat-value" style="color:#f87171;">{{formatNumber vacStats.vacBanned}}</div>
+        <div class="stat-label">VAC Banned</div>
+      </div>
+      <div class="stat-card" style="border-top:3px solid #f59e0b;">
+        <div class="stat-value" style="color:#fbbf24;">{{formatNumber vacStats.gameBanned}}</div>
+        <div class="stat-label">Game Banned</div>
+      </div>
+      <div class="stat-card" style="border-top:3px solid #22c55e;">
+        <div class="stat-value" style="color:#4ade80;">{{formatNumber vacStats.clean}}</div>
+        <div class="stat-label">Clean</div>
+      </div>
+    </div>
 
+    <div class="admin-form-card" style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+      <div>
+        <span style="color:var(--text-secondary);font-size:0.85rem;">
+          {{#if vacLastScan}}Last scan: {{formatDate vacLastScan}}{{else}}Never scanned{{/if}}
+          — Runs automatically at 4 AM and 4 PM EST.
+        </span>
+      </div>
+      <div style="display:flex;gap:0.5rem;align-items:center;">
+        <form method="POST" action="/admin/vac/scan" style="margin:0;" onsubmit="showSpinner('Scanning new players...');return true;">
+          <input type="hidden" name="_csrf" value="{{csrfToken}}">
+          <button type="submit" class="btn btn-admin" style="background:#ef4444;">Scan New Players</button>
+        </form>
+        <form method="POST" action="/admin/vac/scan" style="margin:0;" onsubmit="if(!confirm('Re-scan ALL players? This may take a while.'))return false;showSpinner('Re-scanning all players...');return true;">
+          <input type="hidden" name="_csrf" value="{{csrfToken}}">
+          <input type="hidden" name="full" value="1">
+          <button type="submit" class="btn btn-admin" style="background:var(--bg-card);border:1px solid var(--border);">Re-scan All</button>
+        </form>
+        <form method="POST" action="/admin/vac/watchlist-all" style="margin:0;" onsubmit="showSpinner('Adding to watchlist...');return true;">
+          <input type="hidden" name="_csrf" value="{{csrfToken}}">
+          <button type="submit" class="btn btn-admin" style="background:#f59e0b;color:#000;">Watchlist All VAC Bans</button>
+        </form>
+      </div>
+    </div>
+
+    {{#if vacFlagged.length}}
+    <div class="admin-form-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+        <h3 style="margin:0;">Flagged Players (<span id="vac-visible-count">{{vacFlagged.length}}</span>)</h3>
+        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="vac-search" class="filter-input" placeholder="Search by name, Steam ID, Arma ID..." style="min-width:250px;">
+          <select id="vac-filter-type" class="filter-select" style="min-width:120px;">
+            <option value="all">All Bans</option>
+            <option value="vac">VAC Only</option>
+            <option value="game">Game Only</option>
+          </select>
+          <select id="vac-filter-status" class="filter-select" style="min-width:120px;">
+            <option value="all">All Status</option>
+            <option value="watched">Watched</option>
+            <option value="notwatched">Not Watched</option>
+            <option value="banned">Server Banned</option>
+            <option value="active">Active</option>
+          </select>
+          <select id="vac-sort" class="filter-select" style="min-width:140px;">
+            <option value="updated">Recently Updated</option>
+            <option value="recent-ban">Recent Ban</option>
+            <option value="oldest-ban">Oldest Ban</option>
+            <option value="name">Name A-Z</option>
+          </select>
+        </div>
+      </div>
+      <div class="vac-accordion">
+        {{#each vacFlagged}}
+        <div class="vac-item {{#if this.vac_banned}}vac-border-red{{else}}vac-border-yellow{{/if}}" data-name="{{#if this.arma_username}}{{this.arma_username}}{{else}}{{this.displayName}}{{/if}}" data-steam="{{this.steam_id}}" data-arma="{{this.arma_id}}" data-bantype="{{#if this.vac_banned}}vac{{else}}game{{/if}}" data-watched="{{#if this.isWatchlisted}}yes{{else}}no{{/if}}" data-serverbanned="{{#if this.isServerBanned}}yes{{else}}no{{/if}}" data-scanned="{{this.scanned_at}}" data-days="{{this.days_since_last_ban}}">
+          <div class="vac-item-header">
+            <div class="vac-item-summary">
+              {{#if this.arma_id}}<a href="/admin/player/{{this.arma_id}}" class="vac-item-name vac-player-link" onclick="event.stopPropagation();">{{#if this.arma_username}}{{this.arma_username}}{{else}}{{this.displayName}}{{/if}}</a>{{else}}<span class="vac-item-name">{{#if this.arma_username}}{{this.arma_username}}{{else}}{{this.displayName}}{{/if}}</span>{{/if}}
+              {{#if this.vac_banned}}
+                <span class="badge badge-danger">VAC BANNED</span>
+              {{else}}
+                <span class="badge badge-warning">GAME BAN</span>
+              {{/if}}
+              {{#if this.isServerBanned}}
+                <span class="badge badge-danger">BANNED</span>
+              {{else}}
+                <span class="badge badge-clean">Active</span>
+              {{/if}}
+              {{#if this.isWatchlisted}}
+                <span class="badge badge-warning">Watched</span>
+              {{/if}}
+            </div>
+            <div class="vac-item-right">
+              <span style="color:var(--text-secondary);font-size:0.75rem;">Ban: {{this.days_since_last_ban}}d ago</span>
+              <span style="color:var(--text-secondary);font-size:0.7rem;opacity:0.7;">Updated: {{formatDate this.scanned_at}}</span>
+              <span class="vac-arrow">&#9662;</span>
+            </div>
+          </div>
+          <div class="vac-item-body">
+            <div class="vac-detail-grid">
+              <div class="vac-detail">
+                <span class="vac-detail-label">Arma ID</span>
+                <code style="font-size:0.8rem;">{{#if this.arma_id}}{{this.arma_id}}{{else}}—{{/if}}</code>
+              </div>
+              <div class="vac-detail">
+                <span class="vac-detail-label">Steam ID</span>
+                <a href="https://steamcommunity.com/profiles/{{this.steam_id}}" target="_blank" rel="noopener" style="color:var(--accent);font-family:monospace;font-size:0.8rem;">{{this.steam_id}}</a>
+              </div>
+              <div class="vac-detail">
+                <span class="vac-detail-label">VAC Bans</span>
+                <span style="font-weight:600;">{{this.number_of_vac_bans}}</span>
+              </div>
+              <div class="vac-detail">
+                <span class="vac-detail-label">Game Bans</span>
+                <span style="font-weight:600;">{{this.number_of_game_bans}}</span>
+              </div>
+              <div class="vac-detail">
+                <span class="vac-detail-label">Community Banned</span>
+                <span>{{#if this.community_banned}}Yes{{else}}No{{/if}}</span>
+              </div>
+              <div class="vac-detail">
+                <span class="vac-detail-label">Days Since Last Ban</span>
+                <span>{{this.days_since_last_ban}}</span>
+              </div>
+              <div class="vac-detail">
+                <span class="vac-detail-label">Server Status</span>
+                {{#if this.isServerBanned}}<span class="badge badge-danger">BANNED</span>{{else}}<span class="badge badge-clean">Active</span>{{/if}}
+              </div>
+              <div class="vac-detail">
+                <span class="vac-detail-label">Watchlist</span>
+                {{#if this.isWatchlisted}}<span class="badge badge-warning">Watched</span>{{else}}<span style="color:var(--text-secondary);">No</span>{{/if}}
+              </div>
+              <div class="vac-detail">
+                <span class="vac-detail-label">Scanned</span>
+                <span>{{formatDate this.scanned_at}}</span>
+              </div>
+            </div>
+            {{#unless this.isWatchlisted}}
+              {{#if this.arma_id}}
+              <form method="POST" action="/admin/watchlist" style="margin-top:0.75rem;">
+                <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                <input type="hidden" name="arma_id" value="{{this.arma_id}}">
+                <input type="hidden" name="action" value="add">
+                <input type="hidden" name="from" value="vac">
+                <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Add to Watchlist</button>
+              </form>
+              {{/if}}
+            {{/unless}}
+          </div>
+        </div>
+        {{/each}}
+      </div>
+    </div>
     {{else}}
-      <p class="result-count" style="text-align:center;padding:2rem 0;color:var(--text-secondary);">No players found for "{{search}}"</p>
+      <div class="admin-form-card">
+        <div class="empty-state">No flagged players. {{#unless vacLastScan}}Run a scan to check.{{/unless}}</div>
+      </div>
     {{/if}}
-  {{else}}
-    <p class="result-count" style="text-align:center;padding:2rem 0;color:var(--text-secondary);">Search for a player by username to view or update their watchlist status.</p>
-  {{/if}}
+  </div>
 </section>
 
 {{> ban-modal}}
 
 <style>
 .badge-warning {
-  background: rgba(245,158,11,0.2);
-  color: #fbbf24;
-  padding: 0.15rem 0.5rem;
-  border-radius: 3px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  background: rgba(245,158,11,0.2); color: #fbbf24;
+  padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
 }
 .badge-clean {
-  background: rgba(34,197,94,0.15);
-  color: #4ade80;
-  padding: 0.15rem 0.5rem;
-  border-radius: 3px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  background: rgba(34,197,94,0.15); color: #4ade80;
+  padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
 }
+.vac-accordion { display: flex; flex-direction: column; gap: 0.5rem; }
+.vac-item { border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); overflow: hidden; }
+.vac-border-red { border-left: 3px solid #ef4444; }
+.vac-border-yellow { border-left: 3px solid #f59e0b; }
+.vac-item-header { display: flex; justify-content: space-between; align-items: center; padding: 0.65rem 0.85rem; cursor: pointer; transition: background 0.12s; }
+.vac-item-header:hover { background: var(--bg-primary); }
+.vac-item-summary { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.vac-item-name { font-weight: 600; font-size: 0.9rem; color: var(--text-primary); }
+.vac-player-link { text-decoration: none; color: var(--accent) !important; }
+.vac-player-link:hover { text-decoration: underline; }
+.vac-item-right { display: flex; align-items: center; gap: 0.75rem; }
+.vac-arrow { font-size: 0.75rem; color: var(--text-secondary); transition: transform 0.2s; }
+.vac-item.open .vac-arrow { transform: rotate(180deg); }
+.vac-item-body { display: none; padding: 0 0.85rem 0.85rem; border-top: 1px solid var(--border); }
+.vac-item.open .vac-item-body { display: block; }
+.vac-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.5rem; margin-top: 0.65rem; }
+.vac-detail { display: flex; flex-direction: column; gap: 0.15rem; }
+.vac-detail-label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
 </style>
+
+<script>
+(function() {
+  // VAC accordion toggle
+  document.querySelectorAll('.vac-item-header').forEach(function(header) {
+    header.addEventListener('click', function() {
+      header.closest('.vac-item').classList.toggle('open');
+    });
+  });
+
+  // VAC search/filter
+  var vacSearch = document.getElementById('vac-search');
+  var vacFilterType = document.getElementById('vac-filter-type');
+  var vacFilterStatus = document.getElementById('vac-filter-status');
+  var vacVisibleCount = document.getElementById('vac-visible-count');
+
+  function filterVac() {
+    if (!vacSearch) return;
+    var query = vacSearch.value.toLowerCase();
+    var typeFilter = vacFilterType.value;
+    var statusFilter = vacFilterStatus.value;
+    var items = document.querySelectorAll('.vac-item');
+    var visible = 0;
+    items.forEach(function(item) {
+      var name = (item.dataset.name || '').toLowerCase();
+      var steam = (item.dataset.steam || '').toLowerCase();
+      var arma = (item.dataset.arma || '').toLowerCase();
+      var bantype = item.dataset.bantype;
+      var watched = item.dataset.watched;
+      var serverBanned = item.dataset.serverbanned;
+      var matchesSearch = !query || name.includes(query) || steam.includes(query) || arma.includes(query);
+      var matchesType = typeFilter === 'all' || bantype === typeFilter;
+      var matchesStatus = statusFilter === 'all'
+        || (statusFilter === 'watched' && watched === 'yes')
+        || (statusFilter === 'notwatched' && watched === 'no')
+        || (statusFilter === 'banned' && serverBanned === 'yes')
+        || (statusFilter === 'active' && serverBanned === 'no');
+      if (matchesSearch && matchesType && matchesStatus) { item.style.display = ''; visible++; }
+      else { item.style.display = 'none'; }
+    });
+    if (vacVisibleCount) vacVisibleCount.textContent = visible;
+  }
+
+  // Sort
+  var vacSort = document.getElementById('vac-sort');
+  function sortVac() {
+    if (!vacSort) return;
+    var container = document.querySelector('.vac-accordion');
+    if (!container) return;
+    var items = Array.from(container.querySelectorAll('.vac-item'));
+    var sortBy = vacSort.value;
+    items.sort(function(a, b) {
+      if (sortBy === 'updated') {
+        return (b.dataset.scanned || '').localeCompare(a.dataset.scanned || '');
+      } else if (sortBy === 'recent-ban') {
+        return parseInt(a.dataset.days || 0) - parseInt(b.dataset.days || 0);
+      } else if (sortBy === 'oldest-ban') {
+        return parseInt(b.dataset.days || 0) - parseInt(a.dataset.days || 0);
+      } else if (sortBy === 'name') {
+        return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+      }
+      return 0;
+    });
+    items.forEach(function(item) { container.appendChild(item); });
+  }
+
+  if (vacSearch) {
+    vacSearch.addEventListener('input', filterVac);
+    vacFilterType.addEventListener('change', filterVac);
+    vacFilterStatus.addEventListener('change', filterVac);
+  }
+  if (vacSort) {
+    vacSort.addEventListener('change', function() { sortVac(); filterVac(); });
+  }
+})();
+</script>

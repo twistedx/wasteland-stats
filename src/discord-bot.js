@@ -251,10 +251,19 @@ async function init() {
           });
         }
 
+        // Look up Steam profile
+        let steamLink = "";
+        try {
+          const steamRes = await adminApi.get("/admin/steam-id", { params: { token: config.adminApiToken, arma_id: armaId } });
+          if (steamRes.data?.steam_ids?.[0]?.steam64_id) {
+            steamLink = `\n[Steam Profile](https://steamcommunity.com/profiles/${steamRes.data.steam_ids[0].steam64_id})`;
+          }
+        } catch {}
+
         auditLog.log("moderation", "Added to Watchlist", `${playerName} (${armaId}) via Discord by ${username}`, { username, discord_id: discordId });
         sendWebhook({
           title: "Player Added to Watchlist",
-          description: `<@${discordId}> added **${playerName}** (\`${armaId}\`) to the watchlist${reason ? `\nReason: ${reason}` : ""}`,
+          description: `<@${discordId}> added **${playerName}** (\`${armaId}\`) to the watchlist${reason ? `\nReason: ${reason}` : ""}${steamLink}\n[View Profile](${config.siteUrl}/admin/player/${armaId})`,
           color: 0xf59e0b,
         });
 

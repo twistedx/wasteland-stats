@@ -759,6 +759,10 @@ router.get("/watchlist", async (req, res) => {
     players,
     playerCount: players.length,
     watchlistError,
+    vacFlagged: user.isAdmin ? await enrichVacFlagged() : [],
+    vacStats: user.isAdmin ? vacScanner.getStats() : { total: 0, vacBanned: 0, gameBanned: 0, clean: 0 },
+    vacLastScan: user.isAdmin ? vacScanner.getLastScan() : null,
+    activeWatchlistTab: req.query.tab || "search",
     successMessage: req.query.success || null,
     errorMessage: req.query.error || null,
   });
@@ -769,7 +773,7 @@ router.post("/watchlist", async (req, res) => {
   const { arma_id, action, search, from } = req.body;
   const user = req.session.user;
   const searchParam = search ? "&search=" + encodeURIComponent(search) : "";
-  const returnUrl = from === "vac" ? "/admin/analytics?tab=vac" : null;
+  const returnUrl = from === "vac" ? "/admin/watchlist?tab=vac" : null;
 
   if (!arma_id) {
     return res.redirect("/admin/watchlist?error=Arma ID is required." + searchParam);
@@ -785,9 +789,19 @@ router.post("/watchlist", async (req, res) => {
     });
 
     auditLog.log("moderation", isWatchlisted ? "Added to Watchlist" : "Removed from Watchlist", `Arma ID: ${arma_id}`, user);
+
+    // Look up Steam profile for webhook
+    let steamLink = "";
+    try {
+      const steamRes = await adminApiClient.get("/admin/steam-id", { params: { token: config.adminApiToken, arma_id } });
+      if (steamRes.data?.steam_ids?.[0]?.steam64_id) {
+        steamLink = `\n[Steam Profile](https://steamcommunity.com/profiles/${steamRes.data.steam_ids[0].steam64_id})`;
+      }
+    } catch {}
+
     sendWebhook({
       title: isWatchlisted ? "Player Added to Watchlist" : "Player Removed from Watchlist",
-      description: `<@${user.discord_id}> ${isWatchlisted ? "added" : "removed"} \`${String(arma_id).replace(/[`*_~|]/g, "")}\` ${isWatchlisted ? "to" : "from"} the watchlist`,
+      description: `<@${user.discord_id}> ${isWatchlisted ? "added" : "removed"} \`${String(arma_id).replace(/[`*_~|]/g, "")}\` ${isWatchlisted ? "to" : "from"} the watchlist${steamLink}\n[View Profile](${config.siteUrl}/admin/player/${arma_id})`,
       color: isWatchlisted ? 0xf59e0b : 0x22c55e,
     });
 
@@ -1177,9 +1191,6 @@ router.get("/analytics", async (req, res) => {
     auditStats,
     blockedIPs: user.isAdmin ? ipBlock.getAll() : [],
     ipBlockStats: user.isAdmin ? ipBlock.getStats() : { total: 0, today: 0 },
-    vacFlagged: user.isAdmin ? await enrichVacFlagged() : [],
-    vacStats: user.isAdmin ? vacScanner.getStats() : { total: 0, vacBanned: 0, gameBanned: 0, clean: 0 },
-    vacLastScan: user.isAdmin ? vacScanner.getLastScan() : null,
   });
 });
 
@@ -1819,26 +1830,30 @@ router.post("/vac/scan", requireWriteAdmin, async (req, res) => {
   try {
     const full = req.body.full === "1";
     const result = await vacScanner.scan({ full });
-    const watchlisted = await vacScanner.autoWatchlist();
-    auditLog.log("security", "VAC Scan", `Scanned ${result.scanned} players, ${result.flagged} flagged, ${watchlisted} watchlisted`, req.session.user);
+    const wlResult = await vacScanner.autoWatchlist();
+    auditLog.log("security", "VAC Scan", `Scanned ${result.scanned} players, ${result.flagged} flagged, ${wlResult.count} watchlisted`, req.session.user);
 
-    const msg = `VAC scan complete: ${result.scanned} new, ${result.skipped} skipped, ${result.flagged} flagged, ${watchlisted} auto-watchlisted.`;
-    sendWebhook({ title: "VAC Scan Complete", description: msg, color: result.flagged > 0 ? 0xef4444 : 0x22c55e });
-    res.redirect("/admin/analytics?success=" + encodeURIComponent(msg) + "&tab=vac");
+    const playerList = wlResult.players.slice(0, 10).map(p =>
+      `• **${p.arma_username || "Unknown"}** — [Steam](https://steamcommunity.com/profiles/${p.steam_id}) | [Profile](${config.siteUrl}/admin/player/${p.arma_id})`
+    ).join("\n");
+    const extra = wlResult.count > 10 ? `\n...and ${wlResult.count - 10} more` : "";
+    const msg = `VAC scan complete: ${result.scanned} new, ${result.skipped} skipped, ${result.flagged} flagged, ${wlResult.count} auto-watchlisted.`;
+    sendWebhook({ title: "VAC Scan Complete", description: `${msg}${wlResult.count > 0 ? "\n\n" + playerList + extra : ""}`, color: result.flagged > 0 ? 0xef4444 : 0x22c55e });
+    res.redirect("/admin/watchlist?success=" + encodeURIComponent(msg) + "&tab=vac");
   } catch (err) {
     console.error("VAC scan error:", err.message);
-    res.redirect("/admin/analytics?error=" + encodeURIComponent("VAC scan failed: " + err.message) + "&tab=vac");
+    res.redirect("/admin/watchlist?error=" + encodeURIComponent("VAC scan failed: " + err.message) + "&tab=vac");
   }
 });
 
 router.post("/vac/watchlist-all", requireWriteAdmin, async (req, res) => {
   try {
-    const watchlisted = await vacScanner.autoWatchlist();
-    auditLog.log("security", "VAC Watchlist All", `${watchlisted} players auto-watchlisted`, req.session.user);
-    res.redirect("/admin/analytics?success=" + encodeURIComponent(`${watchlisted} VAC-banned players added to watchlist.`) + "&tab=vac");
+    const wlResult = await vacScanner.autoWatchlist();
+    auditLog.log("security", "VAC Watchlist All", `${wlResult.count} players auto-watchlisted`, req.session.user);
+    res.redirect("/admin/watchlist?success=" + encodeURIComponent(`${wlResult.count} VAC-banned players added to watchlist.`) + "&tab=vac");
   } catch (err) {
     console.error("VAC watchlist-all error:", err.message);
-    res.redirect("/admin/analytics?error=" + encodeURIComponent("Failed: " + err.message) + "&tab=vac");
+    res.redirect("/admin/watchlist?error=" + encodeURIComponent("Failed: " + err.message) + "&tab=vac");
   }
 });
 
