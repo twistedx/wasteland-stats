@@ -30,27 +30,28 @@
       </div>
     </div>
 
-    <div class="admin-form-card" style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
-      <div>
-        <span style="color:var(--text-secondary);font-size:0.85rem;">
-          {{#if vacLastScan}}Last scan: {{formatDate vacLastScan}}{{else}}Never scanned{{/if}}
-          — Runs automatically at 4 AM and 4 PM EST.
+    <div class="admin-form-card" style="margin-bottom:1rem;">
+      <div class="wl-tools-header" id="wl-tools-toggle" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;">
+        <h3 style="margin:0;font-family:'Orbitron',sans-serif;font-size:0.8rem;color:var(--accent);text-transform:uppercase;letter-spacing:0.08em;display:flex;align-items:center;gap:0.5rem;">
+          <span class="wl-tools-arrow" id="wl-tools-arrow">&#9662;</span> Tools & Search
+        </h3>
+        <span style="color:var(--text-secondary);font-size:0.75rem;">
+          {{#if vacLastScan}}Last scan: {{formatDateEST vacLastScan}}{{else}}Never scanned{{/if}}
         </span>
       </div>
-      <div style="display:flex;gap:0.5rem;align-items:center;">
-        <form method="POST" action="/admin/vac/scan" style="margin:0;" onsubmit="showSpinner('Scanning new players...');return true;">
-          <input type="hidden" name="_csrf" value="{{csrfToken}}">
-          <button type="submit" class="btn btn-admin" style="background:#ef4444;">Scan New Players</button>
-        </form>
-        <form method="POST" action="/admin/vac/scan" style="margin:0;" onsubmit="if(!confirm('Re-scan ALL players? This may take a while.'))return false;showSpinner('Re-scanning all players...');return true;">
-          <input type="hidden" name="_csrf" value="{{csrfToken}}">
-          <input type="hidden" name="full" value="1">
-          <button type="submit" class="btn btn-admin" style="background:var(--bg-card);border:1px solid var(--border);">Re-scan All</button>
-        </form>
-        <form method="POST" action="/admin/vac/watchlist-all" style="margin:0;" onsubmit="showSpinner('Adding to watchlist...');return true;">
-          <input type="hidden" name="_csrf" value="{{csrfToken}}">
-          <button type="submit" class="btn btn-admin" style="background:#f59e0b;color:#000;">Watchlist All VAC Bans</button>
-        </form>
+      <div id="wl-tools-body" style="display:none;margin-top:1rem;">
+        <div style="display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:1rem;">
+          <div style="flex:1;min-width:200px;">
+            <label class="form-label" style="font-size:0.75rem;">Search Players</label>
+            <input type="text" id="wl-player-search" class="filter-input" placeholder="Search by username...">
+          </div>
+          <button type="button" class="btn btn-admin" onclick="searchPlayer()">Search</button>
+          <form method="POST" action="/admin/vac/scan" style="margin:0;" onsubmit="showSpinner('Scanning new players...');return true;">
+            <input type="hidden" name="_csrf" value="{{csrfToken}}">
+            <button type="submit" class="btn btn-admin" style="background:#ef4444;">Scan New Players</button>
+          </form>
+        </div>
+        <div id="wl-search-results"></div>
       </div>
     </div>
 
@@ -185,6 +186,7 @@
 .vac-border-red { border-left: 3px solid #ef4444; }
 .vac-border-yellow { border-left: 3px solid #f59e0b; }
 .vac-border-blue { border-left: 3px solid #5865F2; }
+.wl-tools-arrow { display: inline-block; transition: transform 0.2s; font-size: 0.75rem; transform: rotate(-90deg); }
 .badge-watched {
   background: rgba(88,101,242,0.2); color: #818cf8;
   padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
@@ -207,6 +209,19 @@
 
 <script>
 (function() {
+  // Tools accordion toggle
+  document.getElementById('wl-tools-toggle').addEventListener('click', function() {
+    var body = document.getElementById('wl-tools-body');
+    var arrow = document.getElementById('wl-tools-arrow');
+    if (body.style.display === 'none') {
+      body.style.display = 'block';
+      arrow.style.transform = 'rotate(0deg)';
+    } else {
+      body.style.display = 'none';
+      arrow.style.transform = 'rotate(-90deg)';
+    }
+  });
+
   // VAC accordion toggle
   document.querySelectorAll('.vac-item-header').forEach(function(header) {
     header.addEventListener('click', function() {
@@ -276,5 +291,49 @@
   if (vacSort) {
     vacSort.addEventListener('change', function() { sortVac(); filterVac(); });
   }
+
+  // Player search & add to watchlist
+  var searchInput = document.getElementById('wl-player-search');
+  var resultsDiv = document.getElementById('wl-search-results');
+
+  if (searchInput) {
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); searchPlayer(); }
+    });
+  }
+
+  window.searchPlayer = function() {
+    var query = searchInput.value.trim();
+    if (query.length < 3) { resultsDiv.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;">Enter at least 3 characters.</p>'; return; }
+    resultsDiv.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;">Searching...</p>';
+
+    fetch('/api/players/search?q=' + encodeURIComponent(query), {
+      headers: { 'X-CSRF-Token': '{{csrfToken}}' }
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (!data.players || data.players.length === 0) {
+        resultsDiv.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;">No players found.</p>';
+        return;
+      }
+      resultsDiv.innerHTML = '<div class="table-scroll"><table><thead><tr><th>Username</th><th>Arma ID</th><th>Actions</th></tr></thead><tbody>' +
+        data.players.map(function(p) {
+          return '<tr>' +
+            '<td class="player-name"><a href="/admin/player/' + p.arma_id + '" style="color:var(--accent);text-decoration:none;">' + p.arma_username + '</a></td>' +
+            '<td><code style="font-size:0.75rem;">' + p.arma_id + '</code></td>' +
+            '<td>' +
+              '<form method="POST" action="/admin/watchlist" style="display:inline;">' +
+                '<input type="hidden" name="_csrf" value="{{csrfToken}}">' +
+                '<input type="hidden" name="arma_id" value="' + p.arma_id + '">' +
+                '<input type="hidden" name="action" value="add">' +
+                '<input type="hidden" name="from" value="vac">' +
+                '<button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Add to Watchlist</button>' +
+              '</form>' +
+            '</td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody></table></div>';
+    }).catch(function() {
+      resultsDiv.innerHTML = '<p style="color:var(--danger);font-size:0.85rem;">Search failed.</p>';
+    });
+  };
 })();
 </script>

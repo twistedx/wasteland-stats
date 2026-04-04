@@ -150,4 +150,28 @@ router.post("/store-sync", (req, res) => {
   }
 });
 
+// Player search for watchlist (admin only)
+router.get("/players/search", async (req, res) => {
+  if (!req.session?.user?.isAdmin) return res.status(403).json({ error: "Unauthorized" });
+
+  const q = (req.query.q || "").trim();
+  if (q.length < 3) return res.json({ players: [] });
+
+  try {
+    const searchRes = await apiClient({
+      method: "GET",
+      url: "/user/searchUsersByUsername/",
+      data: { search: q, token: config.apiToken },
+    });
+    const data = searchRes.data?.users || searchRes.data?.data || searchRes.data;
+    const players = Array.isArray(data) ? data.slice(0, 20).map(p => ({
+      arma_id: p.arma_id,
+      arma_username: p.arma_username || "Unknown",
+    })) : [];
+    res.json({ players });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
