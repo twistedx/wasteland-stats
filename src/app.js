@@ -42,7 +42,7 @@ const requestLog = new Map();   // ip -> { count, firstSeen } — rate flood det
 const BLOCK_DURATION = 24 * 60 * 60 * 1000;      // 24 hours
 const BLOCK_DURATION_LONG = 7 * 24 * 60 * 60 * 1000; // 7 days for repeat offenders
 const STRIKE_WINDOW = 60 * 1000;  // 1 minute
-const MAX_STRIKES = 1;            // instant block on first probe hit
+const MAX_STRIKES = 3;            // block after 3 probe hits in 1 minute
 
 // Paths that no legitimate user would ever hit
 const INSTANT_BLOCK_PATHS = [
@@ -50,13 +50,11 @@ const INSTANT_BLOCK_PATHS = [
   "/wp-includes", "/.env", "/.git", "/phpmyadmin", "/pma",
   "/admin.php", "/administrator", "/cgi-bin", "/config.php",
   "/setup.php", "/install.php", "/solr", "/actuator",
-  "/api/v1/pods", "/_profiler", "/telescope", "/console",
+  "/api/v1/pods", "/_profiler", "/telescope",
   "/manager/html", "/invoker", "/jmx-console", "/web-console",
   "/.aws", "/.docker", "/.ssh", "/.svn", "/.htaccess", "/.htpasswd",
-  "/etc/passwd", "/proc/self", "/wp-json", "/wp-cron.php",
-  "/license.php", "/readme.html", "/config.json", "/package.json",
-  "/composer.json", "/config.yml", "/database.yml", "/credentials",
-  "/.well-known/security.txt",
+  "/etc/passwd", "/proc/self", "/wp-cron.php",
+  "/composer.json", "/database.yml", "/credentials",
 ];
 
 // Suspicious file extensions — scanning for vulnerabilities
@@ -72,6 +70,9 @@ const FLOOD_THRESHOLD = 200; // 200 requests/minute is clearly automated
 app.use((req, res, next) => {
   const ip = req.ip;
 
+  // Never block whitelisted IPs
+  if (config.whitelistedIPs.includes(ip)) return next();
+
   // Check if already blocked in DB
   if (ipBlock.isBlocked(ip)) {
     return res.status(403).end();
@@ -80,12 +81,22 @@ app.use((req, res, next) => {
   const lowerPath = req.path.toLowerCase();
   const now = Date.now();
 
-  // 1. Instant block: known exploit/scan paths
+  // 1. Known exploit/scan paths — strike system
   const isProbe = INSTANT_BLOCK_PATHS.some(p => lowerPath.startsWith(p));
   if (isProbe) {
-    ipBlock.block(ip, `Probe: ${req.path}`, BLOCK_DURATION);
-    console.warn(`Blocked IP ${ip} for 24h — probe: ${req.path}`);
-    return res.status(403).end();
+    const now = Date.now();
+    const strikes = ipStrikes.get(ip) || { count: 0, firstSeen: now };
+    if (now - strikes.firstSeen > STRIKE_WINDOW) { strikes.count = 0; strikes.firstSeen = now; }
+    strikes.count++;
+    ipStrikes.set(ip, strikes);
+
+    if (strikes.count >= MAX_STRIKES) {
+      ipBlock.block(ip, `Port scan: ${strikes.count} probes (${req.path})`, BLOCK_DURATION);
+      ipStrikes.delete(ip);
+      console.warn(`Blocked IP ${ip} for 24h — ${strikes.count} probe attempts (last: ${req.path})`);
+      return res.status(403).end();
+    }
+    return res.status(404).end();
   }
 
   // 2. Suspicious file extension on non-static paths
