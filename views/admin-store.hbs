@@ -14,11 +14,11 @@
 
   <div class="admin-form-card" style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;flex-wrap:wrap;gap:0.75rem;">
     <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
-      <form method="POST" action="/admin/store/sync-stripe" style="margin:0;" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Syncing...';">
+      <form method="POST" action="/admin/store/sync-stripe" style="margin:0;" onsubmit="showSpinner('Syncing to Stripe...');return true;">
         <input type="hidden" name="_csrf" value="{{csrfToken}}">
         <button type="submit" class="btn btn-admin" style="background:#5865F2;">Sync to Stripe</button>
       </form>
-      <form method="POST" action="/admin/store/sync-production" style="margin:0;" onsubmit="if(!confirm('Push all store data to production? This will update products, categories, and draw pool on the live server.'))return false;this.querySelector('button').disabled=true;this.querySelector('button').textContent='Syncing...';">
+      <form method="POST" action="/admin/store/sync-production" style="margin:0;" onsubmit="if(!confirm('Push all store data to production?'))return false;showSpinner('Syncing to production...');return true;">
         <input type="hidden" name="_csrf" value="{{csrfToken}}">
         <button type="submit" class="btn btn-admin" style="background:#ef4444;">Sync to Production</button>
       </form>
