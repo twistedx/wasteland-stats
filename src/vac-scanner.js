@@ -235,6 +235,16 @@ async function autoWatchlist() {
         arma_id: player.arma_id,
         is_watchlisted: true,
       });
+
+      // Add note about the VAC ban
+      try {
+        await adminApi.post("/admin/bans/webNotes", {
+          token: config.adminApiToken,
+          arma_id: player.arma_id,
+          web_notes: `[VAC Scanner] ${player.number_of_vac_bans} VAC ban(s) on record, ${player.days_since_last_ban} days since last ban — Steam: ${player.steam_id}`,
+        });
+      } catch {}
+
       watchlisted++;
       console.log(`[VAC Scan] Auto-watchlisted ${player.arma_id} (${player.discord_username || "unknown"}) — ${player.number_of_vac_bans} VAC ban(s)`);
     } catch {}
