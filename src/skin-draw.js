@@ -57,7 +57,7 @@ function init() {
     "R700 - \"Biohazard\"": "R700 - \u201cBiohazard\u201d",
     "R700 - \"Fracture Skin\" - Glowing": "R700 - \u201cFracture Skin\u201d - Glowing",
     "R700 - \"Purple Haze\"": "R700 - \u201cPurple Haze\u201d",
-    "AK-105 \"Alien Metal\" Edition": "AK-105 \u201cAlien Metal\u201d Edition",
+    "AK-105 \"Alien Metal\" Edition": "AK_105-Alien",
     "6B13 \"Striped\" Vest": "6B13 \u201cStriped\u201d Vest",
   };
   const backfillSkin = db.prepare("UPDATE skin_draw_pool SET game_item_name = ? WHERE name = ? AND game_item_name IS NULL");

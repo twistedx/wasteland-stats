@@ -434,15 +434,29 @@ async function fetchHomeData(req) {
   let miscStats = [];
   let atmBalance = null;
 
-  // Fetch leaderboard
+  // Fetch leaderboard (retry once on timeout)
   try {
     const endpoint =
       tab === "alltime"
         ? "/user/topTenUserStatsAllTime/"
         : "/user/topTenUserStats/";
-    const response = await apiClient.get(endpoint, {
-      params: { token: config.apiToken },
-    });
+    let response;
+    try {
+      response = await apiClient.get(endpoint, {
+        params: { token: config.apiToken },
+        timeout: 45000,
+      });
+    } catch (firstErr) {
+      if (firstErr.code === "ECONNABORTED" || firstErr.message.includes("timeout")) {
+        console.warn("Leaderboard: first attempt timed out, retrying...");
+        response = await apiClient.get(endpoint, {
+          params: { token: config.apiToken },
+          timeout: 60000,
+        });
+      } else {
+        throw firstErr;
+      }
+    }
     leaderboard = response.data;
   } catch (error) {
     console.error("Leaderboard error:", error.message);

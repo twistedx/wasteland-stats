@@ -156,15 +156,18 @@ router.post("/bans/notes", async (req, res) => {
   if (!arma_id) return res.status(400).json({ error: "Arma ID is required." });
 
   try {
-    await adminApiClient.post("/admin/bans/webNotes", {
+    const response = await adminApiClient.post("/admin/bans/webNotes", {
       token: config.adminApiToken,
       arma_id,
       web_notes: web_notes || "",
     });
+    console.log(`Ban notes saved for ${arma_id}: ${response.data?.message || response.status}`);
     res.json({ success: true });
   } catch (error) {
-    console.error("Ban notes update error:", error.message);
-    res.status(500).json({ error: "Failed to save notes." });
+    const status = error.response?.status;
+    const apiMsg = error.response?.data?.message || error.message;
+    console.error(`Ban notes update error for ${arma_id}: [${status}] ${apiMsg}`);
+    res.status(500).json({ error: `Failed to save notes: ${apiMsg}` });
   }
 });
 
