@@ -68,7 +68,8 @@ const FLOOD_WINDOW = 60 * 1000;
 const FLOOD_THRESHOLD = 200; // 200 requests/minute is clearly automated
 
 app.use((req, res, next) => {
-  const ip = req.ip;
+  // Use real client IP from Cloudflare, fall back to req.ip
+  const ip = req.headers["cf-connecting-ip"] || req.ip;
 
   // Never block whitelisted IPs
   if (config.whitelistedIPs.includes(ip)) return next();
