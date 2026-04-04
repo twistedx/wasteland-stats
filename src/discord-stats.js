@@ -36,9 +36,21 @@ function initDb() {
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_snapshots_ts ON online_snapshots (ts)`);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS member_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_type TEXT NOT NULL,
+      discord_id TEXT,
+      username TEXT,
+      ts INTEGER NOT NULL
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_member_events_ts ON member_events (ts)`);
+
   // Prune old data
   const cutoff = Date.now() - RETENTION_DAYS * 86400000;
   db.prepare("DELETE FROM online_snapshots WHERE ts < ?").run(cutoff);
+  db.prepare("DELETE FROM member_events WHERE ts < ?").run(cutoff);
 }
 
 async function fetchMembersWithRetry(guild, retries = 3) {
@@ -83,6 +95,27 @@ function getOnlineHistory(days) {
   if (!db) return [];
   const cutoff = Date.now() - days * 86400000;
   return db.prepare("SELECT ts, online, idle, dnd, total_humans, in_voice FROM online_snapshots WHERE ts >= ? ORDER BY ts ASC").all(cutoff);
+}
+
+function recordMemberEvent(type, member) {
+  if (!db) return;
+  db.prepare("INSERT INTO member_events (event_type, discord_id, username, ts) VALUES (?, ?, ?, ?)")
+    .run(type, member.id || null, member.user?.username || member.displayName || null, Date.now());
+}
+
+function getMemberEventHistory(days) {
+  if (!db) return [];
+  const now = Date.now();
+  const result = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const dayStart = new Date(now - i * 86400000);
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart.getTime() + 86400000);
+    const joins = db.prepare("SELECT COUNT(*) as c FROM member_events WHERE event_type = 'join' AND ts >= ? AND ts < ?").get(dayStart.getTime(), dayEnd.getTime()).c;
+    const leaves = db.prepare("SELECT COUNT(*) as c FROM member_events WHERE event_type = 'leave' AND ts >= ? AND ts < ?").get(dayStart.getTime(), dayEnd.getTime()).c;
+    result.push({ date: dayStart.toISOString().slice(0, 10), joins, leaves });
+  }
+  return result;
 }
 
 function init(discordClient, discordGuildId) {
@@ -167,18 +200,24 @@ async function getStats() {
     const newThisWeek = members.filter(m => !m.user.bot && m.joinedTimestamp >= weekAgo).size;
     const newThisMonth = members.filter(m => !m.user.bot && m.joinedTimestamp >= monthAgo).size;
 
-    // Join history — daily joins for last 30 days
+    // Join/leave history — daily for last 30 days
     const joinHistory = [];
+    const leaveHistory = getMemberEventHistory(30);
+    const leaveMap = {};
+    leaveHistory.forEach(d => { leaveMap[d.date] = d.leaves; });
+
     for (let i = 29; i >= 0; i--) {
       const dayStart = new Date(now - i * 86400000);
       dayStart.setUTCHours(0, 0, 0, 0);
       const dayEnd = new Date(dayStart.getTime() + 86400000);
+      const dateStr = dayStart.toISOString().slice(0, 10);
       const count = members.filter(m =>
         !m.user.bot && m.joinedTimestamp >= dayStart.getTime() && m.joinedTimestamp < dayEnd.getTime()
       ).size;
       joinHistory.push({
-        date: dayStart.toISOString().slice(0, 10),
+        date: dateStr,
         joins: count,
+        leaves: leaveMap[dateStr] || 0,
       });
     }
 
@@ -203,6 +242,10 @@ async function getStats() {
       ownerId: guild.ownerId,
     };
 
+    // Count leaves from DB
+    const leftThisWeek = db ? db.prepare("SELECT COUNT(*) as c FROM member_events WHERE event_type = 'leave' AND ts >= ?").get(weekAgo).c : 0;
+    const leftThisMonth = db ? db.prepare("SELECT COUNT(*) as c FROM member_events WHERE event_type = 'leave' AND ts >= ?").get(monthAgo).c : 0;
+
     cachedStats = {
       serverInfo,
       totalMembers,
@@ -221,6 +264,8 @@ async function getStats() {
       voiceChannelBreakdown,
       newThisWeek,
       newThisMonth,
+      leftThisWeek,
+      leftThisMonth,
       joinHistory,
       topRoles,
       topMembers,
@@ -234,4 +279,4 @@ async function getStats() {
   }
 }
 
-module.exports = { init, getStats, getOnlineHistory };
+module.exports = { init, getStats, getOnlineHistory, recordMemberEvent, getMemberEventHistory };

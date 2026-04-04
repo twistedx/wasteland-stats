@@ -104,6 +104,17 @@ async function init() {
     discordStats.init(client, config.discordGuildId);
   });
 
+  // Track member joins and leaves
+  client.on("guildMemberAdd", (member) => {
+    if (member.user.bot) return;
+    discordStats.recordMemberEvent("join", member);
+  });
+
+  client.on("guildMemberRemove", (member) => {
+    if (member.user.bot) return;
+    discordStats.recordMemberEvent("leave", member);
+  });
+
   client.on("interactionCreate", async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 

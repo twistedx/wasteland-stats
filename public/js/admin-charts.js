@@ -320,10 +320,11 @@
 
     chart.setOption(Object.assign({}, baseTheme, {
       tooltip: { trigger: "axis", backgroundColor: BG, borderColor: GRID, textStyle: { color: "#e8e8e8" } },
+      legend: { data: ["Joined", "Left"], textStyle: { color: ACCENT }, top: 0 },
       xAxis: { type: "category", data: labels, axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: ACCENT, fontSize: 10, rotate: 35 }, boundaryGap: true },
       yAxis: { type: "value", minInterval: 1, axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: ACCENT }, splitLine: { lineStyle: { color: GRID } } },
       series: [{
-        name: "New Members",
+        name: "Joined",
         type: "bar",
         data: joinHistory.map(function (d) { return d.joins; }),
         itemStyle: {
@@ -333,7 +334,18 @@
           ]),
           borderRadius: [3, 3, 0, 0],
         },
-        label: { show: false },
+        barMaxWidth: 20,
+      }, {
+        name: "Left",
+        type: "bar",
+        data: joinHistory.map(function (d) { return d.leaves || 0; }),
+        itemStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: "#ef4444" },
+            { offset: 1, color: "#991b1b" },
+          ]),
+          borderRadius: [3, 3, 0, 0],
+        },
         barMaxWidth: 20,
       }],
     }));
