@@ -145,17 +145,22 @@
                 <span>{{formatDate this.scanned_at}}</span>
               </div>
             </div>
-            {{#unless this.isWatchlisted}}
+            <div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap;">
               {{#if this.arma_id}}
-              <form method="POST" action="/admin/watchlist" style="margin-top:0.75rem;">
-                <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
-                <input type="hidden" name="arma_id" value="{{this.arma_id}}">
-                <input type="hidden" name="action" value="add">
-                <input type="hidden" name="from" value="vac">
-                <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Add to Watchlist</button>
-              </form>
+                <a href="/admin/player/{{this.arma_id}}" class="btn btn-admin btn-small" style="text-decoration:none;background:#5865F2;color:#fff;">View Profile</a>
               {{/if}}
-            {{/unless}}
+              {{#unless this.isWatchlisted}}
+                {{#if this.arma_id}}
+                <form method="POST" action="/admin/watchlist" style="margin:0;">
+                  <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                  <input type="hidden" name="arma_id" value="{{this.arma_id}}">
+                  <input type="hidden" name="action" value="add">
+                  <input type="hidden" name="from" value="vac">
+                  <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Add to Watchlist</button>
+                </form>
+                {{/if}}
+              {{/unless}}
+            </div>
           </div>
         </div>
         {{/each}}
