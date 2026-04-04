@@ -1269,7 +1269,8 @@ async function enrichVacFlagged() {
     return { ...player, displayName: displayName || "Unknown", isServerBanned, isWatchlisted };
   }));
 
-  return enriched;
+  // Filter out server-banned players — they belong on the ban page, not watchlist
+  return enriched.filter(p => !p.isServerBanned);
 }
 
 // Blog-admin middleware
