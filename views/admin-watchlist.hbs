@@ -57,20 +57,19 @@
     {{#if vacFlagged.length}}
     <div class="admin-form-card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
-        <h3 style="margin:0;">Flagged Players (<span id="vac-visible-count">{{vacFlagged.length}}</span>)</h3>
+        <h3 style="margin:0;">Watchlist (<span id="vac-visible-count">{{vacFlagged.length}}</span>)</h3>
         <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
           <input type="text" id="vac-search" class="filter-input" placeholder="Search by name, Steam ID, Arma ID..." style="min-width:250px;">
           <select id="vac-filter-type" class="filter-select" style="min-width:120px;">
-            <option value="all">All Bans</option>
-            <option value="vac">VAC Only</option>
-            <option value="game">Game Only</option>
+            <option value="all">All Types</option>
+            <option value="vac">VAC Banned</option>
+            <option value="game">Game Banned</option>
+            <option value="clean">No Bans</option>
           </select>
           <select id="vac-filter-status" class="filter-select" style="min-width:120px;">
             <option value="all">All Status</option>
             <option value="watched">Watched</option>
             <option value="notwatched">Not Watched</option>
-            <option value="banned">Server Banned</option>
-            <option value="active">Active</option>
           </select>
           <select id="vac-sort" class="filter-select" style="min-width:140px;">
             <option value="updated">Recently Updated</option>
@@ -82,22 +81,17 @@
       </div>
       <div class="vac-accordion">
         {{#each vacFlagged}}
-        <div class="vac-item {{#if this.vac_banned}}vac-border-red{{else}}vac-border-yellow{{/if}}" data-name="{{#if this.arma_username}}{{this.arma_username}}{{else}}{{this.displayName}}{{/if}}" data-steam="{{this.steam_id}}" data-arma="{{this.arma_id}}" data-bantype="{{#if this.vac_banned}}vac{{else}}game{{/if}}" data-watched="{{#if this.isWatchlisted}}yes{{else}}no{{/if}}" data-serverbanned="{{#if this.isServerBanned}}yes{{else}}no{{/if}}" data-scanned="{{this.scanned_at}}" data-days="{{this.days_since_last_ban}}">
+        <div class="vac-item {{#if this.vac_banned}}vac-border-red{{else if this.number_of_game_bans}}vac-border-yellow{{else}}vac-border-blue{{/if}}" data-name="{{#if this.arma_username}}{{this.arma_username}}{{else}}{{this.displayName}}{{/if}}" data-steam="{{this.steam_id}}" data-arma="{{this.arma_id}}" data-bantype="{{#if this.vac_banned}}vac{{else if this.number_of_game_bans}}game{{else}}clean{{/if}}" data-watched="{{#if this.isWatchlisted}}yes{{else}}no{{/if}}" data-serverbanned="{{#if this.isServerBanned}}yes{{else}}no{{/if}}" data-scanned="{{this.scanned_at}}" data-days="{{this.days_since_last_ban}}">
           <div class="vac-item-header">
             <div class="vac-item-summary">
               {{#if this.arma_id}}<a href="/admin/player/{{this.arma_id}}" class="vac-item-name vac-player-link" onclick="event.stopPropagation();">{{#if this.arma_username}}{{this.arma_username}}{{else}}{{this.displayName}}{{/if}}</a>{{else}}<span class="vac-item-name">{{#if this.arma_username}}{{this.arma_username}}{{else}}{{this.displayName}}{{/if}}</span>{{/if}}
               {{#if this.vac_banned}}
                 <span class="badge badge-danger">VAC BANNED</span>
-              {{else}}
+              {{else if this.number_of_game_bans}}
                 <span class="badge badge-warning">GAME BAN</span>
               {{/if}}
-              {{#if this.isServerBanned}}
-                <span class="badge badge-danger">BANNED</span>
-              {{else}}
-                <span class="badge badge-clean">Active</span>
-              {{/if}}
               {{#if this.isWatchlisted}}
-                <span class="badge badge-warning">Watched</span>
+                <span class="badge badge-watched">Watched</span>
               {{/if}}
             </div>
             <div class="vac-item-right">
@@ -190,6 +184,11 @@
 .vac-item { border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); overflow: hidden; }
 .vac-border-red { border-left: 3px solid #ef4444; }
 .vac-border-yellow { border-left: 3px solid #f59e0b; }
+.vac-border-blue { border-left: 3px solid #5865F2; }
+.badge-watched {
+  background: rgba(88,101,242,0.2); color: #818cf8;
+  padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+}
 .vac-item-header { display: flex; justify-content: space-between; align-items: center; padding: 0.65rem 0.85rem; cursor: pointer; transition: background 0.12s; }
 .vac-item-header:hover { background: var(--bg-primary); }
 .vac-item-summary { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
@@ -239,9 +238,7 @@
       var matchesType = typeFilter === 'all' || bantype === typeFilter;
       var matchesStatus = statusFilter === 'all'
         || (statusFilter === 'watched' && watched === 'yes')
-        || (statusFilter === 'notwatched' && watched === 'no')
-        || (statusFilter === 'banned' && serverBanned === 'yes')
-        || (statusFilter === 'active' && serverBanned === 'no');
+        || (statusFilter === 'notwatched' && watched === 'no');
       if (matchesSearch && matchesType && matchesStatus) { item.style.display = ''; visible++; }
       else { item.style.display = 'none'; }
     });

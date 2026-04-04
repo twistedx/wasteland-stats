@@ -909,12 +909,17 @@ router.get("/player/:arma_id", async (req, res) => {
     profile.cashBalance = cashRes.value.data.cash || cashRes.value.data.amount || null;
   }
 
-  // Check VAC status from local DB
+  // Check VAC status from local DB — try steam_id first, then arma_id
   const vacScanner = require("../vac-scanner");
+  const allVac = vacScanner.getAll();
+  let vacRow = null;
   if (profile.steamId) {
-    const vacRow = vacScanner.getAll().find(r => r.steam_id === profile.steamId);
-    if (vacRow) profile.vacInfo = vacRow;
+    vacRow = allVac.find(r => r.steam_id === profile.steamId);
   }
+  if (!vacRow) {
+    vacRow = allVac.find(r => r.arma_id === armaId);
+  }
+  if (vacRow) profile.vacInfo = vacRow;
 
   // Get ban history from bans list
   try {
@@ -1214,63 +1219,79 @@ router.get("/analytics", async (req, res) => {
   });
 });
 
-// Enrich VAC flagged players with server ban and watchlist status
+// Build the full watchlist page data: VAC flagged + all watchlisted players
 async function enrichVacFlagged() {
   const flagged = vacScanner.getFlagged();
-  if (flagged.length === 0) return [];
 
-  // Fetch all server bans once — also builds username map
+  // Fetch all server bans
   const serverBans = new Set();
-  const usernameMap = new Map(); // arma_id -> arma_username
   try {
     const bansRes = await apiClient({ method: "GET", url: "/user/getAllUserBans/", data: { token: config.apiToken } });
     const bans = bansRes.data?.bans || bansRes.data?.data || bansRes.data || [];
     if (Array.isArray(bans)) {
       for (const b of bans) {
-        if (b.user_id_banned) {
-          serverBans.add(b.user_id_banned);
-          if (b.banned_arma_username) usernameMap.set(b.user_id_banned, b.banned_arma_username);
-        }
+        if (b.user_id_banned) serverBans.add(b.user_id_banned);
       }
     }
   } catch {}
 
-  // Check watchlist + ban status + resolve username for each flagged player
-  const enriched = await Promise.all(flagged.map(async (player) => {
-    const armaId = player.arma_id;
-    let isServerBanned = false;
+  // Build map of VAC-flagged by arma_id
+  const vacMap = new Map();
+  for (const p of flagged) {
+    if (p.arma_id) vacMap.set(p.arma_id, p);
+  }
+
+  // Get ALL watchlisted players from backend — check each flagged player + search for more
+  const allPlayers = new Map(); // arma_id -> enriched player
+
+  // 1. Add all VAC-flagged players
+  for (const player of flagged) {
+    if (!player.arma_id || serverBans.has(player.arma_id)) continue;
+
     let isWatchlisted = false;
-    let displayName = player.arma_username || player.discord_username || null;
+    try {
+      const wlRes = await adminApiClient.get("/admin/watchlist", { params: { token: config.adminApiToken, arma_id: player.arma_id } });
+      isWatchlisted = !!wlRes.data?.is_watchlisted;
+    } catch {}
 
-    if (armaId) {
-      isServerBanned = serverBans.has(armaId);
+    allPlayers.set(player.arma_id, {
+      ...player,
+      displayName: player.arma_username || player.discord_username || "Unknown",
+      isServerBanned: false,
+      isWatchlisted,
+      source: "vac",
+    });
+  }
 
-      // Try username from bans map first
-      if (!displayName && usernameMap.has(armaId)) {
-        displayName = usernameMap.get(armaId);
-      }
+  // 2. Find watchlisted players who aren't VAC-flagged by checking all known users
+  // Use the VAC scan DB to find watchlisted players (they were added by the scanner)
+  const allScanned = vacScanner.getAll();
+  const BATCH = 20;
+  const toCheck = allScanned.filter(p => p.arma_id && !allPlayers.has(p.arma_id) && !serverBans.has(p.arma_id));
 
-      // Look up username from API if still missing
-      if (!displayName) {
-        try {
-          const statsRes = await apiClient({ method: "GET", url: "/user/getPlayerStatsByID/", data: { arma_id: armaId, token: config.apiToken } });
-          displayName = statsRes.data?.arma_username || null;
-        } catch {}
-      }
-
+  for (let i = 0; i < toCheck.length; i += BATCH) {
+    const batch = toCheck.slice(i, i + BATCH);
+    await Promise.allSettled(batch.map(async (player) => {
       try {
-        const wlRes = await adminApiClient.get("/admin/watchlist", {
-          params: { token: config.adminApiToken, arma_id: armaId },
-        });
-        isWatchlisted = !!wlRes.data?.is_watchlisted;
+        const wlRes = await adminApiClient.get("/admin/watchlist", { params: { token: config.adminApiToken, arma_id: player.arma_id } });
+        if (wlRes.data?.is_watchlisted) {
+          allPlayers.set(player.arma_id, {
+            ...player,
+            displayName: player.arma_username || player.discord_username || "Unknown",
+            isServerBanned: false,
+            isWatchlisted: true,
+            source: "watchlist",
+          });
+        }
       } catch {}
-    }
+    }));
+  }
 
-    return { ...player, displayName: displayName || "Unknown", isServerBanned, isWatchlisted };
-  }));
-
-  // Filter out server-banned players — they belong on the ban page, not watchlist
-  return enriched.filter(p => !p.isServerBanned);
+  // Sort: watchlisted first, then by scanned_at desc
+  return [...allPlayers.values()].sort((a, b) => {
+    if (a.isWatchlisted !== b.isWatchlisted) return a.isWatchlisted ? -1 : 1;
+    return (b.scanned_at || "").localeCompare(a.scanned_at || "");
+  });
 }
 
 // Blog-admin middleware
