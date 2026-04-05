@@ -70,7 +70,7 @@ async function fetchBackendSteamIds() {
       const adminApi = axios.create({ baseURL: config.apiBaseUrl, timeout: 30000, headers: { "Content-Type": "application/json" } });
       const res = await adminApi.get("/admin/steam-ids/all", { params: { token: config.adminApiToken } });
       if (res.data?.steam_ids && Array.isArray(res.data.steam_ids) && res.data.steam_ids.length > 0) {
-        const mapped = res.data.steam_ids.map(r => ({ arma_id: r.arma_id, steam_id: r.steam64_id })).filter(r => r.arma_id && r.steam_id);
+        const mapped = res.data.steam_ids.map(r => ({ arma_id: r.arma_id, steam_id: r.steam64_id, arma_username: r.arma_username || null })).filter(r => r.arma_id && r.steam_id);
         console.log(`[VAC Scan]   Fetched ${mapped.length} Steam IDs from bulk API endpoint`);
         saveBackendSteamIds(mapped);
         return mapped;
