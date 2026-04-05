@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const express = require("express");
 const axios = require("axios");
 const config = require("../config");
-const { sendWebhook, sendWebhookError } = require("../webhook");
+const { sendWebhook, sendWebhookError, sendVacWebhook } = require("../webhook");
 const analytics = require("../analytics");
 const blog = require("../blog");
 const amp = require("../amp");
@@ -800,7 +800,7 @@ router.post("/watchlist", async (req, res) => {
       }
     } catch {}
 
-    sendWebhook({
+    sendVacWebhook({
       title: isWatchlisted ? "Player Added to Watchlist" : "Player Removed from Watchlist",
       description: `<@${user.discord_id}> ${isWatchlisted ? "added" : "removed"} \`${String(arma_id).replace(/[`*_~|]/g, "")}\` ${isWatchlisted ? "to" : "from"} the watchlist${steamLink}\n[View Profile](${config.siteUrl}/admin/player/${arma_id})`,
       color: isWatchlisted ? 0xf59e0b : 0x22c55e,
@@ -1882,7 +1882,7 @@ router.post("/vac/scan", requireWriteAdmin, async (req, res) => {
     ).join("\n");
     const extra = wlResult.count > 10 ? `\n...and ${wlResult.count - 10} more` : "";
     const msg = `VAC scan complete: ${result.scanned} new, ${result.skipped} skipped, ${result.flagged} flagged, ${wlResult.count} auto-watchlisted.`;
-    sendWebhook({ title: "VAC Scan Complete", description: `${msg}${wlResult.count > 0 ? "\n\n" + playerList + extra : ""}`, color: result.flagged > 0 ? 0xef4444 : 0x22c55e });
+    sendVacWebhook({ title: "VAC Scan Complete", description: `${msg}${wlResult.count > 0 ? "\n\n" + playerList + extra : ""}`, color: result.flagged > 0 ? 0xef4444 : 0x22c55e });
     res.redirect("/admin/watchlist?success=" + encodeURIComponent(msg) + "&tab=vac");
   } catch (err) {
     console.error("VAC scan error:", err.message);

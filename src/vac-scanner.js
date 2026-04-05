@@ -36,6 +36,10 @@ function init() {
   // Migrations
   try { db.exec("ALTER TABLE vac_results ADD COLUMN arma_id TEXT"); } catch (e) { /* exists */ }
   try { db.exec("ALTER TABLE vac_results ADD COLUMN arma_username TEXT"); } catch (e) { /* exists */ }
+  try { db.exec("ALTER TABLE vac_results ADD COLUMN watchlist_processed INTEGER NOT NULL DEFAULT 0"); } catch (e) { /* exists */ }
+
+  // Mark all existing flagged records as already processed so they don't get re-watchlisted
+  db.prepare("UPDATE vac_results SET watchlist_processed = 1 WHERE (vac_banned = 1 OR number_of_game_bans > 0) AND watchlist_processed = 0").run();
 
   const count = db.prepare("SELECT COUNT(*) as cnt FROM vac_results WHERE vac_banned = 1 OR number_of_game_bans > 0").get().cnt;
   console.log(`VACScanner: ${count} flagged players in database.`);
@@ -226,16 +230,27 @@ async function scan({ full = false } = {}) {
   return { scanned: results.length, flagged, skipped };
 }
 
-// Auto-watchlist all players with VAC or game bans
+// Auto-watchlist only NEW players with VAC or game bans (never re-watchlists already processed ones)
 async function autoWatchlist() {
-  const flagged = getFlagged().filter(p => (p.vac_banned || p.number_of_game_bans > 0) && p.arma_id);
-  if (flagged.length === 0) return 0;
+  if (!db) return { count: 0, players: [] };
 
+  // Only get flagged players that haven't been processed yet
+  const unprocessed = db.prepare(
+    "SELECT * FROM vac_results WHERE (vac_banned = 1 OR number_of_game_bans > 0) AND arma_id IS NOT NULL AND watchlist_processed = 0"
+  ).all();
+
+  if (unprocessed.length === 0) {
+    console.log("[VAC Scan] No new flagged players to watchlist");
+    return { count: 0, players: [] };
+  }
+
+  console.log(`[VAC Scan] ${unprocessed.length} new flagged players to watchlist`);
   const adminApi = axios.create({ baseURL: config.apiBaseUrl, timeout: 15000, headers: { "Content-Type": "application/json" } });
   let watchlisted = 0;
   const newlyWatchlisted = [];
+  const markProcessed = db.prepare("UPDATE vac_results SET watchlist_processed = 1 WHERE steam_id = ?");
 
-  for (const player of flagged) {
+  for (const player of unprocessed) {
     try {
       await adminApi.post("/admin/watchlist", {
         token: config.adminApiToken,
@@ -259,9 +274,12 @@ async function autoWatchlist() {
       newlyWatchlisted.push(player);
       console.log(`[VAC Scan] Auto-watchlisted ${player.arma_id} (${player.arma_username || player.discord_username || "unknown"}) — ${banParts.join(", ")}`);
     } catch {}
+
+    // Mark as processed regardless of success — so we never retry
+    markProcessed.run(player.steam_id);
   }
 
-  console.log(`[VAC Scan] Auto-watchlisted ${watchlisted}/${flagged.length} players`);
+  console.log(`[VAC Scan] Auto-watchlisted ${watchlisted}/${unprocessed.length} new players`);
   return { count: watchlisted, players: newlyWatchlisted };
 }
 

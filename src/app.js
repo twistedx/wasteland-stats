@@ -422,12 +422,12 @@ cron.schedule("0 4,16 * * *", async () => {
     const result = await vacScanner.scan();
     const wlResult = await vacScanner.autoWatchlist();
     if (result.flagged > 0 || wlResult.count > 0) {
-      const { sendWebhook } = require("./webhook");
+      const { sendVacWebhook } = require("./webhook");
       const playerList = wlResult.players.slice(0, 10).map(p =>
         `• **${p.arma_username || "Unknown"}** — [Steam](https://steamcommunity.com/profiles/${p.steam_id}) | [Profile](${config.siteUrl}/admin/player/${p.arma_id})`
       ).join("\n");
       const extra = wlResult.count > 10 ? `\n...and ${wlResult.count - 10} more` : "";
-      sendWebhook({
+      sendVacWebhook({
         title: "Scheduled VAC Scan",
         description: `Scanned ${result.scanned} players, **${result.flagged} flagged**, ${wlResult.count} auto-watchlisted.\n\n${playerList}${extra}`,
         color: 0xef4444,
@@ -451,6 +451,7 @@ app.use("/blog", require("./routes/blog"));
 
 async function fetchHomeData(req) {
   const tab = req.query.tab === "alltime" ? "alltime" : "season";
+  const statsTab = req.query.stats === "alltime" ? "alltime" : "season";
   const user = req.session.user || null;
 
   let leaderboard = [];
@@ -494,9 +495,12 @@ async function fetchHomeData(req) {
   // Fetch personal stats if logged in
   if (user) {
     try {
+      const statsEndpoint = statsTab === "alltime"
+        ? "/user/getAllPlayerStatsByDiscordID"
+        : "/user/getAllPlayerStatsByDiscordIDCurrentSeason/";
       const response = await apiClient({
         method: "GET",
-        url: "/user/getAllPlayerStatsByDiscordID",
+        url: statsEndpoint,
         data: {
           discord_id: user.discord_id,
           token: config.apiToken,
@@ -550,7 +554,7 @@ async function fetchHomeData(req) {
     }
   }
 
-  return { user, tab, leaderboard, leaderboardError, stats, statsError, statsNotLinked, miscStats, atmBalance };
+  return { user, tab, statsTab, leaderboard, leaderboardError, stats, statsError, statsNotLinked, miscStats, atmBalance };
 }
 
 app.get("/", async (req, res) => {

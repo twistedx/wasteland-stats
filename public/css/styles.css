@@ -795,6 +795,27 @@ details.misc-stats .stats-grid { padding: 1rem; }
   margin-bottom: 0.5rem;
 }
 
+.stats-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.stats-toggle-btn {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  border-right: 1px solid var(--border);
+  transition: background 0.12s, color 0.12s;
+}
+.stats-toggle-btn:last-child { border-right: none; }
+.stats-toggle-btn:hover { color: var(--text-primary); background: var(--bg-primary); }
+.stats-toggle-btn.active { color: #fff; background: #5865F2; }
+
 .btn-donate {
   background: #4ade80;
   color: #0a0a0a;

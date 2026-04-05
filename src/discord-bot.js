@@ -4,7 +4,7 @@ const config = require("./config");
 const adminUsers = require("./admin-users");
 const discordStats = require("./discord-stats");
 const tasks = require("./tasks");
-const { sendWebhook } = require("./webhook");
+const { sendWebhook, sendVacWebhook } = require("./webhook");
 const auditLog = require("./audit-log");
 
 let client = null;
@@ -267,7 +267,7 @@ async function init() {
         } catch {}
 
         auditLog.log("moderation", "Added to Watchlist", `${playerName} (${armaId}) via Discord by ${username}`, { username, discord_id: discordId });
-        sendWebhook({
+        sendVacWebhook({
           title: "Player Added to Watchlist",
           description: `<@${discordId}> added **${playerName}** (\`${armaId}\`) to the watchlist${reason ? `\nReason: ${reason}` : ""}${steamLink}\n[View Profile](${config.siteUrl}/admin/player/${armaId})`,
           color: 0xf59e0b,

@@ -19,8 +19,10 @@ async function processQueue() {
     }
 
     const payload = queue.shift();
+    const targetUrl = payload._url || config.discordWebhookUrl;
+    delete payload._url;
     try {
-      const res = await axios.post(config.discordWebhookUrl, payload, { timeout: 10000 });
+      const res = await axios.post(targetUrl, payload, { timeout: 10000 });
       // Respect rate limit headers — pause if we're close to the limit
       const remaining = parseInt(res.headers?.["x-ratelimit-remaining"], 10);
       if (remaining === 0) {
@@ -81,4 +83,21 @@ function sendWebhookError(source, errorMessage) {
   processQueue();
 }
 
-module.exports = { sendWebhook, sendWebhookError };
+// VAC-specific webhook — sends to a dedicated channel
+function sendVacWebhook(embed) {
+  const url = config.vacWebhookUrl;
+  if (!url) return sendWebhook(embed); // fallback to main webhook
+  console.log(`[VAC Webhook] ${embed.title}: ${embed.description?.slice(0, 100) || ""}`);
+  queue.push({
+    _url: url,
+    embeds: [{
+      title: embed.title,
+      description: embed.description || "",
+      color: embed.color || 0xef4444,
+      timestamp: new Date().toISOString(),
+    }],
+  });
+  processQueue();
+}
+
+module.exports = { sendWebhook, sendWebhookError, sendVacWebhook };
