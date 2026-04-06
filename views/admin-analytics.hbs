@@ -477,7 +477,12 @@
 
   <!-- ═══════════════ ATM TAB (Admin Only) ═══════════════ -->
   <div id="tab-atm" style="display:none;">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:0.75rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.5rem;">
+      <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:4px;overflow:hidden;">
+        <a href="/admin/analytics?tab=atm&atmDays=30" class="stats-toggle-btn {{#if (eq atmDays 30)}}active{{/if}}">30 Days</a>
+        <a href="/admin/analytics?tab=atm&atmDays=90" class="stats-toggle-btn {{#if (eq atmDays 90)}}active{{/if}}">90 Days</a>
+        <a href="/admin/analytics?tab=atm&atmDays=180" class="stats-toggle-btn {{#if (eq atmDays 180)}}active{{/if}}">180 Days</a>
+      </div>
       <form method="POST" action="/admin/atm/parse" style="margin:0;">
         <input type="hidden" name="_csrf" value="{{csrfToken}}">
         <button type="submit" class="btn btn-admin btn-small" style="background:#5865F2;" onclick="showSpinner('Parsing ATM channel... this may take a minute');">Parse Channel</button>
@@ -507,18 +512,18 @@
       </div>
       <div class="stat-card">
         <div class="stat-value" style="color:#4fc3f7;">${{formatNumber economyStats.avgDeposit}}</div>
-        <div class="stat-label">Avg Deposit</div>
+        <div class="stat-label">Avg Deposit ({{atmDays}}d)</div>
       </div>
       <div class="stat-card">
         <div class="stat-value" style="color:#fbbf24;">${{formatNumber economyStats.avgWithdrawal}}</div>
-        <div class="stat-label">Avg Withdrawal</div>
+        <div class="stat-label">Avg Withdrawal ({{atmDays}}d)</div>
       </div>
       {{/if}}
     </div>
 
     {{#if economyStats}}
     <div class="admin-form-card" style="margin-top:1rem;">
-      <h3>Weekly Summary</h3>
+      <h3>Summary</h3>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-top:0.75rem;">
         <div style="background:var(--bg-primary);border-radius:6px;padding:1rem;">
           <div style="font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">This Week — Deposits</div>
@@ -531,20 +536,20 @@
           <div style="font-size:0.8rem;color:var(--text-secondary);">{{formatNumber economyStats.week.withdrawals.cnt}} transactions</div>
         </div>
         <div style="background:var(--bg-primary);border-radius:6px;padding:1rem;">
-          <div style="font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">This Month — Deposits</div>
-          <div style="font-size:1.3rem;font-weight:700;color:#4ade80;margin-top:0.25rem;">${{formatNumber economyStats.month.deposits.total}}</div>
-          <div style="font-size:0.8rem;color:var(--text-secondary);">{{formatNumber economyStats.month.deposits.cnt}} transactions</div>
+          <div style="font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">{{atmDays}} Days — Deposits</div>
+          <div style="font-size:1.3rem;font-weight:700;color:#4ade80;margin-top:0.25rem;">${{formatNumber economyStats.range.deposits.total}}</div>
+          <div style="font-size:0.8rem;color:var(--text-secondary);">{{formatNumber economyStats.range.deposits.cnt}} transactions</div>
         </div>
         <div style="background:var(--bg-primary);border-radius:6px;padding:1rem;">
-          <div style="font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">This Month — Withdrawals</div>
-          <div style="font-size:1.3rem;font-weight:700;color:#f87171;margin-top:0.25rem;">${{formatNumber economyStats.month.withdrawals.total}}</div>
-          <div style="font-size:0.8rem;color:var(--text-secondary);">{{formatNumber economyStats.month.withdrawals.cnt}} transactions</div>
+          <div style="font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">{{atmDays}} Days — Withdrawals</div>
+          <div style="font-size:1.3rem;font-weight:700;color:#f87171;margin-top:0.25rem;">${{formatNumber economyStats.range.withdrawals.total}}</div>
+          <div style="font-size:0.8rem;color:var(--text-secondary);">{{formatNumber economyStats.range.withdrawals.cnt}} transactions</div>
         </div>
       </div>
     </div>
 
     <div class="admin-form-card" style="margin-top:1rem;">
-      <h3>Daily Deposits vs Withdrawals (30 days)</h3>
+      <h3>Daily Deposits vs Withdrawals ({{atmDays}} days)</h3>
       <div id="chart-atm" style="width:100%;height:300px;"></div>
     </div>
 

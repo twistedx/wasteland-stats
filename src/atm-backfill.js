@@ -1,5 +1,5 @@
 // Backfill ATM transactions from Discord channel history
-// Can be called as a script or imported as a module
+// Supports incremental mode — only fetches messages newer than what's already in the DB
 const axios = require("axios");
 const config = require("./config");
 
@@ -11,9 +11,21 @@ async function backfill(economyTracker, maxPages = 50) {
 
   const TOKEN = config.discordBotToken;
   const CHANNEL = config.atmChannelId;
+
+  // Get the latest timestamp we already have — only fetch newer messages
+  const latestTs = economyTracker.getLatestTimestamp();
+  const cutoffDate = latestTs ? new Date(latestTs) : null;
+  if (cutoffDate) {
+    console.log(`ATM backfill: incremental mode — fetching messages after ${latestTs}`);
+  } else {
+    console.log("ATM backfill: full mode — no existing data");
+  }
+
   let total = 0;
   let parsed = 0;
+  let skipped = 0;
   let lastId = null;
+  let reachedExisting = false;
 
   for (let page = 0; page < maxPages; page++) {
     try {
@@ -25,6 +37,13 @@ async function backfill(economyTracker, maxPages = 50) {
       lastId = msgs[msgs.length - 1].id;
 
       for (const m of msgs) {
+        // Stop if we've reached messages we already have
+        if (cutoffDate && new Date(m.timestamp) <= cutoffDate) {
+          reachedExisting = true;
+          skipped++;
+          continue;
+        }
+
         if (!m.embeds?.length) continue;
         const desc = m.embeds[0].description || "";
         const lines = desc.split("\n").map(l => l.trim());
@@ -45,15 +64,31 @@ async function backfill(economyTracker, maxPages = 50) {
           parsed++;
         }
       }
-      if (page % 10 === 0) console.log(`ATM backfill: page ${page + 1}, ${total} messages, ${parsed} transactions`);
+
+      if (page % 10 === 0) console.log(`ATM backfill: page ${page + 1}, ${total} messages, ${parsed} new transactions`);
+
+      // If all messages in this page were older than our cutoff, stop
+      if (reachedExisting && skipped >= msgs.length) {
+        console.log("ATM backfill: reached existing data, stopping");
+        break;
+      }
+      skipped = 0;
+
       await new Promise(r => setTimeout(r, 500));
     } catch (err) {
-      console.error("ATM backfill error:", err.message);
-      break;
+      if (err.response?.status === 429) {
+        const retryAfter = (err.response.data?.retry_after || 5) * 1000;
+        console.log(`ATM backfill: rate limited, waiting ${retryAfter / 1000}s`);
+        await new Promise(r => setTimeout(r, retryAfter));
+        page--;
+      } else {
+        console.error("ATM backfill error:", err.message);
+        break;
+      }
     }
   }
 
-  console.log(`ATM backfill complete: ${total} messages, ${parsed} transactions`);
+  console.log(`ATM backfill complete: ${total} messages checked, ${parsed} new transactions added`);
   return { total, parsed };
 }
 

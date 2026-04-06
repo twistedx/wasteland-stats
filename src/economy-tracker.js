@@ -65,13 +65,14 @@ function recordSnapshot(totalCash, playerCount) {
     .run(totalCash, playerCount, Date.now());
 }
 
-function getStats() {
+function getStats(days = 30) {
   if (!db) return null;
 
   const now = Date.now();
   const todayStr = new Date().toISOString().slice(0, 10);
   const weekStr = new Date(now - 7 * 86400000).toISOString().replace("T", " ").slice(0, 19);
   const monthStr = new Date(now - 30 * 86400000).toISOString().replace("T", " ").slice(0, 19);
+  const rangeStr = new Date(now - days * 86400000).toISOString().replace("T", " ").slice(0, 19);
 
   // Today's stats
   const todayDeposits = db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount),0) as total FROM atm_transactions WHERE type = 'deposit' AND created_at >= ?").get(todayStr);
@@ -85,17 +86,21 @@ function getStats() {
   const monthDeposits = db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount),0) as total FROM atm_transactions WHERE type = 'deposit' AND created_at >= ?").get(monthStr);
   const monthWithdrawals = db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount),0) as total FROM atm_transactions WHERE type = 'withdrawal' AND created_at >= ?").get(monthStr);
 
+  // Selected range stats
+  const rangeDeposits = db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount),0) as total FROM atm_transactions WHERE type = 'deposit' AND created_at >= ?").get(rangeStr);
+  const rangeWithdrawals = db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount),0) as total FROM atm_transactions WHERE type = 'withdrawal' AND created_at >= ?").get(rangeStr);
+
   // All time
   const allDeposits = db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount),0) as total FROM atm_transactions WHERE type = 'deposit'").get();
   const allWithdrawals = db.prepare("SELECT COUNT(*) as cnt, COALESCE(SUM(amount),0) as total FROM atm_transactions WHERE type = 'withdrawal'").get();
 
-  // Averages
-  const avgDeposit = allDeposits.cnt > 0 ? Math.round(allDeposits.total / allDeposits.cnt) : 0;
-  const avgWithdrawal = allWithdrawals.cnt > 0 ? Math.round(allWithdrawals.total / allWithdrawals.cnt) : 0;
+  // Averages — based on selected range
+  const avgDeposit = rangeDeposits.cnt > 0 ? Math.round(rangeDeposits.total / rangeDeposits.cnt) : 0;
+  const avgWithdrawal = rangeWithdrawals.cnt > 0 ? Math.round(rangeWithdrawals.total / rangeWithdrawals.cnt) : 0;
 
-  // Daily history (last 30 days)
+  // Daily history (for selected range)
   const dailyHistory = [];
-  for (let i = 29; i >= 0; i--) {
+  for (let i = days - 1; i >= 0; i--) {
     const dayStart = new Date(now - i * 86400000);
     dayStart.setUTCHours(0, 0, 0, 0);
     const dayEnd = new Date(dayStart.getTime() + 86400000);
@@ -122,9 +127,11 @@ function getStats() {
   const snapshots = db.prepare("SELECT total_cash, player_count, ts FROM economy_snapshots WHERE ts >= ? ORDER BY ts ASC").all(snapCutoff);
 
   return {
+    days,
     today: { deposits: todayDeposits, withdrawals: todayWithdrawals },
     week: { deposits: weekDeposits, withdrawals: weekWithdrawals },
     month: { deposits: monthDeposits, withdrawals: monthWithdrawals },
+    range: { deposits: rangeDeposits, withdrawals: rangeWithdrawals },
     all: { deposits: allDeposits, withdrawals: allWithdrawals },
     avgDeposit,
     avgWithdrawal,
@@ -134,4 +141,10 @@ function getStats() {
   };
 }
 
-module.exports = { init, recordTransaction, recordTransactionAt, recordSnapshot, clearTransactions, getStats };
+function getLatestTimestamp() {
+  if (!db) return null;
+  const row = db.prepare("SELECT MAX(created_at) as latest FROM atm_transactions").get();
+  return row?.latest || null;
+}
+
+module.exports = { init, recordTransaction, recordTransactionAt, recordSnapshot, clearTransactions, getLatestTimestamp, getStats };

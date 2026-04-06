@@ -1189,6 +1189,7 @@ router.get("/kills", async (req, res) => {
 router.get("/analytics", async (req, res) => {
   const user = req.session.user;
   buildAvatarUrl(user);
+  const atmDays = [30, 90, 180].includes(parseInt(req.query.atmDays)) ? parseInt(req.query.atmDays) : 30;
 
   const stats = analytics.getStats();
 
@@ -1219,8 +1220,9 @@ router.get("/analytics", async (req, res) => {
     auditStats,
     blockedIPs: user.isAdmin ? ipBlock.getAll() : [],
     ipBlockStats: user.isAdmin ? ipBlock.getStats() : { total: 0, today: 0 },
-    economyStats: user.isAdmin ? economyTracker.getStats() : null,
-    economyHistoryJson: JSON.stringify(user.isAdmin && economyTracker.getStats() ? economyTracker.getStats().dailyHistory : []),
+    economyStats: user.isAdmin ? economyTracker.getStats(atmDays) : null,
+    economyHistoryJson: JSON.stringify(user.isAdmin && economyTracker.getStats(atmDays) ? economyTracker.getStats(atmDays).dailyHistory : []),
+    atmDays,
     cashRollup: user.isAdmin ? await fetchCashRollup() : null,
   });
 });
@@ -1916,7 +1918,6 @@ router.post("/vac/watchlist-all", requireWriteAdmin, async (req, res) => {
 
 router.post("/atm/parse", requireWriteAdmin, async (req, res) => {
   try {
-    economyTracker.clearTransactions();
     const { backfill } = require("../atm-backfill");
     const result = await backfill(economyTracker, 50);
     auditLog.log("economy", "ATM Parse", `Parsed ${result.parsed} transactions from ${result.total} messages`, req.session.user);
