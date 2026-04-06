@@ -477,6 +477,12 @@
 
   <!-- ═══════════════ ATM TAB (Admin Only) ═══════════════ -->
   <div id="tab-atm" style="display:none;">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:0.75rem;">
+      <form method="POST" action="/admin/atm/parse" style="margin:0;" onsubmit="showSpinner('Parsing ATM channel...');return true;">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <button type="submit" class="btn btn-admin btn-small" style="background:#5865F2;">Parse Channel</button>
+      </form>
+    </div>
     <div class="analytics-cards">
       {{#if cashRollup}}
       <div class="stat-card primary">
@@ -489,13 +495,6 @@
       </div>
       {{/if}}
       {{#if economyStats}}
-      <div class="stat-card">
-        <form method="POST" action="/admin/atm/parse" style="margin:0;" onsubmit="showSpinner('Parsing ATM channel...');return true;">
-          <input type="hidden" name="_csrf" value="{{csrfToken}}">
-          <button type="submit" class="btn btn-admin btn-small" style="background:#5865F2;width:100%;">Parse Channel</button>
-        </form>
-        <div class="stat-label" style="margin-top:0.5rem;">Refresh Data</div>
-      </div>
       <div class="stat-card" style="border-top:3px solid #22c55e;">
         <div class="stat-value" style="color:#4ade80;">{{formatNumber economyStats.today.deposits.cnt}}</div>
         <div class="stat-label">Deposits Today</div>
