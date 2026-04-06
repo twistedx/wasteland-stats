@@ -478,9 +478,9 @@
   <!-- ═══════════════ ATM TAB (Admin Only) ═══════════════ -->
   <div id="tab-atm" style="display:none;">
     <div style="display:flex;justify-content:flex-end;margin-bottom:0.75rem;">
-      <form method="POST" action="/admin/atm/parse" style="margin:0;" onsubmit="showSpinner('Parsing ATM channel...');return true;">
+      <form method="POST" action="/admin/atm/parse" style="margin:0;">
         <input type="hidden" name="_csrf" value="{{csrfToken}}">
-        <button type="submit" class="btn btn-admin btn-small" style="background:#5865F2;">Parse Channel</button>
+        <button type="submit" class="btn btn-admin btn-small" style="background:#5865F2;" onclick="showSpinner('Parsing ATM channel... this may take a minute');">Parse Channel</button>
       </form>
     </div>
     <div class="analytics-cards">

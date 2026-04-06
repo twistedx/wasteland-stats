@@ -45,8 +45,8 @@ async function backfill(economyTracker, maxPages = 50) {
           parsed++;
         }
       }
-      console.log(`ATM backfill: page ${page + 1}, ${msgs.length} messages, ${parsed} transactions`);
-      await new Promise(r => setTimeout(r, 1000));
+      if (page % 10 === 0) console.log(`ATM backfill: page ${page + 1}, ${total} messages, ${parsed} transactions`);
+      await new Promise(r => setTimeout(r, 500));
     } catch (err) {
       console.error("ATM backfill error:", err.message);
       break;
