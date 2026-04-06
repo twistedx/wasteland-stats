@@ -8,6 +8,7 @@
       <button class="tab analytics-tab" data-tab="tab-store" type="button">Store</button>
     {{/if}}
     {{#if user.isAdmin}}
+      <button class="tab analytics-tab" data-tab="tab-atm" type="button">ATM</button>
       <button class="tab analytics-tab" data-tab="tab-audit" type="button">Audit Log</button>
       <button class="tab analytics-tab" data-tab="tab-security" type="button">Security</button>
     {{/if}}
@@ -474,6 +475,113 @@
     </div>
   </div>
 
+  <!-- ═══════════════ ATM TAB (Admin Only) ═══════════════ -->
+  <div id="tab-atm" style="display:none;">
+    <div class="analytics-cards">
+      {{#if cashRollup}}
+      <div class="stat-card primary">
+        <div class="stat-value" style="color:#22c55e;">${{formatNumber cashRollup.total_cash_balance}}</div>
+        <div class="stat-label">Total Cash in Game</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{formatNumber cashRollup.player_count}}</div>
+        <div class="stat-label">Total Players</div>
+      </div>
+      {{/if}}
+      {{#if economyStats}}
+      <div class="stat-card" style="border-top:3px solid #22c55e;">
+        <div class="stat-value" style="color:#4ade80;">{{formatNumber economyStats.today.deposits.cnt}}</div>
+        <div class="stat-label">Deposits Today</div>
+        <div class="stat-compare">${{formatNumber economyStats.today.deposits.total}}</div>
+      </div>
+      <div class="stat-card" style="border-top:3px solid #ef4444;">
+        <div class="stat-value" style="color:#f87171;">{{formatNumber economyStats.today.withdrawals.cnt}}</div>
+        <div class="stat-label">Withdrawals Today</div>
+        <div class="stat-compare">${{formatNumber economyStats.today.withdrawals.total}}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="color:#4fc3f7;">${{formatNumber economyStats.avgDeposit}}</div>
+        <div class="stat-label">Avg Deposit</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="color:#fbbf24;">${{formatNumber economyStats.avgWithdrawal}}</div>
+        <div class="stat-label">Avg Withdrawal</div>
+      </div>
+      {{/if}}
+    </div>
+
+    {{#if economyStats}}
+    <div class="admin-form-card" style="margin-top:1rem;">
+      <h3>Weekly Summary</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-top:0.75rem;">
+        <div style="background:var(--bg-primary);border-radius:6px;padding:1rem;">
+          <div style="font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">This Week — Deposits</div>
+          <div style="font-size:1.3rem;font-weight:700;color:#4ade80;margin-top:0.25rem;">${{formatNumber economyStats.week.deposits.total}}</div>
+          <div style="font-size:0.8rem;color:var(--text-secondary);">{{formatNumber economyStats.week.deposits.cnt}} transactions</div>
+        </div>
+        <div style="background:var(--bg-primary);border-radius:6px;padding:1rem;">
+          <div style="font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">This Week — Withdrawals</div>
+          <div style="font-size:1.3rem;font-weight:700;color:#f87171;margin-top:0.25rem;">${{formatNumber economyStats.week.withdrawals.total}}</div>
+          <div style="font-size:0.8rem;color:var(--text-secondary);">{{formatNumber economyStats.week.withdrawals.cnt}} transactions</div>
+        </div>
+        <div style="background:var(--bg-primary);border-radius:6px;padding:1rem;">
+          <div style="font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">This Month — Deposits</div>
+          <div style="font-size:1.3rem;font-weight:700;color:#4ade80;margin-top:0.25rem;">${{formatNumber economyStats.month.deposits.total}}</div>
+          <div style="font-size:0.8rem;color:var(--text-secondary);">{{formatNumber economyStats.month.deposits.cnt}} transactions</div>
+        </div>
+        <div style="background:var(--bg-primary);border-radius:6px;padding:1rem;">
+          <div style="font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">This Month — Withdrawals</div>
+          <div style="font-size:1.3rem;font-weight:700;color:#f87171;margin-top:0.25rem;">${{formatNumber economyStats.month.withdrawals.total}}</div>
+          <div style="font-size:0.8rem;color:var(--text-secondary);">{{formatNumber economyStats.month.withdrawals.cnt}} transactions</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-form-card" style="margin-top:1rem;">
+      <h3>Daily Deposits vs Withdrawals (30 days)</h3>
+      <div id="chart-atm" style="width:100%;height:300px;"></div>
+    </div>
+
+    {{#if economyStats.recentTransactions.length}}
+    <div class="admin-form-card" style="margin-top:1rem;">
+      <h3>Recent Transactions</h3>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Player</th>
+              <th>Amount</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each economyStats.recentTransactions}}
+              <tr>
+                <td>
+                  {{#if (eq this.type 'deposit')}}
+                    <span class="badge badge-clean">Deposit</span>
+                  {{else}}
+                    <span class="badge badge-danger">Withdrawal</span>
+                  {{/if}}
+                </td>
+                <td>{{#if this.player_name}}{{this.player_name}}{{else}}<span style="color:var(--text-secondary);">—</span>{{/if}}</td>
+                <td style="font-weight:600;color:{{#if (eq this.type 'deposit')}}#4ade80{{else}}#f87171{{/if}};">${{formatNumber this.amount}}</td>
+                <td>{{formatDateEST this.created_at}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {{/if}}
+    {{else}}
+      <div class="admin-form-card">
+        <div class="empty-state">No ATM transaction data yet. Data will appear once the bot starts tracking deposits and withdrawals from Discord.</div>
+      </div>
+    {{/if}}
+  </div>
+
   <!-- ═══════════════ SECURITY TAB (Admin Only) ═══════════════ -->
   <div id="tab-security" style="display:none;">
 
@@ -559,13 +667,14 @@
 
 {{> ban-modal}}
 
-<script>window.__dailyViews = {{{dailyViewsJson}}};window.__discord = {{{discordJson}}};window.__onlineHistory = {{{onlineHistoryJson}}};window.__storeStats = {{{storeStatsJson}}};</script>
+<script>window.__dailyViews = {{{dailyViewsJson}}};window.__discord = {{{discordJson}}};window.__onlineHistory = {{{onlineHistoryJson}}};window.__storeStats = {{{storeStatsJson}}};window.__economyHistory = {{{economyHistoryJson}}};</script>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script src="/js/admin-charts.js"></script>
 
 <script>
 (function() {
   var discordChartsRendered = false;
+  var atmChartRendered = false;
 
   document.querySelectorAll('.analytics-tab').forEach(function(tab) {
     tab.addEventListener('click', function() {
@@ -577,11 +686,40 @@
       if (storeEl) storeEl.style.display = 'none';
       var auditEl = document.getElementById('tab-audit');
       if (auditEl) auditEl.style.display = 'none';
+      var atmEl = document.getElementById('tab-atm');
+      if (atmEl) atmEl.style.display = 'none';
       var securityEl = document.getElementById('tab-security');
       if (securityEl) securityEl.style.display = 'none';
       document.getElementById(this.getAttribute('data-tab')).style.display = '';
 
       // Render Discord charts on first tab switch (ECharts needs visible container)
+      // Render ATM chart on first tab switch
+      if (this.getAttribute('data-tab') === 'tab-atm' && !atmChartRendered && window.__economyHistory && window.__economyHistory.length) {
+        atmChartRendered = true;
+        setTimeout(function() {
+          var el = document.getElementById('chart-atm');
+          if (!el || typeof echarts === 'undefined') return;
+          var chart = echarts.init(el);
+          var history = window.__economyHistory;
+          var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+          var labels = history.map(function(d) { var p = d.date.split("-"); return months[parseInt(p[1],10)-1] + " " + parseInt(p[2],10); });
+          chart.setOption({
+            tooltip: { trigger: "axis" },
+            legend: { data: ["Deposits", "Withdrawals"], textStyle: { color: "#aaa" }, top: 0 },
+            xAxis: { type: "category", data: labels, axisLabel: { color: "#aaa", fontSize: 10, rotate: 35 }, axisLine: { lineStyle: { color: "#333" } } },
+            yAxis: { type: "value", axisLabel: { color: "#aaa" }, splitLine: { lineStyle: { color: "#222" } } },
+            series: [{
+              name: "Deposits", type: "bar", data: history.map(function(d) { return d.deposits; }),
+              itemStyle: { color: "#22c55e", borderRadius: [3,3,0,0] }, barMaxWidth: 20
+            }, {
+              name: "Withdrawals", type: "bar", data: history.map(function(d) { return d.withdrawals; }),
+              itemStyle: { color: "#ef4444", borderRadius: [3,3,0,0] }, barMaxWidth: 20
+            }]
+          });
+          window.addEventListener('resize', function() { chart.resize(); });
+        }, 50);
+      }
+
       if (this.getAttribute('data-tab') === 'tab-discord' && !discordChartsRendered && window.__discord && window.__discord.joinHistory) {
         discordChartsRendered = true;
         setTimeout(function() { window.dispatchEvent(new Event('resize')); }, 50);

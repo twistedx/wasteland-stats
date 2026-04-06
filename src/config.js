@@ -28,6 +28,7 @@ const config = {
   adminApiToken: process.env.ADMIN_API_TOKEN || "",
   steamApiKey: process.env.STEAM_API_KEY || "",
   vacWebhookUrl: process.env.VAC_WEBHOOK_URL || null,
+  atmChannelId: process.env.ATM_CHANNEL_ID || "",
   whitelistedIPs: (process.env.WHITELISTED_IPS || "").split(",").filter(Boolean),
   watchlistWebhookUrl: process.env.WATCHLISTWH || "",
   productionSyncUrl: process.env.PRODUCTION_SYNC_URL || "",

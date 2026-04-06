@@ -23,6 +23,7 @@ const skinDraw = require("./skin-draw");
 const tasks = require("./tasks");
 const ipBlock = require("./ip-block");
 const vacScanner = require("./vac-scanner");
+const economyTracker = require("./economy-tracker");
 const cron = require("node-cron");
 const subscriptionPerks = require("./subscription-perks");
 const { marked } = require("marked");
@@ -414,6 +415,7 @@ skinDraw.init();
 tasks.init();
 ipBlock.init();
 vacScanner.init();
+economyTracker.init();
 
 // VAC scan cron — 4 AM and 4 PM EST
 cron.schedule("0 4,16 * * *", async () => {
@@ -438,6 +440,18 @@ cron.schedule("0 4,16 * * *", async () => {
     console.error("VAC cron error:", err.message);
   }
 }, { timezone: "America/New_York" });
+
+// Economy snapshot every hour — track total cash in game
+cron.schedule("0 * * * *", async () => {
+  try {
+    const res = await apiClient({ method: "GET", url: "/admin/cash-rollup", data: { token: config.adminApiToken } });
+    if (res.data?.total_cash_balance) {
+      economyTracker.recordSnapshot(res.data.total_cash_balance, res.data.player_count || 0);
+    }
+  } catch (err) {
+    console.error("Economy snapshot error:", err.message);
+  }
+});
 
 require("./discord-bot").init();
 

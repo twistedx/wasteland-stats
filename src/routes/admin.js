@@ -14,6 +14,7 @@ const auditLog = require("../audit-log");
 const skinDraw = require("../skin-draw");
 const tasks = require("../tasks");
 const ipBlock = require("../ip-block");
+const economyTracker = require("../economy-tracker");
 const vacChecker = require("../vac-checker");
 const vacScanner = require("../vac-scanner");
 const multer = require("multer");
@@ -1218,8 +1219,18 @@ router.get("/analytics", async (req, res) => {
     auditStats,
     blockedIPs: user.isAdmin ? ipBlock.getAll() : [],
     ipBlockStats: user.isAdmin ? ipBlock.getStats() : { total: 0, today: 0 },
+    economyStats: user.isAdmin ? economyTracker.getStats() : null,
+    economyHistoryJson: JSON.stringify(user.isAdmin && economyTracker.getStats() ? economyTracker.getStats().dailyHistory : []),
+    cashRollup: user.isAdmin ? await fetchCashRollup() : null,
   });
 });
+
+async function fetchCashRollup() {
+  try {
+    const res = await adminApiClient.get("/admin/cash-rollup", { params: { token: config.adminApiToken } });
+    return res.data || null;
+  } catch { return null; }
+}
 
 // Build the full watchlist page data: VAC flagged + all watchlisted players
 async function enrichVacFlagged() {
