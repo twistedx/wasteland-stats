@@ -1189,7 +1189,7 @@ router.get("/kills", async (req, res) => {
 router.get("/analytics", async (req, res) => {
   const user = req.session.user;
   buildAvatarUrl(user);
-  const atmDays = [30, 90, 180].includes(parseInt(req.query.atmDays)) ? parseInt(req.query.atmDays) : 30;
+  const atmDays = [30, 90, 180, 365].includes(parseInt(req.query.atmDays)) ? parseInt(req.query.atmDays) : 30;
 
   const stats = analytics.getStats();
 

@@ -34,9 +34,7 @@ function init() {
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_econ_ts ON economy_snapshots (ts)`);
 
-  // Prune old transactions (keep 90 days)
-  const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().replace("T", " ").slice(0, 19);
-  db.prepare("DELETE FROM atm_transactions WHERE created_at < ?").run(cutoff);
+  // No pruning — keep full historical data
 
   const txCount = db.prepare("SELECT COUNT(*) as c FROM atm_transactions").get().c;
   console.log(`EconomyTracker: ${txCount} ATM transactions in database.`);

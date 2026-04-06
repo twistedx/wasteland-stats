@@ -482,6 +482,7 @@
         <a href="/admin/analytics?tab=atm&atmDays=30" class="stats-toggle-btn {{#if (eq atmDays 30)}}active{{/if}}">30 Days</a>
         <a href="/admin/analytics?tab=atm&atmDays=90" class="stats-toggle-btn {{#if (eq atmDays 90)}}active{{/if}}">90 Days</a>
         <a href="/admin/analytics?tab=atm&atmDays=180" class="stats-toggle-btn {{#if (eq atmDays 180)}}active{{/if}}">180 Days</a>
+        <a href="/admin/analytics?tab=atm&atmDays=365" class="stats-toggle-btn {{#if (eq atmDays 365)}}active{{/if}}">All Time</a>
       </div>
       <form method="POST" action="/admin/atm/parse" style="margin:0;">
         <input type="hidden" name="_csrf" value="{{csrfToken}}">
