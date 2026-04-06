@@ -48,6 +48,17 @@ function recordTransaction(type, playerName, amount) {
     .run(type, playerName || null, Math.abs(amount));
 }
 
+function recordTransactionAt(type, playerName, amount, timestamp) {
+  if (!db) return;
+  db.prepare("INSERT INTO atm_transactions (type, player_name, amount, created_at) VALUES (?, ?, ?, ?)")
+    .run(type, playerName || null, Math.abs(amount), timestamp);
+}
+
+function clearTransactions() {
+  if (!db) return;
+  db.prepare("DELETE FROM atm_transactions").run();
+}
+
 function recordSnapshot(totalCash, playerCount) {
   if (!db) return;
   db.prepare("INSERT INTO economy_snapshots (total_cash, player_count, ts) VALUES (?, ?, ?)")
@@ -123,4 +134,4 @@ function getStats() {
   };
 }
 
-module.exports = { init, recordTransaction, recordSnapshot, getStats };
+module.exports = { init, recordTransaction, recordTransactionAt, recordSnapshot, clearTransactions, getStats };

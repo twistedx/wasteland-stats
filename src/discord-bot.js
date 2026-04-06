@@ -107,51 +107,41 @@ async function init() {
   });
 
   // Track ATM deposits/withdrawals from webhook channel
+  // Format: embed title "ATM Transaction", description has "Username: X\nType: Deposited 16,896\nAmount: 50362"
   if (config.atmChannelId) {
     const economyTracker = require("./economy-tracker");
     client.on("messageCreate", (message) => {
       if (message.channelId !== config.atmChannelId) return;
+      if (!message.embeds?.length) return;
 
-      // Parse from message content or embeds
-      const text = message.content || "";
-      const embedText = message.embeds?.map(e => `${e.title || ""} ${e.description || ""}`).join(" ") || "";
-      const combined = (text + " " + embedText).toLowerCase();
+      const desc = message.embeds[0].description || "";
+      const lines = desc.split("\n").map(l => l.trim());
 
-      // Try to extract amount and type
-      // Common patterns: "deposited $5,000", "withdrew $10,000", "deposit: 5000", "withdrawal: 10000"
+      let playerName = null;
       let type = null;
       let amount = 0;
-      let playerName = null;
 
-      if (combined.includes("deposit")) {
-        type = "deposit";
-      } else if (combined.includes("withdraw") || combined.includes("withdrew")) {
-        type = "withdrawal";
-      }
-
-      // Extract amount — look for numbers with optional $ and commas
-      const amountMatch = (text + " " + embedText).match(/\$?([\d,]+)/);
-      if (amountMatch) {
-        amount = parseInt(amountMatch[1].replace(/,/g, ""), 10);
-      }
-
-      // Extract player name from embed author or title
-      if (message.embeds?.[0]?.author?.name) {
-        playerName = message.embeds[0].author.name;
-      } else if (message.embeds?.[0]?.title) {
-        // Try to extract name from title
-        const nameMatch = message.embeds[0].title.match(/^(.+?)(?:\s+(?:deposited|withdrew|deposit|withdrawal))/i);
-        if (nameMatch) playerName = nameMatch[1].trim();
-      }
-      // Try from message content
-      if (!playerName) {
-        const nameMatch = (text + " " + embedText).match(/\*\*(.+?)\*\*/);
-        if (nameMatch) playerName = nameMatch[1];
+      for (const line of lines) {
+        if (line.startsWith("Username:")) {
+          playerName = line.replace("Username:", "").trim();
+        }
+        if (line.startsWith("Type:")) {
+          const typeStr = line.replace("Type:", "").trim();
+          if (typeStr.toLowerCase().startsWith("deposit")) {
+            type = "deposit";
+          } else if (typeStr.toLowerCase().startsWith("withdr") || typeStr.toLowerCase().startsWith("withdrew")) {
+            type = "withdrawal";
+          }
+          // Extract amount from the type line: "Deposited 16,896" or "Withdrew 50,000"
+          const amtMatch = typeStr.match(/([\d,]+)/);
+          if (amtMatch) {
+            amount = parseInt(amtMatch[1].replace(/,/g, ""), 10);
+          }
+        }
       }
 
       if (type && amount > 0) {
         economyTracker.recordTransaction(type, playerName, amount);
-        console.log(`EconomyTracker: ${type} ${amount} by ${playerName || "unknown"}`);
       }
     });
     console.log(`DiscordBot: listening for ATM transactions in channel ${config.atmChannelId}`);

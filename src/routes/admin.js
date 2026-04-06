@@ -1912,6 +1912,21 @@ router.post("/vac/watchlist-all", requireWriteAdmin, async (req, res) => {
   }
 });
 
+// ── ATM: Parse Channel History ──
+
+router.post("/atm/parse", requireWriteAdmin, async (req, res) => {
+  try {
+    economyTracker.clearTransactions();
+    const { backfill } = require("../atm-backfill");
+    const result = await backfill(economyTracker, 50);
+    auditLog.log("economy", "ATM Parse", `Parsed ${result.parsed} transactions from ${result.total} messages`, req.session.user);
+    res.redirect("/admin/analytics?success=" + encodeURIComponent(`Parsed ${result.parsed} ATM transactions from Discord.`) + "&tab=atm");
+  } catch (err) {
+    console.error("ATM parse error:", err.message);
+    res.redirect("/admin/analytics?error=" + encodeURIComponent("ATM parse failed: " + err.message) + "&tab=atm");
+  }
+});
+
 // ── Security: IP Block ──
 
 router.post("/security/block", requireWriteAdmin, (req, res) => {
