@@ -273,6 +273,15 @@ async function autoWatchlist() {
       watchlisted++;
       newlyWatchlisted.push(player);
       console.log(`[VAC Scan] Auto-watchlisted ${player.arma_id} (${player.arma_username || player.discord_username || "unknown"}) — ${banParts.join(", ")}`);
+
+      try {
+        const { sendVacWebhook } = require("./webhook");
+        sendVacWebhook({
+          title: "Player Added to Watchlist (VAC Scanner)",
+          description: `**${player.arma_username || player.discord_username || "Unknown"}**\nArma ID: \`${player.arma_id}\`\nSteam: [${player.steam_id}](https://steamcommunity.com/profiles/${player.steam_id})\nBans: ${banParts.join(", ")} — ${player.days_since_last_ban} days since last\n[View Profile](${config.siteUrl}/admin/player/${player.arma_id})`,
+          color: 0xf59e0b,
+        });
+      } catch {}
     } catch {}
 
     // Mark as processed regardless of success — so we never retry
