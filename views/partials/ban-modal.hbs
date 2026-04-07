@@ -23,6 +23,7 @@
 
       <form id="modal-form" method="POST" action="/admin/bans" class="money-form">
         <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <input type="hidden" name="ban_id" id="modal-ban-id">
         <div class="form-group">
           <label for="modal-arma-id" class="form-label">Player Arma ID</label>
           <input
@@ -91,6 +92,8 @@
     var usernameInput = document.getElementById('modal-selected-username');
     var mode = 'ban';
 
+    var banIdInput = document.getElementById('modal-ban-id');
+
     function openModal(m) {
       mode = m;
       // Reset
@@ -98,6 +101,7 @@
       usernameInput.value = '';
       searchInput.value = '';
       resultsDiv.innerHTML = '';
+      if (banIdInput) banIdInput.value = '';
 
       if (mode === 'ban') {
         title.textContent = 'Ban Player';
@@ -151,23 +155,43 @@
       var q = searchInput.value.trim();
       if (!q) return;
       resultsDiv.innerHTML = '<p class="result-count">Searching...</p>';
-      fetch('/admin/bans/search-players?q=' + encodeURIComponent(q))
+      var url = mode === 'unban'
+        ? '/admin/bans/search-bans?q=' + encodeURIComponent(q)
+        : '/admin/bans/search-players?q=' + encodeURIComponent(q);
+      fetch(url)
       .then(function(res) { return res.json(); })
-      .then(function(players) {
-        if (!players.length) {
-          resultsDiv.innerHTML = '<div class="empty-state">No players found.</div>';
+      .then(function(rows) {
+        if (!rows.length) {
+          resultsDiv.innerHTML = '<div class="empty-state">No ' + (mode === 'unban' ? 'bans' : 'players') + ' found.</div>';
           return;
         }
-        var table = '<div class="table-scroll"><table><thead><tr><th>Username</th><th>Arma ID</th><th>Action</th></tr></thead><tbody>';
-        players.forEach(function(p) {
-          table += '<tr><td class="player-name">' + esc(p.arma_username) + '</td><td class="guid">' + esc(p.arma_id) + '</td><td><button type="button" class="btn btn-admin btn-small modal-select-btn" data-arma-id="' + escAttr(p.arma_id) + '" data-username="' + escAttr(p.arma_username) + '">Select</button></td></tr>';
+        var headers = mode === 'unban'
+          ? '<th>Ban ID</th><th>Username</th><th>Arma ID</th><th>Reason</th><th>Action</th>'
+          : '<th>Username</th><th>Arma ID</th><th>Action</th>';
+        var table = '<div class="table-scroll"><table><thead><tr>' + headers + '</tr></thead><tbody>';
+        rows.forEach(function(p) {
+          if (mode === 'unban') {
+            table += '<tr>'
+              + '<td class="guid">#' + esc(String(p.ban_id)) + '</td>'
+              + '<td class="player-name">' + esc(p.arma_username) + '</td>'
+              + '<td class="guid">' + esc(p.arma_id) + '</td>'
+              + '<td>' + esc(p.reason || '-') + '</td>'
+              + '<td><button type="button" class="btn btn-admin btn-small modal-select-btn"'
+              + ' data-ban-id="' + escAttr(String(p.ban_id)) + '"'
+              + ' data-arma-id="' + escAttr(p.arma_id) + '"'
+              + ' data-username="' + escAttr(p.arma_username) + '">Select</button></td>'
+              + '</tr>';
+          } else {
+            table += '<tr><td class="player-name">' + esc(p.arma_username) + '</td><td class="guid">' + esc(p.arma_id) + '</td><td><button type="button" class="btn btn-admin btn-small modal-select-btn" data-arma-id="' + escAttr(p.arma_id) + '" data-username="' + escAttr(p.arma_username) + '">Select</button></td></tr>';
+          }
         });
         table += '</tbody></table></div>';
-        resultsDiv.innerHTML = '<p class="result-count">' + players.length + ' player(s) found</p>' + table;
+        resultsDiv.innerHTML = '<p class="result-count">' + rows.length + ' result(s) found</p>' + table;
         resultsDiv.querySelectorAll('.modal-select-btn').forEach(function(btn) {
           btn.addEventListener('click', function() {
             armaIdInput.value = this.dataset.armaId;
-            usernameInput.value = this.dataset.username;
+            usernameInput.value = this.dataset.username + (this.dataset.banId ? ' (Ban #' + this.dataset.banId + ')' : '');
+            if (banIdInput) banIdInput.value = this.dataset.banId || '';
           });
         });
       })

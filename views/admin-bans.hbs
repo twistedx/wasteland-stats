@@ -44,6 +44,7 @@
         <table id="ban-table">
           <thead>
             <tr>
+              <th>Ban ID</th>
               <th>Username</th>
               <th>Discord</th>
               <th>Arma GUID</th>
@@ -51,12 +52,13 @@
               <th>Banned By</th>
               <th>Reason</th>
               <th>Duration</th>
-              <th>Notes</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {{#each bans}}
               <tr>
+                <td class="guid">#{{this.id}}</td>
                 <td class="player-name">{{fallback this.banned_arma_username "Unknown"}}</td>
                 <td>{{fallback this.banned_discord_username "-"}}</td>
                 <td class="guid">{{fallback this.user_id_banned "-"}}</td>
@@ -64,12 +66,17 @@
                 <td>{{fallback this.admin_name "-"}}</td>
                 <td class="reason-cell">{{fallback this.reason "-"}}</td>
                 <td>{{#if (eq this.duration_hours -1)}}Permanent{{else}}{{this.duration_hours}}h{{/if}}</td>
-                <td>
+                <td style="display:flex;gap:0.4rem;">
                   <button class="btn btn-admin btn-small ban-notes-btn" data-arma-id="{{this.user_id_banned}}" title="View/Edit Notes">Notes</button>
+                  <form method="POST" action="/admin/bans/unban" style="display:inline;" onsubmit="return confirm('Unban this player?');">
+                    <input type="hidden" name="_csrf" value="{{../csrfToken}}">
+                    <input type="hidden" name="ban_id" value="{{this.id}}">
+                    <button type="submit" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Unban #{{this.id}}</button>
+                  </form>
                 </td>
               </tr>
               <tr class="ban-notes-row" data-arma-id="{{this.user_id_banned}}" style="display:none;">
-                <td colspan="8">
+                <td colspan="9">
                   <div class="ban-notes-editor">
                     <textarea class="ban-notes-textarea" rows="3" placeholder="Add notes about this player..."></textarea>
                     <div class="ban-notes-actions">
@@ -88,8 +95,8 @@
       <div class="bans-accordion-mobile">
         {{#each bans}}
           <div class="ban-card">
-            <div class="ban-card-header" onclick="this.parentElement.classList.toggle('open')">
-              <span class="ban-card-name">{{fallback this.banned_arma_username "Unknown"}}</span>
+            <div class="ban-card-header">
+              <span class="ban-card-name">#{{this.id}} · {{fallback this.banned_arma_username "Unknown"}}</span>
               <div class="ban-card-right">
                 <span class="ban-card-duration {{#if (eq this.duration_hours -1)}}ban-permanent{{/if}}">{{#if (eq this.duration_hours -1)}}Permanent{{else}}{{this.duration_hours}}h{{/if}}</span>
                 <svg class="ban-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
@@ -117,7 +124,14 @@
                 <span class="ban-card-reason">{{fallback this.reason "-"}}</span>
               </div>
               <div class="ban-card-row ban-card-notes-section" style="flex-direction:column;align-items:stretch;gap:0.5rem;">
-                <button class="btn btn-admin btn-small ban-notes-btn" data-arma-id="{{this.user_id_banned}}" style="align-self:flex-start;">Notes</button>
+                <div style="display:flex;gap:0.4rem;">
+                  <button class="btn btn-admin btn-small ban-notes-btn" data-arma-id="{{this.user_id_banned}}">Notes</button>
+                  <form method="POST" action="/admin/bans/unban" style="display:inline;" onsubmit="return confirm('Unban this player?');">
+                    <input type="hidden" name="_csrf" value="{{../csrfToken}}">
+                    <input type="hidden" name="ban_id" value="{{this.id}}">
+                    <button type="submit" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Unban #{{this.id}}</button>
+                  </form>
+                </div>
                 <div class="ban-notes-editor" data-arma-id="{{this.user_id_banned}}" style="display:none;">
                   <textarea class="ban-notes-textarea" rows="3" placeholder="Add notes about this player..."></textarea>
                   <div class="ban-notes-actions">
@@ -143,6 +157,14 @@
 (function() {
   var csrfToken = '{{csrfToken}}';
   var loadedNotes = {};
+
+  // Toggle ban-card accordion on header click
+  document.addEventListener('click', function(e) {
+    var header = e.target.closest('.ban-card-header');
+    if (!header) return;
+    if (e.target.closest('button') || e.target.closest('form')) return;
+    header.parentElement.classList.toggle('open');
+  });
 
   document.addEventListener('click', function(e) {
     var btn = e.target.closest('.ban-notes-btn');

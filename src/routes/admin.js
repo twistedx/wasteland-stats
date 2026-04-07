@@ -201,6 +201,35 @@ router.get("/bans/search-players", async (req, res) => {
   }
 });
 
+// GET /admin/bans/search-bans — search active bans for unban modal
+router.get("/bans/search-bans", async (req, res) => {
+  const q = (req.query.q || "").trim().toLowerCase();
+  if (!q) return res.json([]);
+  try {
+    const r = await apiClient({
+      method: "GET",
+      url: "/user/getAllUserBans/",
+      data: { token: config.apiToken },
+    });
+    const bans = Array.isArray(r.data?.data) ? r.data.data : [];
+    const matches = bans.filter(b =>
+      (b.banned_arma_username || "").toLowerCase().includes(q) ||
+      (b.user_id_banned || "").toLowerCase().includes(q) ||
+      (b.banned_discord_username || "").toLowerCase().includes(q)
+    ).slice(0, 30).map(b => ({
+      ban_id: b.id,
+      arma_id: b.user_id_banned || "-",
+      arma_username: b.banned_arma_username || "Unknown",
+      reason: b.reason || "-",
+      duration_hours: b.duration_hours,
+    }));
+    res.json(matches);
+  } catch (error) {
+    console.error("Ban search error:", error.message);
+    res.json([]);
+  }
+});
+
 // GET /admin/bans/export — download all bans as CSV
 router.get("/bans/export", async (req, res) => {
   try {
@@ -280,31 +309,33 @@ router.post("/bans", async (req, res) => {
 
 // POST /admin/bans/unban — unban a player
 router.post("/bans/unban", async (req, res) => {
-  const { arma_id } = req.body;
+  const { ban_id, arma_id } = req.body;
   const user = req.session.user;
 
-  if (!arma_id) {
-    return res.redirect("/admin/bans?error=Arma ID is required.");
+  if (!ban_id && !arma_id) {
+    return res.redirect("/admin/bans?error=Ban ID is required.");
   }
 
   try {
+    const data = { token: config.backendToken };
+    if (ban_id) data.ban_id = ban_id;
+    else data.arma_id = arma_id;
+
     await apiClient({
       method: "POST",
       url: "/user/removeUserBanByID/",
-      data: {
-        token: config.backendToken,
-        arma_id,
-      },
+      data,
     });
 
-    auditLog.log("moderation", "Player Unbanned", `Arma ID: ${arma_id}`, user);
+    const label = ban_id ? `Ban ID: ${ban_id}` : `Arma ID: ${arma_id}`;
+    auditLog.log("moderation", "Player Unbanned", label, user);
     sendWebhook({
       title: "Player Unbanned",
-      description: `<@${user.discord_id}> unbanned \`${String(arma_id).replace(/[`*_~|]/g, "")}\``,
+      description: `<@${user.discord_id}> unbanned \`${String(ban_id || arma_id).replace(/[`*_~|]/g, "")}\``,
       color: 0x22c55e,
     });
 
-    res.redirect("/admin/bans?success=" + encodeURIComponent("Player " + arma_id + " has been unbanned."));
+    res.redirect("/admin/bans?success=" + encodeURIComponent("Ban removed."));
   } catch (error) {
     console.error("Unban player error:", error.message);
     const apiMsg = error.response?.data?.message || error.message;
