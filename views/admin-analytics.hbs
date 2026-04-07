@@ -704,6 +704,15 @@
       if (securityEl) securityEl.style.display = 'none';
       document.getElementById(this.getAttribute('data-tab')).style.display = '';
 
+      // Update URL to reflect current tab and strip ATM-specific params
+      var tabName = this.getAttribute('data-tab').replace('tab-', '');
+      var newUrl = window.location.pathname + '?tab=' + tabName;
+      if (tabName === 'atm') {
+        var currentDays = new URLSearchParams(window.location.search).get('atmDays');
+        if (currentDays) newUrl += '&atmDays=' + currentDays;
+      }
+      history.replaceState(null, '', newUrl);
+
       // Render Discord charts on first tab switch (ECharts needs visible container)
       // Render ATM chart on first tab switch
       if (this.getAttribute('data-tab') === 'tab-atm' && !atmChartRendered && window.__economyHistory && window.__economyHistory.length) {
