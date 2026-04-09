@@ -42,10 +42,12 @@ function initDb() {
       event_type TEXT NOT NULL,
       discord_id TEXT,
       username TEXT,
-      ts INTEGER NOT NULL
+      ts INTEGER NOT NULL,
+      membership_days INTEGER
     )
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_member_events_ts ON member_events (ts)`);
+  try { db.exec("ALTER TABLE member_events ADD COLUMN membership_days INTEGER"); } catch (e) { /* exists */ }
 
   // Prune old data
   const cutoff = Date.now() - RETENTION_DAYS * 86400000;
@@ -99,8 +101,12 @@ function getOnlineHistory(days) {
 
 function recordMemberEvent(type, member) {
   if (!db) return;
-  db.prepare("INSERT INTO member_events (event_type, discord_id, username, ts) VALUES (?, ?, ?, ?)")
-    .run(type, member.id || null, member.user?.username || member.displayName || null, Date.now());
+  let membershipDays = null;
+  if (type === "leave" && member.joinedAt) {
+    membershipDays = Math.floor((Date.now() - member.joinedAt.getTime()) / 86400000);
+  }
+  db.prepare("INSERT INTO member_events (event_type, discord_id, username, ts, membership_days) VALUES (?, ?, ?, ?, ?)")
+    .run(type, member.id || null, member.user?.username || member.displayName || null, Date.now(), membershipDays);
 }
 
 function getMemberEventHistory(days) {
@@ -279,4 +285,9 @@ async function getStats() {
   }
 }
 
-module.exports = { init, getStats, getOnlineHistory, recordMemberEvent, getMemberEventHistory };
+function getRecentDepartures(limit = 30) {
+  if (!db) return [];
+  return db.prepare("SELECT username, discord_id, ts, membership_days FROM member_events WHERE event_type = 'leave' ORDER BY ts DESC LIMIT ?").all(limit);
+}
+
+module.exports = { init, getStats, getOnlineHistory, recordMemberEvent, getMemberEventHistory, getRecentDepartures };

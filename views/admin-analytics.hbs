@@ -299,6 +299,34 @@
       </div>
     </div>
 
+    {{#if recentDepartures.length}}
+    <div class="admin-form-card">
+      <h3>Recent Departures</h3>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Discord ID</th>
+              <th>Left</th>
+              <th>Member For</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each recentDepartures}}
+              <tr>
+                <td class="player-name">{{fallback this.username "Unknown"}}</td>
+                <td class="guid">{{fallback this.discord_id "-"}}</td>
+                <td>{{formatDateEST this.ts}}</td>
+                <td><span style="color:{{this.durationColor}};">{{this.durationLabel}}</span></td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {{/if}}
+
     <div class="admin-form-card">
       <h3>Server Info</h3>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;">

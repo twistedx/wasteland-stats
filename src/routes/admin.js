@@ -1228,6 +1228,24 @@ router.get("/analytics", async (req, res) => {
   const discordStats = require("../discord-stats");
   const discord = await discordStats.getStats();
   const onlineHistory = discordStats.getOnlineHistory(7);
+  const recentDepartures = discordStats.getRecentDepartures(30).map(d => {
+    let durationLabel = "—";
+    if (d.membership_days != null) {
+      const days = d.membership_days;
+      if (days >= 365) {
+        const y = Math.floor(days / 365);
+        const mo = Math.floor((days % 365) / 30);
+        durationLabel = `${y}y ${mo}mo`;
+      } else if (days >= 30) {
+        const mo = Math.floor(days / 30);
+        const rem = days % 30;
+        durationLabel = `${mo}mo ${rem}d`;
+      } else {
+        durationLabel = `${days}d`;
+      }
+    }
+    return { ...d, durationLabel, durationColor: d.membership_days == null ? "var(--text-secondary)" : d.membership_days >= 365 ? "#22c55e" : d.membership_days >= 30 ? "#fbbf24" : "#ef4444" };
+  });
 
   // Store stats and audit log (admin only)
   const storeStats = user.isAdmin ? store.getStoreStats() : null;
@@ -1245,6 +1263,7 @@ router.get("/analytics", async (req, res) => {
     discord,
     discordJson: JSON.stringify(discord || {}),
     onlineHistoryJson: JSON.stringify(onlineHistory || []),
+    recentDepartures,
     storeStats,
     storeStatsJson: JSON.stringify(storeStats || {}),
     auditEntries,

@@ -1391,6 +1391,24 @@ app.post("/store/webhook", async (req, res) => {
               });
             }
           }
+
+          // Re-assign Donator role on renewal (in case it was manually removed)
+          try {
+            const { getClient } = require("./discord-bot");
+            const bot = getClient();
+            if (bot?.isReady()) {
+              const guild = bot.guilds.cache.get(config.discordGuildId);
+              if (guild) {
+                const member = await guild.members.fetch(discordId).catch(() => null);
+                if (member) {
+                  await member.roles.add("1282418153925640402");
+                  console.log(`Donator role re-assigned to ${discordId} on renewal`);
+                }
+              }
+            }
+          } catch (roleErr) {
+            console.warn(`Failed to re-assign donator role to ${discordId}: ${roleErr.message}`);
+          }
         }
       } catch (renewErr) {
         console.error("Subscription renewal perk error:", renewErr.message);
