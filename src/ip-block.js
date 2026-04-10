@@ -36,7 +36,7 @@ function isBlocked(ip) {
 }
 
 function block(ip, reason, durationMs) {
-  const expiresAt = new Date(Date.now() + durationMs).toISOString().replace("T", " ").slice(0, 19);
+  const expiresAt = durationMs === 0 ? "9999-12-31 23:59:59" : new Date(Date.now() + durationMs).toISOString().replace("T", " ").slice(0, 19);
   const existing = db.prepare("SELECT * FROM blocked_ips WHERE ip = ?").get(ip);
   if (existing) {
     db.prepare("UPDATE blocked_ips SET reason = ?, strikes = strikes + 1, blocked_at = datetime('now'), expires_at = ? WHERE ip = ?")

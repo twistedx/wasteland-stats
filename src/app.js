@@ -40,8 +40,8 @@ app.set("trust proxy", 1);
 // Auto-block IPs: port scans, exploit probes, brute force
 const ipStrikes = new Map();    // ip -> { count, firstSeen }
 const requestLog = new Map();   // ip -> { count, firstSeen } — rate flood detection
-const BLOCK_DURATION = 24 * 60 * 60 * 1000;      // 24 hours
-const BLOCK_DURATION_LONG = 7 * 24 * 60 * 60 * 1000; // 7 days for repeat offenders
+const BLOCK_DURATION = 0;                           // permanent for probe/scan
+const BLOCK_DURATION_LONG = 0;                      // permanent for repeat offenders
 const STRIKE_WINDOW = 60 * 1000;  // 1 minute
 const MAX_STRIKES = 3;            // block after 3 probe hits in 1 minute
 
