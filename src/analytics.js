@@ -12,6 +12,8 @@ const RETENTION_DAYS = 90;
 const SKIP_PREFIXES = [
   "/css/", "/img/", "/js/", "/favicon", "/apple-touch-icon",
   "/android-chrome", "/site.webmanifest", "/api/",
+  "/store/webhook", "/robots.txt", "/sitemap",
+  "/auth/discord/callback",
 ];
 
 let db = null;
@@ -150,8 +152,8 @@ function getStats() {
   ).get().cnt;
 
   const topPages = db.prepare(
-    "SELECT path, COUNT(*) as count FROM visits GROUP BY path ORDER BY count DESC LIMIT 10"
-  ).all();
+    "SELECT path, COUNT(*) as count FROM visits WHERE ts >= ? GROUP BY path ORDER BY count DESC LIMIT 10"
+  ).all(monthStart);
 
   const recentActivity = db.prepare(
     "SELECT ts, path, username, logged_in FROM visits ORDER BY ts DESC LIMIT 20"
