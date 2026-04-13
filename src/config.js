@@ -30,6 +30,10 @@ const config = {
   vacWebhookUrl: process.env.VAC_WEBHOOK_URL || null,
   atmChannelId: process.env.ATM_CHANNEL_ID || "",
   whitelistedIPs: (process.env.WHITELISTED_IPS || "").split(",").filter(Boolean),
+  rconServers: (process.env.RCON_SERVERS || "").split("|").filter(Boolean).map(s => {
+    const [name, address, port, password] = s.split(",");
+    return { name, address, port: parseInt(port || "2302"), password };
+  }),
   watchlistWebhookUrl: process.env.WATCHLISTWH || "",
   productionSyncUrl: process.env.PRODUCTION_SYNC_URL || "",
   ssh: {

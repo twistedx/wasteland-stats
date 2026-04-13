@@ -477,6 +477,9 @@ cron.schedule("*/15 * * * *", async () => {
   }
 });
 
+const rcon = require("./rcon");
+rcon.init();
+
 require("./discord-bot").init();
 
 app.use(analytics.middleware);
