@@ -170,7 +170,7 @@ router.get("/discord/callback", async (req, res) => {
       checkWatchlist(req.session.user);
 
       req.session.save(() => {
-        res.redirect("/?login=success");
+        res.redirect("/profile");
       });
     });
   } catch (error) {
@@ -187,7 +187,7 @@ router.get("/discord/callback", async (req, res) => {
 // Redirect old email auth routes to Discord login
 router.get("/login", (req, res) => res.redirect("/auth/discord"));
 router.get("/register", (req, res) => res.redirect("/auth/discord"));
-router.get("/account", (req, res) => res.redirect("/"));
+router.get("/account", (req, res) => res.redirect("/profile"));
 
 // Check login status
 router.get("/me", (req, res) => {

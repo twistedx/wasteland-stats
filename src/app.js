@@ -465,16 +465,10 @@ app.use("/blog", require("./routes/blog"));
 
 async function fetchHomeData(req) {
   const tab = req.query.tab === "alltime" ? "alltime" : "season";
-  const statsTab = req.query.stats === "alltime" ? "alltime" : "season";
   const user = req.session.user || null;
 
   let leaderboard = [];
   let leaderboardError = false;
-  let stats = null;
-  let statsError = null;
-  let statsNotLinked = false;
-  let miscStats = [];
-  let atmBalance = null;
 
   // Fetch leaderboard (retry once on timeout)
   try {
@@ -506,52 +500,8 @@ async function fetchHomeData(req) {
     leaderboardError = true;
   }
 
-  // Fetch personal stats if logged in
+  // Build avatar URL for nav
   if (user) {
-    try {
-      const statsEndpoint = statsTab === "alltime"
-        ? "/user/getAllPlayerStatsByDiscordID"
-        : "/user/getAllPlayerStatsByDiscordIDCurrentSeason/";
-      const response = await apiClient({
-        method: "GET",
-        url: statsEndpoint,
-        data: {
-          discord_id: user.discord_id,
-          token: config.apiToken,
-        },
-      });
-      stats = response.data;
-
-
-      miscStats = MISC_FIELDS.filter(
-        (f) => stats[f.key] !== undefined && stats[f.key] !== null
-      ).map((f) => ({ label: f.label, value: stats[f.key] }));
-
-      // Fetch ATM balance if we have arma_id
-      if (stats.arma_id) {
-        try {
-          const cashRes = await apiClient.get("/user/getUserCash/", {
-            params: { arma_id: stats.arma_id, token: config.apiToken },
-          });
-          atmBalance = cashRes.data?.cash ?? cashRes.data?.data?.cash ?? cashRes.data?.amount ?? null;
-          if (atmBalance === null && cashRes.data?.data !== undefined) {
-            atmBalance = cashRes.data.data;
-          }
-        } catch (cashErr) {
-          console.error("Cash fetch error:", cashErr.message);
-        }
-      }
-    } catch (error) {
-      if (error.response?.status === 404) {
-        statsNotLinked = true;
-      } else {
-        console.error("Stats error:", error.message);
-        sendWebhookError("Stats Fetch", error.message);
-        statsError = "Failed to fetch stats.";
-      }
-    }
-
-    // Build avatar URL
     if (user.avatar && user.discord_id) {
       user.avatarUrl =
         "https://cdn.discordapp.com/avatars/" +
@@ -568,8 +518,170 @@ async function fetchHomeData(req) {
     }
   }
 
-  return { user, tab, statsTab, leaderboard, leaderboardError, stats, statsError, statsNotLinked, miscStats, atmBalance };
+  return { user, tab, leaderboard, leaderboardError };
 }
+
+// ── Player Profile Page (logged-in users) ──
+app.get("/profile", async (req, res) => {
+  const user = req.session.user;
+  if (!user) return res.redirect("/auth/discord");
+
+  // Build avatar URL
+  if (user.avatar && user.discord_id) {
+    user.avatarUrl = `https://cdn.discordapp.com/avatars/${user.discord_id}/${user.avatar}.png?size=128`;
+  } else if (user.discord_id) {
+    const defaultIndex = Number(BigInt(user.discord_id) >> 22n) % 6;
+    user.avatarUrl = `https://cdn.discordapp.com/embed/avatars/${defaultIndex}.png`;
+  } else {
+    user.avatarUrl = "https://cdn.discordapp.com/embed/avatars/0.png";
+  }
+
+  const statsTab = req.query.stats === "alltime" ? "alltime" : "season";
+  let stats = null;
+  let statsNotLinked = false;
+  let statsError = null;
+  let miscStats = [];
+  let atmBalance = null;
+  let steamId = user.steamId || null;
+  let recentKills = [];
+  let leaderboardRank = null;
+
+  try {
+    const statsEndpoint = statsTab === "alltime"
+      ? "/user/getAllPlayerStatsByDiscordID"
+      : "/user/getAllPlayerStatsByDiscordIDCurrentSeason/";
+    const response = await apiClient({
+      method: "GET",
+      url: statsEndpoint,
+      data: { discord_id: user.discord_id, token: config.apiToken },
+    });
+    stats = response.data;
+
+    miscStats = MISC_FIELDS.filter(
+      (f) => stats[f.key] !== undefined && stats[f.key] !== null
+    ).map((f) => ({ label: f.label, value: stats[f.key] }));
+
+    // Fetch ATM balance, recent kills, and leaderboard rank in parallel
+    const [cashRes, killsRes, lbRes] = await Promise.allSettled([
+      stats.arma_id ? apiClient.get("/user/getUserCash/", { params: { arma_id: stats.arma_id, token: config.apiToken } }) : Promise.reject("no arma_id"),
+      stats.arma_id ? apiClient({ method: "GET", url: "/user/getRecentPlayerKillsByArmaId", data: { arma_id: stats.arma_id, token: config.apiToken } }) : Promise.reject("no arma_id"),
+      apiClient.get(statsTab === "alltime" ? "/user/topTenUserStatsAllTime/" : "/user/topTenUserStats/", { params: { token: config.apiToken }, timeout: 15000 }),
+    ]);
+
+    if (cashRes.status === "fulfilled") {
+      atmBalance = cashRes.value.data?.cash ?? cashRes.value.data?.data?.cash ?? cashRes.value.data?.amount ?? cashRes.value.data?.data ?? null;
+    }
+
+    if (killsRes.status === "fulfilled") {
+      const killData = killsRes.value.data?.data || killsRes.value.data;
+      recentKills = Array.isArray(killData) ? killData.slice(0, 10) : [];
+    }
+
+    if (lbRes.status === "fulfilled" && stats.arma_id) {
+      const lb = Array.isArray(lbRes.value.data) ? lbRes.value.data : [];
+      const idx = lb.findIndex(p => p.arma_id === stats.arma_id);
+      if (idx >= 0) leaderboardRank = idx + 1;
+    }
+  } catch (error) {
+    if (error.response?.status === 404) {
+      statsNotLinked = true;
+    } else {
+      console.error("Profile stats error:", error.message);
+      statsError = "Failed to load your stats. Please try again.";
+    }
+  }
+
+  // Steam connections from Discord
+  const steamConnection = (user.connections || []).find(c => c.type === "steam");
+  if (steamConnection && !steamId) steamId = steamConnection.id;
+
+  // Fetch store purchases, skin draws, subscription info, Discord join date
+  const purchases = store.getPurchasesByDiscordId(user.discord_id);
+  const totalSpent = store.getTotalSpentByDiscordId(user.discord_id);
+  const skinDraws = skinDraw.getDrawsByDiscordId(user.discord_id);
+
+  // Determine active subscription tier from purchases
+  const subscriptionPerksModule = require("./subscription-perks");
+  let activeTier = null;
+  let activeTierName = null;
+  for (const p of purchases) {
+    const tier = subscriptionPerksModule.getTierForProduct(p.product_name);
+    if (tier) {
+      activeTier = tier;
+      activeTierName = p.product_name;
+      break; // most recent subscription purchase
+    }
+  }
+
+  // Get Discord member join date
+  let memberSince = null;
+  let memberDays = null;
+  let memberRoles = [];
+  try {
+    const { getClient } = require("./discord-bot");
+    const bot = getClient();
+    if (bot?.isReady()) {
+      const guild = bot.guilds.cache.get(config.discordGuildId);
+      if (guild) {
+        const member = await guild.members.fetch(user.discord_id).catch(() => null);
+        if (member) {
+          memberSince = member.joinedAt;
+          memberDays = Math.floor((Date.now() - member.joinedAt.getTime()) / 86400000);
+          memberRoles = member.roles.cache
+            .filter(r => r.id !== guild.id)
+            .sort((a, b) => b.position - a.position)
+            .map(r => ({ name: r.name, color: r.hexColor }))
+            .slice(0, 15);
+        }
+      }
+    }
+  } catch {}
+
+  // ATM limit
+  let atmLimit = null;
+  if (stats?.arma_id) {
+    try {
+      const limRes = await axios.get(`${config.apiBaseUrl}/admin/atm-limit`, {
+        params: { token: config.adminApiToken, arma_id: stats.arma_id },
+        timeout: 8000,
+      });
+      atmLimit = limRes.data?.atm_limit ?? limRes.data?.data?.atm_limit ?? null;
+    } catch {}
+  }
+
+  // Donor badge tier — TODO: remove override after testing
+  const donorTier = user.discord_id === "348269399498842112" ? "legendary" : totalSpent >= 10000 ? "legendary" : totalSpent >= 5000 ? "diamond" : totalSpent >= 2500 ? "platinum" : totalSpent >= 1000 ? "gold" : totalSpent >= 500 ? "silver" : totalSpent > 0 ? "bronze" : null;
+
+  res.render("profile", {
+    page: "profile",
+    pageTitle: "My Profile",
+    pageDescription: "Your personal Arma Wasteland player profile.",
+    noIndex: true,
+    user,
+    stats,
+    statsTab,
+    statsNotLinked,
+    statsError,
+    miscStats,
+    atmBalance,
+    atmLimit,
+    steamId,
+    recentKills,
+    leaderboardRank,
+    purchases: purchases.slice(0, 20),
+    totalSpent: (totalSpent / 100).toFixed(2),
+    purchaseCount: purchases.length,
+    purchasesFormatted: purchases.slice(0, 20).map(p => ({ ...p, amountDollars: (p.amount / 100).toFixed(2) })),
+    skinDraws: skinDraws.slice(0, 20),
+    skinCount: skinDraws.length,
+    activeTier,
+    activeTierName,
+    donorTier,
+    memberSince: memberSince ? memberSince.toISOString() : null,
+    memberDays,
+    memberRoles,
+  });
+});
 
 app.get("/", async (req, res) => {
   const data = await fetchHomeData(req);

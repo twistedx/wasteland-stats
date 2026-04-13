@@ -34,11 +34,19 @@
       <a href="/" class="site-title"><img src="/img/armatextlogo600x100.png" alt="Arma Wasteland" class="site-logo"></a>
       <nav class="nav-links" aria-label="Main navigation">
         <a href="/" class="nav-link {{#if (eq page 'home')}}active{{/if}}">Home</a>
-        <a href="/about" class="nav-link {{#if (eq page 'about')}}active{{/if}}">About</a>
-        <a href="/how-to" class="nav-link {{#if (eq page 'howto')}}active{{/if}}">How To Play</a>
-        <a href="/blog" class="nav-link {{#if (eq page 'blog')}}active{{/if}}">News</a>
+        <div class="nav-dropdown">
+          <button class="nav-link nav-dropdown-toggle {{#if (or (eq page 'about') (or (eq page 'howto') (eq page 'blog')))}}active{{/if}}" type="button">Resources <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="margin-left:2px;"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
+          <div class="nav-dropdown-menu">
+            <a href="/about" class="nav-dropdown-item {{#if (eq page 'about')}}active{{/if}}">About</a>
+            <a href="/how-to" class="nav-dropdown-item {{#if (eq page 'howto')}}active{{/if}}">How To Play</a>
+            <a href="/blog" class="nav-dropdown-item {{#if (eq page 'blog')}}active{{/if}}">News</a>
+          </div>
+        </div>
         <a href="/products" class="nav-link {{#if (eq page 'products')}}active{{/if}}">Products</a>
         <a href="/store" class="nav-link nav-store {{#if (eq page 'store')}}active{{/if}}">Store</a>
+        {{#if user}}
+          <a href="/profile" class="nav-link nav-profile {{#if (eq page 'profile')}}active{{/if}}" onclick="showSpinner('Loading profile...')">My Profile</a>
+        {{/if}}
         <a href="https://discord.gg/W8jNyvAnEp" target="_blank" rel="noopener" class="nav-link nav-discord" aria-label="Join our Discord server">Discord</a>
         {{#if user.isAdmin}}
           <a href="/admin/analytics" class="nav-link nav-admin {{#if (eq page 'admin')}}active{{/if}}">Admin</a>
@@ -47,7 +55,7 @@
       <div id="auth-section">
         {{#if user}}
           <div id="user-info">
-            <a href="/auth/account" class="user-avatar-link">
+            <a href="/profile" class="user-avatar-link" onclick="showSpinner('Loading profile...')">
               <img src="{{user.avatarUrl}}" class="avatar" alt="avatar">
               <span>{{user.username}}</span>
             </a>
@@ -57,7 +65,7 @@
             </form>
           </div>
         {{else}}
-          <a href="/auth/discord" class="btn btn-discord">Login with Discord</a>
+          <a href="/auth/discord" class="btn btn-discord" onclick="showSpinner('Connecting to Discord...')">Login with Discord</a>
         {{/if}}
       </div>
     </div>

@@ -156,4 +156,9 @@ function upsertPoolItems(items) {
   return summary;
 }
 
-module.exports = { init, getPool, getAllPool, getPoolItem, addToPool, updatePoolItem, removeFromPool, draw, recordDraw, getRecentDraws, getDrawStats, getDropRates, upsertPoolItems };
+function getDrawsByDiscordId(discordId) {
+  if (!db) return [];
+  return db.prepare("SELECT result_name, result_rarity, created_at FROM skin_draw_history WHERE discord_id = ? ORDER BY created_at DESC").all(discordId);
+}
+
+module.exports = { init, getPool, getAllPool, getPoolItem, addToPool, updatePoolItem, removeFromPool, draw, recordDraw, getRecentDraws, getDrawStats, getDropRates, upsertPoolItems, getDrawsByDiscordId };

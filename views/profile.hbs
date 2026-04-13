@@ -1,0 +1,644 @@
+<section class="profile-page">
+
+  <!-- Hero Banner -->
+  <div class="profile-hero {{#if donorTier}}hero-tier-{{donorTier}}{{/if}}">
+    <div class="profile-hero-bg"></div>
+    {{#if donorTier}}
+      <div class="profile-hero-tier-img"></div>
+    {{/if}}
+    <div class="profile-hero-content">
+      <div class="profile-hero-left">
+        <div class="profile-avatar-wrap">
+          <img src="{{user.avatarUrl}}" alt="avatar" class="profile-avatar">
+          {{#if donorTier}}
+            <span class="profile-donor-ring donor-{{donorTier}}"></span>
+          {{/if}}
+        </div>
+        <div class="profile-hero-info">
+          <h1 class="profile-username">{{user.username}}</h1>
+          <div class="profile-meta-row">
+            {{#if stats}}<span class="profile-tag">{{stats.arma_username}}</span>{{/if}}
+            {{#if steamId}}
+              <a href="https://steamcommunity.com/profiles/{{steamId}}" target="_blank" rel="noopener" class="profile-steam-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H8v-3h2V9.5C10 7.57 11.57 6 13.5 6H16v3h-2c-.55 0-1 .45-1 1v2h3l-.5 3H13v6.95c5.05-.5 9-4.76 9-9.95 0-5.52-4.48-10-10-10z"/></svg>
+                Steam
+              </a>
+            {{/if}}
+            {{#if memberSince}}
+              <span class="profile-tag" style="color:#5865F2;">Member for {{memberDays}} days</span>
+            {{/if}}
+          </div>
+          {{#if leaderboardRank}}
+          <div class="profile-badges-row">
+            <div class="profile-rank-badge">
+              <span class="profile-rank-number">#{{leaderboardRank}}</span>
+              <span class="profile-rank-label">Leaderboard</span>
+            </div>
+          </div>
+          {{/if}}
+        </div>
+      </div>
+      {{#if (or donorTier activeTierName)}}
+      <div class="profile-hero-right">
+        {{#if donorTier}}
+        <div class="profile-tier-showcase donor-showcase-{{donorTier}}">
+          <div class="profile-tier-icon">{{#if (eq donorTier 'legendary')}}&#9733;{{else if (eq donorTier 'diamond')}}&#9830;{{else if (eq donorTier 'platinum')}}&#9827;{{else if (eq donorTier 'gold')}}&#9829;{{else if (eq donorTier 'silver')}}&#9826;{{else}}&#9679;{{/if}}</div>
+          <div class="profile-tier-title">{{donorTier}}</div>
+          <div class="profile-tier-subtitle">Supporter</div>
+        </div>
+        {{/if}}
+        {{#if activeTierName}}
+        <div class="profile-sub-showcase">
+          <div class="profile-sub-showcase-icon">&#9889;</div>
+          <div class="profile-sub-showcase-name">{{activeTierName}}</div>
+          {{#if activeTier}}
+          <div class="profile-sub-showcase-perks">
+            <span>${{formatNumber activeTier.bankLimit}} bank</span>
+            {{#if activeTier.skinsPerMonth}}<span>{{activeTier.skinsPerMonth}} skins/mo</span>{{/if}}
+          </div>
+          {{/if}}
+        </div>
+        {{/if}}
+      </div>
+      {{/if}}
+    </div>
+  </div>
+
+  {{#if statsNotLinked}}
+    <div class="notice" style="margin-top:1.5rem;">
+      <strong>Account Not Linked</strong>
+      <p>Your Discord account isn't linked to an Arma account yet. Use <code>/verify</code> in Discord or link your accounts in-game to see your stats here.</p>
+    </div>
+  {{else if statsError}}
+    <div class="error" style="margin-top:1.5rem;">{{statsError}}</div>
+  {{else if stats}}
+
+    <!-- Season Toggle -->
+    <div class="profile-toggle-bar">
+      <a href="/profile?stats=season" class="stats-toggle-btn {{#if (eq statsTab 'season')}}active{{/if}}" onclick="showSpinner('Loading stats...')">Current Season</a>
+      <a href="/profile?stats=alltime" class="stats-toggle-btn {{#if (eq statsTab 'alltime')}}active{{/if}}" onclick="showSpinner('Loading stats...')">All Time</a>
+    </div>
+
+    <!-- Primary Stats -->
+    <div class="profile-stats-hero">
+      <div class="profile-big-stat">
+        <span class="profile-big-value kills-glow">{{formatNumber stats.kill_count}}</span>
+        <span class="profile-big-label">Kills</span>
+      </div>
+      <div class="profile-big-stat">
+        <span class="profile-big-value">{{formatNumber stats.deaths}}</span>
+        <span class="profile-big-label">Deaths</span>
+      </div>
+      <div class="profile-big-stat">
+        <span class="profile-big-value kd-glow">{{fallback stats.kdRatio "0.0"}}</span>
+        <span class="profile-big-label">K/D Ratio</span>
+      </div>
+      {{#if atmBalance}}
+      <div class="profile-big-stat">
+        <span class="profile-big-value cash-glow">${{formatNumber atmBalance}}</span>
+        <span class="profile-big-label">Cash Balance</span>
+      </div>
+      {{/if}}
+      {{#if atmLimit}}
+      <div class="profile-big-stat">
+        <span class="profile-big-value" style="color:#fbbf24;">${{formatNumber atmLimit}}</span>
+        <span class="profile-big-label">ATM Limit</span>
+      </div>
+      {{/if}}
+    </div>
+
+    <!-- Combat Details -->
+    <div class="profile-grid">
+
+      <!-- Rivals -->
+      <div class="profile-card">
+        <div class="profile-card-header">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="color:#ef4444;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+          Rivals
+        </div>
+        <div class="profile-card-body">
+          {{#if stats.mostKilled}}
+          <div class="profile-rival">
+            <span class="profile-rival-label">Favorite Target</span>
+            <span class="profile-rival-name">{{stats.mostKilled}}</span>
+            <span class="profile-rival-count">{{stats.mostKilledCount}}x</span>
+          </div>
+          {{/if}}
+          {{#if stats.mostKilledBy}}
+          <div class="profile-rival">
+            <span class="profile-rival-label">Nemesis</span>
+            <span class="profile-rival-name" style="color:#ef4444;">{{stats.mostKilledBy}}</span>
+            <span class="profile-rival-count">{{stats.mostKilledByCount}}x</span>
+          </div>
+          {{/if}}
+          {{#unless stats.mostKilled}}{{#unless stats.mostKilledBy}}
+            <div class="empty-state">No rival data yet.</div>
+          {{/unless}}{{/unless}}
+        </div>
+      </div>
+
+      <!-- Recent Kills -->
+      <div class="profile-card">
+        <div class="profile-card-header">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="color:#fbbf24;"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          Recent Kills
+        </div>
+        <div class="profile-card-body">
+          {{#if recentKills.length}}
+          <div class="profile-kills-list">
+            {{#each recentKills}}
+            <div class="profile-kill-row">
+              <span class="profile-kill-victim">{{this.victim_username}}</span>
+              <span class="profile-kill-weapon">{{fallback this.weapon "-"}}</span>
+              <span class="profile-kill-dist">{{#if this.distance}}{{this.distance}}m{{/if}}</span>
+            </div>
+            {{/each}}
+          </div>
+          {{else}}
+          <div class="empty-state">No recent kills recorded.</div>
+          {{/if}}
+        </div>
+      </div>
+
+      <!-- Supporter Status -->
+      {{#if purchaseCount}}
+      <div class="profile-card profile-card-wide">
+        <div class="profile-card-header" style="background:linear-gradient(90deg, rgba(245,158,11,0.08), transparent);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="color:#f59e0b;"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          Supporter Status
+        </div>
+        <div class="profile-card-body">
+          <div class="profile-supporter-stats">
+            <div class="profile-supporter-item">
+              <span class="profile-supporter-value" style="color:#22c55e;">${{totalSpent}}</span>
+              <span class="profile-supporter-label">Total Contributed</span>
+            </div>
+            <div class="profile-supporter-item">
+              <span class="profile-supporter-value">{{purchaseCount}}</span>
+              <span class="profile-supporter-label">Purchases</span>
+            </div>
+            {{#if activeTier}}
+            <div class="profile-supporter-item">
+              <span class="profile-supporter-value" style="color:#fbbf24;">${{formatNumber activeTier.bankLimit}}</span>
+              <span class="profile-supporter-label">Bank Limit</span>
+            </div>
+            <div class="profile-supporter-item">
+              <span class="profile-supporter-value" style="color:#a78bfa;">{{activeTier.skinsPerMonth}}</span>
+              <span class="profile-supporter-label">Skins / Month</span>
+            </div>
+            {{/if}}
+          </div>
+        </div>
+      </div>
+      {{/if}}
+
+      <!-- Skins & Roles — 50/50 -->
+      {{#if (or skinCount memberRoles.length)}}
+      <div class="profile-half-row">
+        {{#if skinCount}}
+        <div class="profile-card">
+          <div class="profile-card-header" style="background:linear-gradient(90deg, rgba(167,139,250,0.08), transparent);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="color:#a78bfa;"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM5 15h14v3H5z"/></svg>
+            Skin Collection ({{skinCount}})
+          </div>
+          <div class="profile-card-body">
+            <div class="profile-skin-list">
+              {{#each skinDraws}}
+              <div class="profile-skin-item rarity-{{this.result_rarity}}">
+                <span class="profile-skin-name">{{this.result_name}}</span>
+                <span class="profile-skin-rarity">{{this.result_rarity}}</span>
+              </div>
+              {{/each}}
+            </div>
+          </div>
+        </div>
+        {{/if}}
+        {{#if memberRoles.length}}
+        <div class="profile-card">
+          <div class="profile-card-header" style="background:linear-gradient(90deg, rgba(88,101,242,0.08), transparent);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="color:#5865F2;"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+            Discord Roles ({{memberRoles.length}})
+          </div>
+          <div class="profile-card-body">
+            <div class="profile-roles-wrap">
+              {{#each memberRoles}}
+              <span class="profile-role-pill" style="border-color:{{this.color}};color:{{this.color}};">{{this.name}}</span>
+              {{/each}}
+            </div>
+          </div>
+        </div>
+        {{/if}}
+      </div>
+      {{/if}}
+
+      <!-- Purchase History -->
+      {{#if purchasesFormatted.length}}
+      <div class="profile-card profile-card-wide">
+        <div class="profile-card-header">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="color:#22c55e;"><path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
+          Purchase History
+        </div>
+        <div class="profile-card-body">
+          <div class="profile-purchase-list">
+            {{#each purchasesFormatted}}
+            <div class="profile-purchase-row">
+              <span class="profile-purchase-name">{{this.product_name}}</span>
+              <span class="profile-purchase-qty">{{#if (gt this.quantity 1)}}x{{this.quantity}}{{/if}}</span>
+              <span class="profile-purchase-amount">${{this.amountDollars}}</span>
+              <span class="profile-purchase-date">{{formatDate this.created_at}}</span>
+            </div>
+            {{/each}}
+          </div>
+        </div>
+      </div>
+      {{/if}}
+
+      <!-- Detailed Stats -->
+      {{#if miscStats.length}}
+      <div class="profile-card profile-card-wide">
+        <div class="profile-card-header">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="color:#4fc3f7;"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+          Detailed Stats
+        </div>
+        <div class="profile-card-body">
+          <div class="profile-detail-grid">
+            {{#each miscStats}}
+            <div class="profile-detail-item">
+              <span class="profile-detail-value">{{formatNumber this.value}}</span>
+              <span class="profile-detail-label">{{this.label}}</span>
+            </div>
+            {{/each}}
+          </div>
+        </div>
+      </div>
+      {{/if}}
+
+    </div>
+
+  {{else}}
+    <div class="loading" style="margin-top:2rem;">Loading your profile...</div>
+  {{/if}}
+
+</section>
+
+<style>
+/* ── Profile Hero ── */
+.profile-page { max-width: 960px; margin: 0 auto; }
+
+.profile-hero {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+.profile-hero-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%);
+  opacity: 0.9;
+}
+.profile-hero-tier-img {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 45%;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: right center;
+  opacity: 0.12;
+  pointer-events: none;
+}
+.hero-tier-bronze .profile-hero-bg { background: linear-gradient(135deg, #1a1a2e 0%, #2a1a0e 60%, #3d2510 100%); }
+.hero-tier-bronze .profile-hero-tier-img { background-image: url('/img/bank.png'); opacity: 0.15; }
+
+.hero-tier-silver .profile-hero-bg { background: linear-gradient(135deg, #1a1a2e 0%, #1e2430 60%, #2a3040 100%); }
+.hero-tier-silver .profile-hero-tier-img { background-image: url('/img/silver (1).png'); opacity: 0.18; }
+
+.hero-tier-gold .profile-hero-bg { background: linear-gradient(135deg, #1a1a2e 0%, #2a2210 60%, #3d3010 100%); }
+.hero-tier-gold .profile-hero-tier-img { background-image: url('/img/gold (1).png'); opacity: 0.2; }
+
+.hero-tier-platinum .profile-hero-bg { background: linear-gradient(135deg, #1a1a2e 0%, #22242e 60%, #303540 100%); }
+.hero-tier-platinum .profile-hero-tier-img { background-image: url('/img/plat (1).png'); opacity: 0.2; }
+
+.hero-tier-diamond .profile-hero-bg { background: linear-gradient(135deg, #0d1a2e 0%, #0f2540 60%, #103050 100%); }
+.hero-tier-diamond .profile-hero-tier-img { background-image: url('/img/plat (1).png'); opacity: 0.22; filter: hue-rotate(180deg) brightness(1.3); }
+
+.hero-tier-legendary .profile-hero-bg { background: linear-gradient(135deg, #1a0a1e 0%, #2a1030 60%, #3d0a20 100%); animation: legendary-bg 6s ease infinite; }
+.hero-tier-legendary .profile-hero-tier-img { background-image: url('/img/gold (1).png'); opacity: 0.25; filter: hue-rotate(320deg) saturate(1.5); animation: legendary-img-pulse 3s ease-in-out infinite; }
+@keyframes legendary-bg { 0%,100% { background: linear-gradient(135deg, #1a0a1e 0%, #2a1030 60%, #3d0a20 100%); } 50% { background: linear-gradient(135deg, #1a1a0e 0%, #2a2010 60%, #3d2a10 100%); } }
+@keyframes legendary-img-pulse { 0%,100% { opacity: 0.2; } 50% { opacity: 0.3; } }
+.profile-hero-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 2rem;
+}
+.profile-hero-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex: 1;
+  min-width: 0;
+}
+.profile-hero-right {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+/* ── Tier Showcase (right side hero) ── */
+.profile-tier-showcase {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-radius: 12px;
+  border: 2px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.3);
+  backdrop-filter: blur(4px);
+  min-width: 120px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.profile-tier-showcase::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.15;
+  border-radius: 10px;
+}
+.profile-tier-icon { font-size: 2rem; line-height: 1; margin-bottom: 0.3rem; filter: drop-shadow(0 0 8px currentColor); }
+.profile-tier-title { font-family: 'Orbitron', sans-serif; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+.profile-tier-subtitle { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,255,255,0.6); }
+
+.donor-showcase-bronze { border-color: #cd7f32; color: #cd7f32; }
+.donor-showcase-bronze::before { background: linear-gradient(135deg, #cd7f32, #a0522d); }
+.donor-showcase-silver { border-color: #c0c0c0; color: #c0c0c0; }
+.donor-showcase-silver::before { background: linear-gradient(135deg, #c0c0c0, #808080); }
+.donor-showcase-gold { border-color: #ffd700; color: #ffd700; box-shadow: 0 0 20px rgba(255,215,0,0.2); }
+.donor-showcase-gold::before { background: linear-gradient(135deg, #ffd700, #daa520); }
+.donor-showcase-platinum { border-color: #e5e4e2; color: #e5e4e2; box-shadow: 0 0 20px rgba(229,228,226,0.15); }
+.donor-showcase-platinum::before { background: linear-gradient(135deg, #e5e4e2, #b0b0b0); }
+.donor-showcase-diamond { border-color: #b9f2ff; color: #b9f2ff; box-shadow: 0 0 25px rgba(185,242,255,0.2); animation: diamond-glow 3s ease-in-out infinite; }
+.donor-showcase-diamond::before { background: linear-gradient(135deg, #b9f2ff, #87ceeb); }
+@keyframes diamond-glow { 0%,100% { box-shadow: 0 0 25px rgba(185,242,255,0.2); } 50% { box-shadow: 0 0 35px rgba(185,242,255,0.4); } }
+.donor-showcase-legendary { border-color: #ff6b6b; box-shadow: 0 0 30px rgba(255,107,107,0.3); animation: legendary-border 3s ease infinite; }
+.donor-showcase-legendary::before { background: linear-gradient(135deg, #ff6b6b, #a78bfa, #ffd700); background-size: 200% 200%; animation: legendary-shift 3s ease infinite; }
+.donor-showcase-legendary .profile-tier-icon { animation: legendary-icon 3s ease infinite; }
+.donor-showcase-legendary .profile-tier-title { background: linear-gradient(90deg, #ff6b6b, #ffd700, #a78bfa, #ff6b6b); background-size: 300% 100%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; animation: legendary-text 3s linear infinite; }
+@keyframes legendary-border { 0% { border-color: #ff6b6b; } 33% { border-color: #ffd700; } 66% { border-color: #a78bfa; } 100% { border-color: #ff6b6b; } }
+@keyframes legendary-icon { 0% { color: #ff6b6b; } 33% { color: #ffd700; } 66% { color: #a78bfa; } 100% { color: #ff6b6b; } }
+@keyframes legendary-text { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
+
+.profile-sub-showcase {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem 1.25rem;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(88,101,242,0.2), rgba(124,58,237,0.2));
+  border: 1px solid rgba(88,101,242,0.4);
+  min-width: 120px;
+  text-align: center;
+}
+.profile-sub-showcase-icon { font-size: 1.4rem; margin-bottom: 0.2rem; }
+.profile-sub-showcase-name { font-family: 'Orbitron', sans-serif; font-size: 0.65rem; font-weight: 700; color: #a78bfa; text-transform: uppercase; letter-spacing: 0.04em; }
+.profile-sub-showcase-perks { display: flex; gap: 0.5rem; margin-top: 0.3rem; }
+.profile-sub-showcase-perks span { font-size: 0.6rem; color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.06); padding: 0.15rem 0.4rem; border-radius: 3px; }
+.profile-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.profile-avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  border: 3px solid var(--accent);
+  box-shadow: 0 0 20px rgba(255,152,0,0.3);
+}
+.profile-donor-ring {
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  animation: donor-pulse 2s ease-in-out infinite;
+}
+.donor-bronze .profile-donor-ring, .profile-donor-ring.donor-bronze { border-color: #cd7f32; }
+.donor-silver .profile-donor-ring, .profile-donor-ring.donor-silver { border-color: #c0c0c0; }
+.donor-gold .profile-donor-ring, .profile-donor-ring.donor-gold { border-color: #ffd700; box-shadow: 0 0 15px rgba(255,215,0,0.4); }
+.donor-platinum .profile-donor-ring, .profile-donor-ring.donor-platinum { border-color: #e5e4e2; box-shadow: 0 0 15px rgba(229,228,226,0.4); }
+.donor-diamond .profile-donor-ring, .profile-donor-ring.donor-diamond { border-color: #b9f2ff; box-shadow: 0 0 20px rgba(185,242,255,0.5); }
+.donor-legendary .profile-donor-ring, .profile-donor-ring.donor-legendary { border-color: #ff6b6b; box-shadow: 0 0 25px rgba(255,107,107,0.5); animation: donor-legendary 2s ease-in-out infinite; }
+@keyframes donor-pulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+@keyframes donor-legendary { 0% { border-color: #ff6b6b; box-shadow: 0 0 25px rgba(255,107,107,0.5); } 33% { border-color: #ffd700; box-shadow: 0 0 25px rgba(255,215,0,0.5); } 66% { border-color: #a78bfa; box-shadow: 0 0 25px rgba(167,139,250,0.5); } 100% { border-color: #ff6b6b; box-shadow: 0 0 25px rgba(255,107,107,0.5); } }
+
+.profile-username {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.6rem;
+  color: #fff;
+  margin: 0;
+  text-shadow: 0 0 12px rgba(255,152,0,0.4);
+}
+.profile-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.4rem;
+  flex-wrap: wrap;
+}
+.profile-tag {
+  background: rgba(255,255,255,0.1);
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+.profile-steam-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #66c0f4;
+  font-size: 0.8rem;
+  text-decoration: none;
+  background: rgba(102,192,244,0.1);
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+.profile-steam-btn:hover { background: rgba(102,192,244,0.2); }
+
+.profile-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  flex-wrap: wrap;
+}
+.profile-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+}
+.profile-rank-number { font-family: 'Orbitron', sans-serif; font-weight: 700; font-size: 1rem; color: #000; }
+.profile-rank-label { font-size: 0.7rem; font-weight: 600; color: rgba(0,0,0,0.7); text-transform: uppercase; letter-spacing: 0.05em; }
+
+.profile-donor-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.donor-bg-bronze { background: linear-gradient(135deg, #cd7f32, #a0522d); color: #fff; }
+.donor-bg-silver { background: linear-gradient(135deg, #c0c0c0, #808080); color: #1a1a1a; }
+.donor-bg-gold { background: linear-gradient(135deg, #ffd700, #daa520); color: #1a1a1a; }
+.donor-bg-platinum { background: linear-gradient(135deg, #e5e4e2, #b0b0b0); color: #1a1a1a; }
+.donor-bg-diamond { background: linear-gradient(135deg, #b9f2ff, #87ceeb); color: #1a1a1a; }
+.donor-bg-legendary { background: linear-gradient(135deg, #ff6b6b, #a78bfa, #ffd700); color: #fff; background-size: 200% 200%; animation: legendary-shift 3s ease infinite; }
+@keyframes legendary-shift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+.profile-donor-icon { font-size: 0.9rem; }
+.profile-donor-text { font-size: 0.7rem; }
+
+.profile-sub-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #5865F2, #7c3aed);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.profile-sub-icon { font-size: 0.85rem; }
+
+/* ── Season Toggle ── */
+.profile-toggle-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+
+/* ── Primary Stats ── */
+.profile-stats-hero {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.profile-big-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1.25rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.profile-big-stat:hover { border-color: var(--accent); transform: translateY(-2px); }
+.profile-big-value { font-family: 'Orbitron', sans-serif; font-size: 2rem; font-weight: 700; color: var(--text-primary); line-height: 1.1; }
+.profile-big-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0.4rem; }
+.kills-glow { color: #ef4444; text-shadow: 0 0 10px rgba(239,68,68,0.4); }
+.kd-glow { color: #4fc3f7; text-shadow: 0 0 10px rgba(79,195,247,0.4); }
+.cash-glow { color: #22c55e; text-shadow: 0 0 10px rgba(34,197,94,0.4); }
+
+/* ── Cards Grid ── */
+.profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+.profile-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.profile-card-wide { grid-column: 1 / -1; }
+.profile-card-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1rem; font-family: 'Orbitron', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); }
+.profile-card-body { padding: 1rem; }
+
+/* ── Rivals ── */
+.profile-rival { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.profile-rival:last-child { border-bottom: none; }
+.profile-rival-label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; min-width: 100px; }
+.profile-rival-name { font-weight: 700; font-size: 0.95rem; color: var(--text-primary); flex: 1; }
+.profile-rival-count { font-family: 'Orbitron', sans-serif; font-weight: 700; font-size: 0.85rem; color: var(--accent); }
+
+/* ── Recent Kills ── */
+.profile-kills-list { display: flex; flex-direction: column; }
+.profile-kill-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.45rem 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.85rem; }
+.profile-kill-row:last-child { border-bottom: none; }
+.profile-kill-victim { flex: 1; font-weight: 600; color: var(--text-primary); }
+.profile-kill-weapon { color: var(--text-secondary); font-size: 0.75rem; }
+.profile-kill-dist { color: var(--accent); font-size: 0.75rem; font-weight: 600; min-width: 40px; text-align: right; }
+
+/* ── Supporter Stats ── */
+.profile-supporter-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.75rem; }
+.profile-supporter-item { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 0.75rem 0.5rem; background: rgba(255,255,255,0.03); border-radius: 6px; }
+.profile-supporter-value { font-family: 'Orbitron', sans-serif; font-size: 1.3rem; font-weight: 700; color: var(--text-primary); }
+.profile-supporter-label { font-size: 0.65rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 0.25rem; }
+
+/* ── 50/50 Row ── */
+.profile-half-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  grid-column: 1 / -1;
+}
+
+/* ── Skin Collection ── */
+.profile-skin-list { display: flex; flex-direction: column; gap: 0.4rem; max-height: 320px; overflow-y: auto; }
+.profile-skin-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; border-radius: 6px; background: rgba(255,255,255,0.03); border-left: 3px solid var(--border); }
+.profile-skin-item.rarity-common { border-left-color: #9ca3af; }
+.profile-skin-item.rarity-uncommon { border-left-color: #22c55e; }
+.profile-skin-item.rarity-rare { border-left-color: #3b82f6; }
+.profile-skin-item.rarity-legendary { border-left-color: #f59e0b; }
+.profile-skin-name { font-weight: 600; font-size: 0.8rem; color: var(--text-primary); }
+.profile-skin-rarity { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; color: var(--text-secondary); }
+.rarity-common .profile-skin-rarity { color: #9ca3af; }
+.rarity-uncommon .profile-skin-rarity { color: #22c55e; }
+.rarity-rare .profile-skin-rarity { color: #3b82f6; }
+.rarity-legendary .profile-skin-rarity { color: #f59e0b; }
+
+/* ── Purchase History ── */
+.profile-purchase-list { display: flex; flex-direction: column; }
+.profile-purchase-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.8rem; }
+.profile-purchase-row:last-child { border-bottom: none; }
+.profile-purchase-name { flex: 1; font-weight: 600; color: var(--text-primary); }
+.profile-purchase-qty { color: var(--text-secondary); font-size: 0.75rem; }
+.profile-purchase-amount { color: #22c55e; font-weight: 700; font-family: 'Orbitron', sans-serif; font-size: 0.8rem; }
+.profile-purchase-date { color: var(--text-secondary); font-size: 0.7rem; min-width: 90px; text-align: right; }
+
+/* ── Discord Roles ── */
+.profile-roles-wrap { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.profile-role-pill { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 12px; border: 1px solid; font-size: 0.75rem; font-weight: 600; background: rgba(255,255,255,0.03); }
+
+/* ── Detail Grid ── */
+.profile-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; }
+.profile-detail-item { display: flex; flex-direction: column; padding: 0.5rem 0.75rem; border-left: 2px solid var(--border); transition: border-color 0.2s; }
+.profile-detail-item:hover { border-color: var(--accent); }
+.profile-detail-value { font-weight: 700; font-size: 1rem; color: var(--text-primary); }
+.profile-detail-label { font-size: 0.68rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 0.15rem; }
+
+/* ── Mobile ── */
+@media (max-width: 600px) {
+  .profile-hero-content { flex-direction: column; text-align: center; padding: 1.5rem 1rem; }
+  .profile-hero-left { flex-direction: column; }
+  .profile-hero-right { flex-direction: row; }
+  .profile-hero-tier-img { display: none; }
+  .profile-meta-row { justify-content: center; }
+  .profile-badges-row { justify-content: center; }
+  .profile-avatar { width: 72px; height: 72px; }
+  .profile-username { font-size: 1.2rem; }
+  .profile-stats-hero { grid-template-columns: repeat(2, 1fr); }
+  .profile-big-value { font-size: 1.4rem; }
+  .profile-grid { grid-template-columns: 1fr; }
+  .profile-rival-label { min-width: 70px; font-size: 0.65rem; }
+  .profile-half-row { grid-template-columns: 1fr; }
+  .profile-purchase-date { display: none; }
+}
+</style>

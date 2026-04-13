@@ -415,8 +415,19 @@ function updatePurchaseStatus(stripeSessionId, status) {
   db.prepare("UPDATE store_purchases SET status = ? WHERE stripe_session_id = ?").run(status, stripeSessionId);
 }
 
+function getPurchasesByDiscordId(discordId) {
+  if (!db) return [];
+  return db.prepare("SELECT product_name, quantity, amount, created_at FROM store_purchases WHERE discord_id = ? AND status = 'completed' ORDER BY created_at DESC").all(discordId);
+}
+
+function getTotalSpentByDiscordId(discordId) {
+  if (!db) return 0;
+  const row = db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM store_purchases WHERE discord_id = ? AND status = 'completed'").get(discordId);
+  return row.total;
+}
+
 module.exports = {
   init, getActiveProducts, getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, getEffectivePrice, updatePurchaseStatus,
   getAllCategories, getCategoryBySlug, getCategoryById, createCategory, updateCategory, deleteCategory, getCategoriesWithProducts,
-  recordPurchase, getStoreStats, syncToStripe, upsertSyncData,
+  recordPurchase, getStoreStats, syncToStripe, upsertSyncData, getPurchasesByDiscordId, getTotalSpentByDiscordId,
 };

@@ -131,6 +131,55 @@ header::after {
   box-shadow: 0 0 8px var(--accent-glow);
 }
 
+/* ── Nav Dropdown ── */
+.nav-dropdown {
+  position: relative;
+}
+.nav-dropdown-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  font-family: inherit;
+}
+.nav-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 160px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3rem 0;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  margin-top: 0.3rem;
+}
+.nav-dropdown:hover .nav-dropdown-menu,
+.nav-dropdown:focus-within .nav-dropdown-menu {
+  display: block;
+}
+.nav-dropdown-item {
+  display: block;
+  padding: 0.5rem 1rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  transition: all 0.15s;
+}
+.nav-dropdown-item:hover {
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.05);
+}
+.nav-dropdown-item.active {
+  color: var(--accent);
+}
+
 .nav-discord {
   color: #5865F2;
   font-weight: 700;
@@ -149,6 +198,23 @@ header::after {
 .nav-store:hover {
   color: white;
   background: rgba(74, 222, 128, 0.15);
+}
+
+.nav-profile {
+  color: #4fc3f7;
+  font-weight: 700;
+}
+.nav-profile:hover {
+  color: white;
+  background: rgba(79, 195, 247, 0.15);
+}
+.nav-profile.active {
+  color: #4fc3f7;
+  background: rgba(79, 195, 247, 0.12);
+}
+.nav-profile.active::after {
+  background: #4fc3f7;
+  box-shadow: 0 0 8px rgba(79, 195, 247, 0.4);
 }
 
 .nav-admin {
