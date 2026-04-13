@@ -1940,13 +1940,14 @@ router.post("/vac/scan", requireWriteAdmin, async (req, res) => {
     const full = req.body.full === "1";
     const result = await vacScanner.scan({ full });
     const wlResult = await vacScanner.autoWatchlist();
-    auditLog.log("security", "VAC Scan", `Scanned ${result.scanned} players, ${result.flagged} flagged, ${wlResult.count} watchlisted`, req.session.user);
+    auditLog.log("security", "VAC Scan", `Scanned ${result.scanned} players, ${result.flagged} flagged, ${wlResult.count} watchlisted, ${wlResult.flaggedOnly || 0} flagged (old bans)`, req.session.user);
 
     const playerList = wlResult.players.slice(0, 10).map(p =>
       `• **${p.arma_username || "Unknown"}** — [Steam](https://steamcommunity.com/profiles/${p.steam_id}) | [Profile](${config.siteUrl}/admin/player/${p.arma_id})`
     ).join("\n");
     const extra = wlResult.count > 10 ? `\n...and ${wlResult.count - 10} more` : "";
-    const msg = `VAC scan complete: ${result.scanned} new, ${result.skipped} skipped, ${result.flagged} flagged, ${wlResult.count} auto-watchlisted.`;
+    const flaggedNote = wlResult.flaggedOnly ? `, ${wlResult.flaggedOnly} flagged (old bans, not watchlisted)` : "";
+    const msg = `VAC scan complete: ${result.scanned} new, ${result.skipped} skipped, ${result.flagged} flagged, ${wlResult.count} auto-watchlisted${flaggedNote}.`;
     sendVacWebhook({ title: "VAC Scan Complete", description: `${msg}${wlResult.count > 0 ? "\n\n" + playerList + extra : ""}`, color: result.flagged > 0 ? 0xef4444 : 0x22c55e });
     res.redirect("/admin/watchlist?success=" + encodeURIComponent(msg) + "&tab=vac");
   } catch (err) {

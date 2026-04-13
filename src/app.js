@@ -803,6 +803,7 @@ app.get("/profile", async (req, res) => {
     memberSince: memberSince ? memberSince.toISOString() : null,
     memberDays,
     memberRoles,
+    isKing: memberRoles.some(r => r.name.toLowerCase().includes("king of the wasteland")),
     roleCount: memberRoles.length,
     roleTier: memberRoles.length >= 20 ? "legendary" : memberRoles.length >= 15 ? "elite" : memberRoles.length >= 10 ? "veteran" : memberRoles.length >= 5 ? "regular" : memberRoles.length >= 1 ? "newcomer" : null,
     upsellProducts,

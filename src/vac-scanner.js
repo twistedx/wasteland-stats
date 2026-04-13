@@ -230,66 +230,77 @@ async function scan({ full = false } = {}) {
   return { scanned: results.length, flagged, skipped };
 }
 
-// Auto-watchlist only NEW players with VAC or game bans (never re-watchlists already processed ones)
+// Auto-watchlist only NEW players with RECENT VAC or game bans (within 365 days)
+// All flagged players are stored in the DB regardless — visible on player profiles
 async function autoWatchlist() {
-  if (!db) return { count: 0, players: [] };
+  if (!db) return { count: 0, players: [], flaggedOnly: 0 };
 
-  // Only get flagged players that haven't been processed yet
+  // Get all unprocessed flagged players
   const unprocessed = db.prepare(
     "SELECT * FROM vac_results WHERE (vac_banned = 1 OR number_of_game_bans > 0) AND arma_id IS NOT NULL AND watchlist_processed = 0"
   ).all();
 
   if (unprocessed.length === 0) {
-    console.log("[VAC Scan] No new flagged players to watchlist");
-    return { count: 0, players: [] };
+    console.log("[VAC Scan] No new flagged players to process");
+    return { count: 0, players: [], flaggedOnly: 0 };
   }
 
-  console.log(`[VAC Scan] ${unprocessed.length} new flagged players to watchlist`);
+  console.log(`[VAC Scan] ${unprocessed.length} new flagged players to process`);
   const adminApi = axios.create({ baseURL: config.apiBaseUrl, timeout: 15000, headers: { "Content-Type": "application/json" } });
   let watchlisted = 0;
+  let flaggedOnly = 0;
   const newlyWatchlisted = [];
   const markProcessed = db.prepare("UPDATE vac_results SET watchlist_processed = 1 WHERE steam_id = ?");
 
   for (const player of unprocessed) {
+    const banParts = [];
+    if (player.vac_banned) banParts.push(`${player.number_of_vac_bans} VAC ban(s)`);
+    if (player.number_of_game_bans > 0) banParts.push(`${player.number_of_game_bans} game ban(s)`);
+    const isRecent = player.days_since_last_ban <= 365;
+
+    // Always add a note so it shows on the player profile
     try {
-      await adminApi.post("/admin/watchlist", {
+      const notePrefix = isRecent ? "[VAC Scanner]" : "[VAC Scanner — Old Ban]";
+      await adminApi.post("/admin/bans/webNotes", {
         token: config.adminApiToken,
         arma_id: player.arma_id,
-        is_watchlisted: true,
+        web_notes: `${notePrefix} ${banParts.join(", ")} on record, ${player.days_since_last_ban} days since last ban — Steam: ${player.steam_id}`,
       });
-
-      // Add note about the ban
-      const banParts = [];
-      if (player.vac_banned) banParts.push(`${player.number_of_vac_bans} VAC ban(s)`);
-      if (player.number_of_game_bans > 0) banParts.push(`${player.number_of_game_bans} game ban(s)`);
-      try {
-        await adminApi.post("/admin/bans/webNotes", {
-          token: config.adminApiToken,
-          arma_id: player.arma_id,
-          web_notes: `[VAC Scanner] ${banParts.join(", ")} on record, ${player.days_since_last_ban} days since last ban — Steam: ${player.steam_id}`,
-        });
-      } catch {}
-
-      watchlisted++;
-      newlyWatchlisted.push(player);
-      console.log(`[VAC Scan] Auto-watchlisted ${player.arma_id} (${player.arma_username || player.discord_username || "unknown"}) — ${banParts.join(", ")}`);
-
-      try {
-        const { sendVacWebhook } = require("./webhook");
-        sendVacWebhook({
-          title: "Player Added to Watchlist (VAC Scanner)",
-          description: `**${player.arma_username || player.discord_username || "Unknown"}**\nArma ID: \`${player.arma_id}\`\nSteam: [${player.steam_id}](https://steamcommunity.com/profiles/${player.steam_id})\nBans: ${banParts.join(", ")} — ${player.days_since_last_ban} days since last\n[View Profile](${config.siteUrl}/admin/player/${player.arma_id})`,
-          color: 0xf59e0b,
-        });
-      } catch {}
     } catch {}
 
-    // Mark as processed regardless of success — so we never retry
+    // Only auto-watchlist if the ban is within the last year
+    if (isRecent) {
+      try {
+        await adminApi.post("/admin/watchlist", {
+          token: config.adminApiToken,
+          arma_id: player.arma_id,
+          is_watchlisted: true,
+        });
+
+        watchlisted++;
+        newlyWatchlisted.push(player);
+        console.log(`[VAC Scan] Auto-watchlisted ${player.arma_id} (${player.arma_username || player.discord_username || "unknown"}) — ${banParts.join(", ")} — ${player.days_since_last_ban}d ago`);
+
+        try {
+          const { sendVacWebhook } = require("./webhook");
+          sendVacWebhook({
+            title: "Player Added to Watchlist (VAC Scanner)",
+            description: `**${player.arma_username || player.discord_username || "Unknown"}**\nArma ID: \`${player.arma_id}\`\nSteam: [${player.steam_id}](https://steamcommunity.com/profiles/${player.steam_id})\nBans: ${banParts.join(", ")} — ${player.days_since_last_ban} days since last\n[View Profile](${config.siteUrl}/admin/player/${player.arma_id})`,
+            color: 0xf59e0b,
+          });
+        } catch {}
+      } catch {}
+    } else {
+      flaggedOnly++;
+      console.log(`[VAC Scan] Flagged (old ban, not watchlisted) ${player.arma_id} (${player.arma_username || "unknown"}) — ${banParts.join(", ")} — ${player.days_since_last_ban}d ago`);
+    }
+
+    // Mark as processed regardless — so we never retry
     markProcessed.run(player.steam_id);
   }
 
-  console.log(`[VAC Scan] Auto-watchlisted ${watchlisted}/${unprocessed.length} new players`);
-  return { count: watchlisted, players: newlyWatchlisted };
+  console.log(`[VAC Scan] Processed ${unprocessed.length}: ${watchlisted} watchlisted (recent), ${flaggedOnly} flagged only (old bans)`);
+  return { count: watchlisted, players: newlyWatchlisted, flaggedOnly };
 }
 
 function getFlagged() {

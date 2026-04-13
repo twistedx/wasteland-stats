@@ -1,4 +1,9 @@
-<section class="profile-page {{#if donorTier}}profile-tier-{{donorTier}}{{/if}}">
+<section class="profile-page {{#if donorTier}}profile-tier-{{donorTier}}{{/if}} {{#if isKing}}profile-king{{/if}}">
+  {{#if isKing}}
+  <div class="king-crown-bg" aria-hidden="true">
+    <div class="king-crown-symbol">&#9812;</div>
+  </div>
+  {{/if}}
   {{#if donorTier}}
   <div class="profile-tier-watermarks" aria-hidden="true">
     <span>{{#if (eq donorTier 'legendary')}}&#9733;{{else if (eq donorTier 'diamond')}}&#9830;{{else if (eq donorTier 'platinum')}}&#9827;{{else if (eq donorTier 'gold')}}&#9829;{{else if (eq donorTier 'silver')}}&#9826;{{else}}&#9679;{{/if}}</span>
@@ -26,6 +31,7 @@
         </div>
         <div class="profile-hero-info">
           <h1 class="profile-username">{{user.username}}</h1>
+        {{#if isKing}}<p class="profile-king-subtext">It's good to be King</p>{{/if}}
           <div class="profile-meta-row">
             {{#if stats}}<span class="profile-tag">{{stats.arma_username}}</span>{{/if}}
             {{#if steamId}}
@@ -38,14 +44,20 @@
               <span class="profile-tag" style="color:#5865F2;">Member for {{memberDays}} days</span>
             {{/if}}
           </div>
-          {{#if leaderboardRank}}
           <div class="profile-badges-row">
+            {{#if isKing}}
+            <div class="profile-king-badge">
+              <span>👑</span>
+              <span>King of the Wasteland</span>
+            </div>
+            {{/if}}
+            {{#if leaderboardRank}}
             <div class="profile-rank-badge">
               <span class="profile-rank-number">#{{leaderboardRank}}</span>
               <span class="profile-rank-label">Leaderboard</span>
             </div>
+            {{/if}}
           </div>
-          {{/if}}
         </div>
       </div>
       {{#if (or donorTier activeTierName)}}
@@ -570,6 +582,104 @@
 <style>
 /* ── Profile Page ── */
 .profile-page { max-width: 960px; margin: 0 auto; position: relative; overflow: hidden; }
+
+/* ── King of the Wasteland ── */
+.king-crown-bg {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.king-crown-symbol {
+  font-size: 60vw;
+  line-height: 1;
+  color: rgba(255, 215, 0, 0.03);
+  transform: rotate(-8deg);
+  animation: king-breathe 8s ease-in-out infinite;
+  text-shadow: 0 0 120px rgba(255, 215, 0, 0.02);
+}
+@keyframes king-breathe {
+  0%, 100% { opacity: 0.7; transform: rotate(-8deg) scale(1); }
+  50% { opacity: 1; transform: rotate(-8deg) scale(1.03); }
+}
+
+/* King hero override */
+.profile-king .profile-hero-bg {
+  background: linear-gradient(135deg, #1a1508 0%, #2a1f0a 40%, #1a1508 70%, #0d0a04 100%) !important;
+}
+.profile-king .profile-avatar {
+  border-color: #ffd700 !important;
+  box-shadow: 0 0 30px rgba(255, 215, 0, 0.4), 0 0 60px rgba(255, 215, 0, 0.15) !important;
+}
+.profile-king .profile-username {
+  color: #ffd700 !important;
+  text-shadow: 0 0 20px rgba(255, 215, 0, 0.5), 0 2px 4px rgba(0,0,0,0.5) !important;
+}
+/* Crown above avatar */
+.profile-king .profile-avatar-wrap::before {
+  content: "👑";
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.8rem;
+  z-index: 3;
+  filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.6));
+  animation: king-crown-bob 3s ease-in-out infinite;
+}
+@keyframes king-crown-bob {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-4px); }
+}
+
+/* King card borders glow gold */
+.profile-king .profile-card {
+  border-color: rgba(255, 215, 0, 0.15);
+}
+.profile-king .profile-card:hover {
+  border-color: rgba(255, 215, 0, 0.3);
+}
+.profile-king .profile-card-header {
+  background: linear-gradient(90deg, rgba(255, 215, 0, 0.04), transparent) !important;
+}
+.profile-king .profile-big-stat {
+  border-color: rgba(255, 215, 0, 0.12);
+}
+.profile-king .profile-big-stat:hover {
+  border-color: rgba(255, 215, 0, 0.3);
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.08);
+}
+.profile-king-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.9rem;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #ffd700, #b8860b);
+  color: #000;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+  animation: king-badge-glow 2s ease-in-out infinite;
+}
+@keyframes king-badge-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.4); }
+  50% { box-shadow: 0 0 35px rgba(255, 215, 0, 0.6); }
+}
+.profile-king-subtext {
+  font-style: italic;
+  font-size: 0.8rem;
+  color: rgba(255, 215, 0, 0.6);
+  margin: 0.15rem 0 0;
+  letter-spacing: 0.03em;
+}
 
 /* ── Tier Watermarks ── */
 .profile-tier-watermarks {
