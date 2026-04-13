@@ -104,6 +104,50 @@
       <button type="submit" class="btn btn-admin">Add Money</button>
     </form>
   </div>
+
+  <div class="admin-form-card">
+    <h3>Set ATM Deposit Limit</h3>
+    <form method="POST" action="/admin/money/atm-limit" class="money-form">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="form-group">
+        <label class="form-label">Player Arma ID</label>
+        <input
+          type="text"
+          name="arma_id"
+          id="atm-arma-id-input"
+          class="filter-input"
+          placeholder="Arma ID (select from search or paste)"
+          value="{{selectedArmaId}}"
+          required
+        >
+      </div>
+      <div class="form-group" id="atm-current-group" style="display:none;">
+        <label class="form-label">Current ATM Limit</label>
+        <div id="atm-current-display" class="balance-display">—</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">New ATM Limit ($)</label>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+          <input
+            type="number"
+            name="atm_limit"
+            id="atm-limit-input"
+            class="filter-input"
+            placeholder="Enter limit amount"
+            required
+            min="1"
+            style="flex:1;"
+          >
+          <button type="button" class="btn btn-admin btn-small" onclick="document.getElementById('atm-limit-input').value=150000">150K</button>
+          <button type="button" class="btn btn-admin btn-small" onclick="document.getElementById('atm-limit-input').value=300000">300K</button>
+          <button type="button" class="btn btn-admin btn-small" onclick="document.getElementById('atm-limit-input').value=500000">500K</button>
+          <button type="button" class="btn btn-admin btn-small" onclick="document.getElementById('atm-limit-input').value=750000">750K</button>
+          <button type="button" class="btn btn-admin btn-small" onclick="document.getElementById('atm-limit-input').value=1000000">1M</button>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-admin" style="background:#fbbf24;color:#000;">Set ATM Limit</button>
+    </form>
+  </div>
 </section>
 
 {{> ban-modal}}
@@ -112,6 +156,8 @@
   (function() {
     var balanceGroup = document.getElementById('balance-group');
     var balanceDisplay = document.getElementById('balance-display');
+    var atmCurrentGroup = document.getElementById('atm-current-group');
+    var atmCurrentDisplay = document.getElementById('atm-current-display');
 
     function fetchBalance(armaId) {
       if (!armaId) {
@@ -134,17 +180,47 @@
         });
     }
 
+    function fetchAtmLimit(armaId) {
+      if (!armaId) {
+        atmCurrentGroup.style.display = 'none';
+        return;
+      }
+      atmCurrentGroup.style.display = '';
+      atmCurrentDisplay.textContent = 'Loading...';
+      fetch('/admin/money/atm-limit?arma_id=' + encodeURIComponent(armaId))
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.atm_limit !== null && data.atm_limit !== undefined) {
+            atmCurrentDisplay.textContent = '$' + Number(data.atm_limit).toLocaleString();
+          } else {
+            atmCurrentDisplay.textContent = '$150,000 (default)';
+          }
+        })
+        .catch(function() {
+          atmCurrentDisplay.textContent = 'Error fetching limit';
+        });
+    }
+
+    function selectPlayer(armaId, username) {
+      document.getElementById('arma-id-input').value = armaId;
+      document.getElementById('selected-username').value = username;
+      document.getElementById('atm-arma-id-input').value = armaId;
+      fetchBalance(armaId);
+      fetchAtmLimit(armaId);
+    }
+
     document.querySelectorAll('.select-player-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
-        var armaId = this.dataset.armaId;
-        document.getElementById('arma-id-input').value = armaId;
-        document.getElementById('selected-username').value = this.dataset.username;
-        fetchBalance(armaId);
+        selectPlayer(this.dataset.armaId, this.dataset.username);
       });
     });
 
-    // If a player is already selected (from query params), fetch balance
+    // If a player is already selected (from query params), fetch both
     var existingId = document.getElementById('arma-id-input').value;
-    if (existingId) fetchBalance(existingId);
+    if (existingId) {
+      fetchBalance(existingId);
+      fetchAtmLimit(existingId);
+      document.getElementById('atm-arma-id-input').value = existingId;
+    }
   })();
 </script>

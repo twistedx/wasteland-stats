@@ -484,6 +484,49 @@ router.post("/money", requireWriteAdmin, async (req, res) => {
   }
 });
 
+// POST /admin/money/atm-limit — set ATM deposit limit
+router.post("/money/atm-limit", requireWriteAdmin, async (req, res) => {
+  const { arma_id, atm_limit } = req.body;
+  const user = req.session.user;
+
+  if (!arma_id || !atm_limit || Number(atm_limit) <= 0) {
+    return res.redirect("/admin/money?error=Invalid player ID or ATM limit.");
+  }
+
+  try {
+    await adminApiClient.post("/admin/atm-limit", {
+      token: config.adminApiToken,
+      arma_id,
+      atm_limit: Number(atm_limit),
+    });
+
+    auditLog.log("economy", "ATM Limit Set", `$${Number(atm_limit).toLocaleString()} for Arma ID: ${arma_id}`, user);
+    sendWebhook({
+      title: "ATM Limit Updated",
+      description: `<@${user.discord_id}> set ATM limit to **$${Number(atm_limit).toLocaleString()}** for player \`${arma_id}\``,
+      color: 0xfbbf24,
+    });
+
+    res.redirect(`/admin/money?success=ATM limit set to $${Number(atm_limit).toLocaleString()} for ${arma_id}&arma_id=${encodeURIComponent(arma_id)}`);
+  } catch (error) {
+    console.error("Set ATM limit error:", error.message);
+    sendWebhookError("Set ATM Limit", error.response?.data?.message || error.message);
+    res.redirect("/admin/money?error=Failed to set ATM limit. Please try again.");
+  }
+});
+
+// GET /admin/money/atm-limit — fetch current ATM limit (JSON)
+router.get("/money/atm-limit", requireWriteAdmin, async (req, res) => {
+  const armaId = (req.query.arma_id || "").trim();
+  if (!armaId) return res.json({ atm_limit: null });
+  try {
+    const limRes = await adminApiClient.get("/admin/atm-limit", { params: { token: config.adminApiToken, arma_id: armaId } });
+    res.json({ atm_limit: limRes.data?.atm_limit ?? limRes.data?.data?.atm_limit ?? null });
+  } catch {
+    res.json({ atm_limit: null });
+  }
+});
+
 // GET /admin/skins
 router.get("/skins", requireWriteAdmin, async (req, res) => {
   const user = req.session.user;

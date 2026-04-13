@@ -114,6 +114,37 @@ async function init() {
         .setRequired(true)
     );
 
+  const myStatsCommand = new SlashCommandBuilder()
+    .setName("my-stats")
+    .setDescription("Display your own Arma Wasteland stats")
+    .addStringOption(opt =>
+      opt.setName("season")
+        .setDescription("Which stats to show")
+        .setRequired(false)
+        .addChoices(
+          { name: "Current Season", value: "season" },
+          { name: "All Time", value: "alltime" },
+        )
+    );
+
+  const playerStatsCommand = new SlashCommandBuilder()
+    .setName("player-stats")
+    .setDescription("Display stats for a player by GUID")
+    .addStringOption(opt =>
+      opt.setName("guid")
+        .setDescription("Player Arma GUID")
+        .setRequired(true)
+    )
+    .addStringOption(opt =>
+      opt.setName("season")
+        .setDescription("Which stats to show")
+        .setRequired(false)
+        .addChoices(
+          { name: "Current Season", value: "season" },
+          { name: "All Time", value: "alltime" },
+        )
+    );
+
   const rconReconnectCommand = new SlashCommandBuilder()
     .setName("rcon-reconnect")
     .setDescription("Reconnect to all RCON game servers");
@@ -126,7 +157,7 @@ async function init() {
     console.log(`DiscordBot: Discord API: PUT /applications/${config.discord.clientId}/guilds/${config.discordGuildId}/commands (register commands)`);
     await rest.put(
       Routes.applicationGuildCommands(config.discord.clientId, config.discordGuildId),
-      { body: [verifyCommand.toJSON(), ticketCommand.toJSON(), watchlistCommand.toJSON(), listBansCommand.toJSON(), banPlayerCommand.toJSON(), unbanPlayerCommand.toJSON(), rconReconnectCommand.toJSON(), rconPlayersCommand.toJSON()] }
+      { body: [verifyCommand.toJSON(), ticketCommand.toJSON(), watchlistCommand.toJSON(), listBansCommand.toJSON(), banPlayerCommand.toJSON(), unbanPlayerCommand.toJSON(), rconReconnectCommand.toJSON(), rconPlayersCommand.toJSON(), myStatsCommand.toJSON(), playerStatsCommand.toJSON()] }
     );
     console.log("DiscordBot: slash commands registered.");
   } catch (err) {
@@ -527,6 +558,56 @@ async function init() {
       }
     }
 
+    // ── /my-stats ──
+    if (interaction.commandName === "my-stats") {
+      const season = interaction.options.getString("season") || "season";
+      const discordId = interaction.user.id;
+
+      console.log(`DiscordBot: /my-stats called by ${interaction.user.username} — season=${season}`);
+      await interaction.deferReply();
+
+      try {
+        const apiClient = axios.create({ baseURL: config.apiBaseUrl, timeout: 15000, headers: { "Content-Type": "application/json" } });
+        const endpoint = season === "alltime" ? "/user/getAllPlayerStatsByDiscordID" : "/user/getAllPlayerStatsByDiscordIDCurrentSeason/";
+        const res = await apiClient({ method: "GET", url: endpoint, data: { discord_id: discordId, token: config.apiToken } });
+        const stats = res.data;
+
+        const embed = buildStatsEmbed(stats, season, interaction.user);
+        return interaction.editReply({ embeds: [embed] });
+      } catch (err) {
+        if (err.response?.status === 404) {
+          return interaction.editReply({ content: "Your Discord account isn't linked to an Arma account yet. Use `/verify` in-game to link it." });
+        }
+        console.error("DiscordBot: /my-stats error:", err.message);
+        return interaction.editReply({ content: `Failed to fetch stats: ${err.response?.data?.message || err.message}` });
+      }
+    }
+
+    // ── /player-stats ──
+    if (interaction.commandName === "player-stats") {
+      const guid = interaction.options.getString("guid").trim();
+      const season = interaction.options.getString("season") || "season";
+
+      console.log(`DiscordBot: /player-stats called by ${interaction.user.username} — guid=${guid} season=${season}`);
+      await interaction.deferReply();
+
+      try {
+        const apiClient = axios.create({ baseURL: config.apiBaseUrl, timeout: 15000, headers: { "Content-Type": "application/json" } });
+        const endpoint = season === "alltime" ? "/user/getPlayerStatsByID/" : "/user/getPlayerStatsByIDCurrentSeason/";
+        const res = await apiClient({ method: "GET", url: endpoint, data: { arma_id: guid, token: config.apiToken } });
+        const stats = res.data;
+
+        const embed = buildStatsEmbed(stats, season);
+        return interaction.editReply({ embeds: [embed] });
+      } catch (err) {
+        if (err.response?.status === 404) {
+          return interaction.editReply({ content: `No player found with GUID \`${guid}\`.` });
+        }
+        console.error("DiscordBot: /player-stats error:", err.message);
+        return interaction.editReply({ content: `Failed to fetch stats: ${err.response?.data?.message || err.message}` });
+      }
+    }
+
     // ── /rcon-reconnect ──
     if (interaction.commandName === "rcon-reconnect") {
       const member = interaction.member;
@@ -596,6 +677,54 @@ async function init() {
   } catch (err) {
     console.error("DiscordBot: login failed:", err.message);
   }
+}
+
+function buildStatsEmbed(stats, season, discordUser) {
+  const kills = Number(stats.kill_count || 0);
+  const deaths = Number(stats.deaths || 0);
+  const kd = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2);
+  const fmt = (n) => Number(n || 0).toLocaleString();
+
+  const lines = [
+    `**Kill count:** ${fmt(kills)}`,
+    `**Death count:** ${fmt(deaths)}`,
+    `**K/D ratio:** ${kd}`,
+    `**Distance walked:** ${(Number(stats.distance_walked || 0) / 1000).toFixed(1)} km`,
+    `**Distance driven:** ${(Number(stats.distance_driven || 0) / 1000).toFixed(1)} km`,
+    `**AI kills:** ${fmt(stats.ai_kills)}`,
+    `**AI road kills:** ${fmt(stats.ai_roadkills)}`,
+    `**Shots fired:** ${fmt(stats.shots_fired)}`,
+    `**Grenades thrown:** ${fmt(stats.grenades_thrown)}`,
+    `**Players died in vehicle:** ${fmt(stats.players_died_in_vehicle)}`,
+    `**Bandaged self:** ${fmt(stats.bandage_self)}`,
+    `**Bandaged friendlies:** ${fmt(stats.bandage_friendlies)}`,
+    `**Saline self:** ${fmt(stats.saline_self)}`,
+    `**Saline friendlies:** ${fmt(stats.saline_friendlies)}`,
+    `**Tourniquet self:** ${fmt(stats.tourniquet_self)}`,
+    `**Tourniquet friendlies:** ${fmt(stats.tourniquet_friendlies)}`,
+  ];
+
+  if (stats.mostKilledBy || stats.mostKilledby) {
+    lines.push(`**Most killed by:** ${stats.mostKilledBy || stats.mostKilledby} (${fmt(stats.mostKilledByCount)})`);
+  }
+  if (stats.mostKilled) {
+    lines.push(`**Most killed:** ${stats.mostKilled} (${fmt(stats.mostKilledCount)})`);
+  }
+
+  const playerName = stats.arma_username || stats.ArmaName || "Unknown";
+  const embed = {
+    title: playerName,
+    description: lines.join("\n"),
+    color: 0xfe6500,
+    footer: { text: season === "alltime" ? "All Time Stats" : "Current Season" },
+  };
+
+  if (discordUser) {
+    embed.author = { name: discordUser.username, icon_url: discordUser.displayAvatarURL() };
+    embed.thumbnail = { url: discordUser.displayAvatarURL() };
+  }
+
+  return embed;
 }
 
 function getClient() {
