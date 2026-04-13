@@ -453,6 +453,26 @@ cron.schedule("0 * * * *", async () => {
   }
 });
 
+// Record server metrics every 15 minutes
+cron.schedule("*/15 * * * *", async () => {
+  try {
+    const bmStatus = await bm.getFreshStatus();
+    if (bmStatus.servers.length > 0) {
+      const instances = bmStatus.servers.map(srv => ({
+        instanceId: srv.id || srv.label.replace(/\s+/g, "-").toLowerCase(),
+        friendlyName: srv.label || srv.name,
+        players: { current: srv.players, max: srv.maxPlayers, percent: srv.maxPlayers ? Math.round((srv.players / srv.maxPlayers) * 100) : 0 },
+        cpu: { percent: 0 },
+        memory: { value: 0, max: 0 },
+      }));
+      metricsHistory.record(instances, bmStatus.servers);
+      console.log(`Metrics cron: recorded ${instances.length} servers — ${bmStatus.totalPlayers} total players`);
+    }
+  } catch (err) {
+    console.error("Metrics cron error:", err.message);
+  }
+});
+
 require("./discord-bot").init();
 
 app.use(analytics.middleware);
