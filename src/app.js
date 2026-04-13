@@ -460,9 +460,11 @@ cron.schedule("*/15 * * * *", async () => {
   try {
     const bmStatus = await bm.getFreshStatus();
     if (bmStatus.servers.length > 0) {
+      // Map ArmaHQ labels to AMP instance names for consistent chart series
+      const NAME_MAP = { "Server 1": "Wasteland - Sectorlink", "Server 2": "Wasteland #2" };
       const instances = bmStatus.servers.map(srv => ({
         instanceId: srv.id || srv.label.replace(/\s+/g, "-").toLowerCase(),
-        friendlyName: srv.label || srv.name,
+        friendlyName: NAME_MAP[srv.label] || srv.label || srv.name,
         players: { current: srv.players, max: srv.maxPlayers, percent: srv.maxPlayers ? Math.round((srv.players / srv.maxPlayers) * 100) : 0 },
         cpu: { percent: 0 },
         memory: { value: 0, max: 0 },

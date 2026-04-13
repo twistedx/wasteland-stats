@@ -146,6 +146,23 @@ window.showSpinner = function(msg) {
   document.getElementById('global-spinner-text').textContent = msg || 'Working...';
   document.getElementById('global-spinner').style.display = 'flex';
 };
+
+// Nav dropdown toggle
+(function() {
+  var dropdown = document.querySelector('.nav-dropdown');
+  if (!dropdown) return;
+  var toggle = dropdown.querySelector('.nav-dropdown-toggle');
+  toggle.addEventListener('click', function(e) {
+    e.stopPropagation();
+    dropdown.classList.toggle('open');
+  });
+  document.addEventListener('click', function() {
+    dropdown.classList.remove('open');
+  });
+  dropdown.querySelector('.nav-dropdown-menu').addEventListener('click', function(e) {
+    e.stopPropagation();
+  });
+})();
 </script>
 </body>
 </html>
