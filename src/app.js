@@ -824,6 +824,7 @@ app.get("/profile", async (req, res) => {
     memberDays,
     memberRoles,
     isKing: memberRoles.some(r => r.name.toLowerCase().includes("king of the wasteland")),
+    isGoat: memberRoles.some(r => r.name.toLowerCase().includes("goat")),
     roleCount: memberRoles.length,
     roleTier: memberRoles.length >= 20 ? "legendary" : memberRoles.length >= 15 ? "elite" : memberRoles.length >= 10 ? "veteran" : memberRoles.length >= 5 ? "regular" : memberRoles.length >= 1 ? "newcomer" : null,
     upsellProducts,

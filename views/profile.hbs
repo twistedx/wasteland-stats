@@ -1,4 +1,9 @@
-<section class="profile-page {{#if donorTier}}profile-tier-{{donorTier}}{{/if}} {{#if isKing}}profile-king{{/if}}">
+<section class="profile-page {{#if donorTier}}profile-tier-{{donorTier}}{{/if}} {{#if isKing}}profile-king{{/if}} {{#if isGoat}}profile-goat{{/if}}">
+  {{#if isGoat}}
+  <div class="goat-bg" aria-hidden="true">
+    <div class="goat-symbol">&#x1F410;</div>
+  </div>
+  {{/if}}
   {{#if isKing}}
   <div class="king-crown-bg" aria-hidden="true">
     <div class="king-crown-symbol">&#9812;</div>
@@ -32,6 +37,7 @@
         <div class="profile-hero-info">
           <h1 class="profile-username">{{user.username}}</h1>
         {{#if isKing}}<p class="profile-king-subtext">It's good to be King</p>{{/if}}
+        {{#if isGoat}}<p class="profile-goat-subtext">Greatest of All Time</p>{{/if}}
           <div class="profile-meta-row">
             {{#if stats}}<span class="profile-tag">{{stats.arma_username}}</span>{{/if}}
             {{#if steamId}}
@@ -49,6 +55,12 @@
             <div class="profile-king-badge">
               <span>👑</span>
               <span>King of the Wasteland</span>
+            </div>
+            {{/if}}
+            {{#if isGoat}}
+            <div class="profile-goat-badge">
+              <span>🐐</span>
+              <span>The G.O.A.T.</span>
             </div>
             {{/if}}
             {{#if leaderboardRank}}
@@ -677,6 +689,101 @@
   font-style: italic;
   font-size: 0.8rem;
   color: rgba(255, 215, 0, 0.6);
+  margin: 0.15rem 0 0;
+  letter-spacing: 0.03em;
+}
+
+/* ── The G.O.A.T. ── */
+.goat-bg {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.goat-symbol {
+  font-size: 75vw;
+  line-height: 1;
+  opacity: 0.04;
+  transform: rotate(6deg);
+  animation: goat-breathe 10s ease-in-out infinite;
+  filter: grayscale(0.5);
+}
+@keyframes goat-breathe {
+  0%, 100% { opacity: 0.03; transform: rotate(6deg) scale(1); }
+  50% { opacity: 0.055; transform: rotate(6deg) scale(1.02); }
+}
+
+.profile-goat .profile-hero-bg {
+  background: linear-gradient(135deg, #0a1a0a 0%, #0d2a12 40%, #0a1a0a 70%, #050d05 100%) !important;
+}
+.profile-goat .profile-avatar {
+  border-color: #22c55e !important;
+  box-shadow: 0 0 30px rgba(34, 197, 94, 0.4), 0 0 60px rgba(34, 197, 94, 0.15) !important;
+}
+.profile-goat .profile-username {
+  color: #4ade80 !important;
+  text-shadow: 0 0 20px rgba(74, 222, 128, 0.5), 0 2px 4px rgba(0,0,0,0.5) !important;
+}
+.profile-goat .profile-avatar-wrap::before {
+  content: "🐐";
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.8rem;
+  z-index: 3;
+  filter: drop-shadow(0 0 10px rgba(34, 197, 94, 0.6));
+  animation: goat-bob 3s ease-in-out infinite;
+}
+@keyframes goat-bob {
+  0%, 100% { transform: translateX(-50%) translateY(0) rotate(0deg); }
+  25% { transform: translateX(-50%) translateY(-4px) rotate(-3deg); }
+  75% { transform: translateX(-50%) translateY(-2px) rotate(3deg); }
+}
+.profile-goat .profile-card {
+  border-color: rgba(34, 197, 94, 0.15);
+}
+.profile-goat .profile-card:hover {
+  border-color: rgba(34, 197, 94, 0.3);
+}
+.profile-goat .profile-card-header {
+  background: linear-gradient(90deg, rgba(34, 197, 94, 0.04), transparent) !important;
+}
+.profile-goat .profile-big-stat {
+  border-color: rgba(34, 197, 94, 0.12);
+}
+.profile-goat .profile-big-stat:hover {
+  border-color: rgba(34, 197, 94, 0.3);
+  box-shadow: 0 0 15px rgba(34, 197, 94, 0.08);
+}
+.profile-goat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.9rem;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #22c55e, #15803d);
+  color: #fff;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+  animation: goat-badge-glow 2s ease-in-out infinite;
+}
+@keyframes goat-badge-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(34, 197, 94, 0.4); }
+  50% { box-shadow: 0 0 35px rgba(34, 197, 94, 0.6); }
+}
+.profile-goat-subtext {
+  font-style: italic;
+  font-size: 0.8rem;
+  color: rgba(74, 222, 128, 0.6);
   margin: 0.15rem 0 0;
   letter-spacing: 0.03em;
 }
