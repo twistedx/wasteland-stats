@@ -53,6 +53,18 @@ function init() {
     "INSERT INTO visits (ts, path, logged_in, username, vid) VALUES (?, ?, ?, ?, ?)"
   );
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS profile_cta_clicks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts INTEGER NOT NULL,
+      discord_id TEXT,
+      username TEXT,
+      cta_index INTEGER NOT NULL,
+      cta_text TEXT NOT NULL
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_cta_ts ON profile_cta_clicks (ts)`);
+
   // Migrate old JSON data if it exists
   migrateJson();
 
@@ -223,4 +235,26 @@ function getTotalDeposited() {
   return Number(db.prepare("SELECT value FROM meta WHERE key = 'totalDeposited'").get()?.value || 0);
 }
 
-module.exports = { init, middleware, getStats, recordDeposit, getTotalDeposited };
+function recordCtaClick(discordId, username, ctaIndex, ctaText) {
+  if (!db) return;
+  db.prepare("INSERT INTO profile_cta_clicks (ts, discord_id, username, cta_index, cta_text) VALUES (?, ?, ?, ?, ?)")
+    .run(Date.now(), discordId, username, ctaIndex, ctaText);
+}
+
+function getCtaStats() {
+  if (!db) return [];
+  return db.prepare(`
+    SELECT cta_index, cta_text, COUNT(*) as clicks,
+           COUNT(DISTINCT discord_id) as unique_users
+    FROM profile_cta_clicks
+    GROUP BY cta_index
+    ORDER BY clicks DESC
+  `).all();
+}
+
+function getCtaRecent(limit = 30) {
+  if (!db) return [];
+  return db.prepare("SELECT ts, discord_id, username, cta_index, cta_text FROM profile_cta_clicks ORDER BY ts DESC LIMIT ?").all(limit);
+}
+
+module.exports = { init, middleware, getStats, recordDeposit, getTotalDeposited, recordCtaClick, getCtaStats, getCtaRecent };

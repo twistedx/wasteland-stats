@@ -598,7 +598,32 @@ app.get("/profile", async (req, res) => {
   // Fetch store purchases, skin draws, subscription info, Discord join date
   const purchases = store.getPurchasesByDiscordId(user.discord_id);
   const totalSpent = store.getTotalSpentByDiscordId(user.discord_id);
-  const skinDraws = skinDraw.getDrawsByDiscordId(user.discord_id);
+  // Fetch owned skins from backend API
+  let ownedSkins = [];
+  try {
+    const itemsRes = await apiClient.get("/itemsUser/getUserItemsByDiscordId", {
+      params: { discord_id: user.discord_id, token: config.apiToken },
+      timeout: 10000,
+    });
+    const items = itemsRes.data?.items || [];
+    ownedSkins = items.map(i => {
+      // Clean up item name: remove emoji prefixes, fix underscores/dashes
+      let name = i.item_name
+        .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{1FA00}-\u{1FA9F}]/gu, "")
+        .replace(/^[\s\u{FE0F}]+/u, "")
+        .trim();
+      if (!name) name = i.item_name;
+      return {
+        name,
+        quantity: i.quantity,
+        skinKey: i.misc_data?.skin || null,
+        rarity: i.misc_data?.rarity || null,
+        date: i.date_added,
+      };
+    });
+  } catch (err) {
+    console.error("Profile items fetch error:", err.message);
+  }
 
   // Determine active subscription tier from purchases
   const subscriptionPerksModule = require("./subscription-perks");
@@ -613,10 +638,12 @@ app.get("/profile", async (req, res) => {
     }
   }
 
-  // Get Discord member join date
+  // Get Discord member join date + roles from cache
   let memberSince = null;
   let memberDays = null;
-  let memberRoles = [];
+  const discordStats = require("./discord-stats");
+  let memberRoles = discordStats.getMemberRoles(user.discord_id);
+
   try {
     const { getClient } = require("./discord-bot");
     const bot = getClient();
@@ -627,11 +654,6 @@ app.get("/profile", async (req, res) => {
         if (member) {
           memberSince = member.joinedAt;
           memberDays = Math.floor((Date.now() - member.joinedAt.getTime()) / 86400000);
-          memberRoles = member.roles.cache
-            .filter(r => r.id !== guild.id)
-            .sort((a, b) => b.position - a.position)
-            .map(r => ({ name: r.name, color: r.hexColor }))
-            .slice(0, 15);
         }
       }
     }
@@ -649,8 +671,98 @@ app.get("/profile", async (req, res) => {
     } catch {}
   }
 
-  // Donor badge tier — TODO: remove override after testing
-  const donorTier = user.discord_id === "348269399498842112" ? "legendary" : totalSpent >= 10000 ? "legendary" : totalSpent >= 5000 ? "diamond" : totalSpent >= 2500 ? "platinum" : totalSpent >= 1000 ? "gold" : totalSpent >= 500 ? "silver" : totalSpent > 0 ? "bronze" : null;
+  // Supporter tier system
+  const TIERS = [
+    { key: "bronze",    label: "Bronze",    threshold: 500,   icon: "&#9679;", perks: ["Donator role", "Profile badge"] },
+    { key: "silver",    label: "Silver",    threshold: 2500,  icon: "&#9826;", perks: ["Silver profile ring", "Supporter card"] },
+    { key: "gold",      label: "Gold",      threshold: 5000,  icon: "&#9829;", perks: ["Gold hero banner", "Priority support"] },
+    { key: "platinum",  label: "Platinum",  threshold: 10000, icon: "&#9827;", perks: ["Platinum shine effect", "Exclusive badge"] },
+    { key: "diamond",   label: "Diamond",   threshold: 25000, icon: "&#9830;", perks: ["Diamond glow aura", "Animated profile"] },
+    { key: "legendary", label: "Legendary", threshold: 50000, icon: "&#9733;", perks: ["Legendary animated banner", "RGB effects", "Custom profile"] },
+  ];
+
+  // Build upsell — store products the player doesn't own
+  const allProducts = store.getActiveProducts();
+  const ownedNames = new Set(ownedSkins.map(s => s.name.toLowerCase()));
+  const purchasedNames = new Set(purchases.map(p => p.product_name.toLowerCase()));
+  const unownedProducts = allProducts
+    .filter(p => p.category === "loadout" && !ownedNames.has(p.name.toLowerCase()) && !purchasedNames.has(p.name.toLowerCase()));
+  // Sort: sale items first, then by price ascending
+  unownedProducts.sort((a, b) => {
+    const aOnSale = a.sale_price && a.sale_price < a.price ? 1 : 0;
+    const bOnSale = b.sale_price && b.sale_price < b.price ? 1 : 0;
+    if (aOnSale !== bOnSale) return bOnSale - aOnSale; // sale items first
+    return store.getEffectivePrice(a) - store.getEffectivePrice(b);
+  });
+  const upsellProducts = unownedProducts
+    .slice(0, 3)
+    .map(p => {
+      const onSale = p.sale_price && p.sale_price < p.price;
+      return {
+        id: p.id,
+        name: p.name,
+        image: p.image,
+        price: (store.getEffectivePrice(p) / 100).toFixed(2),
+        originalPrice: onSale ? (p.price / 100).toFixed(2) : null,
+        badge: p.badge,
+        onSale,
+      };
+    });
+  const ownsAll = upsellProducts.length === 0 && ownedSkins.length > 0;
+
+  // Rotating CTA for non-supporters
+  const CTA_MESSAGES = [
+    { headline: "We Can't Keep the Lights On Without You", sub: "Every purchase directly supports server costs and development." },
+    { headline: "Unlock Your Full Profile", sub: "Supporters get exclusive badges, glowing borders, and animated effects." },
+    { headline: "This Server Runs on Your Support", sub: "Help us keep Wasteland alive — grab a skin, fund the fight." },
+    { headline: "Stand Out on the Battlefield", sub: "Supporters get exclusive loadout skins and a profile that turns heads." },
+    { headline: "Be Part of Something Bigger", sub: "Join the supporters keeping this community thriving." },
+    { headline: "Your Profile Could Look Way Cooler", sub: "Unlock tier badges, animated effects, and the respect of the server." },
+    { headline: "Servers Don't Pay for Themselves", sub: "Every dollar keeps the game running for everyone." },
+    { headline: "Level Up Your Legacy", sub: "Support the project and watch your profile transform." },
+  ];
+  const ctaIndex = Math.floor(Math.random() * CTA_MESSAGES.length);
+  const ctaMessage = purchases.length === 0 ? CTA_MESSAGES[ctaIndex] : null;
+
+  // Rotating tier button CTA (shown to everyone with a tier)
+  const TIER_BUTTON_CTAS = [
+    "Keep Growing Your Support Tier",
+    "Fuel the Fight — Upgrade Your Tier",
+    "Every Dollar Unlocks Something New",
+    "Your Support Keeps Us Online",
+    "Climb Higher — Unlock the Next Tier",
+    "Power Up Your Profile",
+    "The Battlefield Needs You",
+    "Go Further — Support the Mission",
+    "Unlock More Perks Today",
+    "Heroes Don't Stop Here",
+  ];
+  const tierBtnIndex = Math.floor(Math.random() * TIER_BUTTON_CTAS.length);
+  const tierBtnText = TIER_BUTTON_CTAS[tierBtnIndex];
+
+  const effectiveSpent = totalSpent;
+  console.log(`[PROFILE] discord_id=${user.discord_id} totalSpent=${totalSpent} effectiveSpent=${effectiveSpent}`);
+  console.log(`[PROFILE] purchases=${purchases.length} skinCount=${ownedSkins.length}`);
+
+  const donorTier = TIERS.slice().reverse().find(t => effectiveSpent >= t.threshold)?.key || null;
+  console.log(`[PROFILE] donorTier=${donorTier}`);
+
+  // Build awards — all tiers with unlocked status + progress to next
+  const awards = TIERS.map(t => ({
+    ...t,
+    unlocked: effectiveSpent >= t.threshold,
+    isCurrent: t.key === donorTier,
+    thresholdDollars: (t.threshold / 100).toFixed(0),
+  }));
+
+  awards.forEach(a => console.log(`[PROFILE] award: ${a.key} unlocked=${a.unlocked} isCurrent=${a.isCurrent}`));
+
+  const currentTierIndex = TIERS.findIndex(t => t.key === donorTier);
+  const nextTier = currentTierIndex >= 0 && currentTierIndex < TIERS.length - 1 ? TIERS[currentTierIndex + 1] : null;
+  const spentDollars = (effectiveSpent / 100);
+  const nextTierProgress = nextTier ? Math.min(100, Math.round(((effectiveSpent - TIERS[currentTierIndex].threshold) / (nextTier.threshold - TIERS[currentTierIndex].threshold)) * 100)) : 100;
+
+  console.log(`[PROFILE] nextTier=${nextTier?.key || 'none'} progress=${nextTierProgress}% memberRoles=${memberRoles.length}`);
 
   res.render("profile", {
     page: "profile",
@@ -668,18 +780,32 @@ app.get("/profile", async (req, res) => {
     steamId,
     recentKills,
     leaderboardRank,
+    hasMostKilled: stats?.mostKilled && stats.mostKilled !== "Not Available" && stats.mostKilledCount > 0,
+    hasMostKilledBy: stats?.mostKilledBy && stats.mostKilledBy !== "Not Available" && stats.mostKilledByCount > 0,
     purchases: purchases.slice(0, 20),
     totalSpent: (totalSpent / 100).toFixed(2),
     purchaseCount: purchases.length,
     purchasesFormatted: purchases.slice(0, 20).map(p => ({ ...p, amountDollars: (p.amount / 100).toFixed(2) })),
-    skinDraws: skinDraws.slice(0, 20),
-    skinCount: skinDraws.length,
+    ownedSkins,
+    skinCount: ownedSkins.length,
     activeTier,
     activeTierName,
     donorTier,
+    awards,
+    nextTier: nextTier ? { ...nextTier, thresholdDollars: (nextTier.threshold / 100).toFixed(0) } : null,
+    nextTierProgress,
+    spentDollars: spentDollars.toFixed(2),
     memberSince: memberSince ? memberSince.toISOString() : null,
     memberDays,
     memberRoles,
+    roleCount: memberRoles.length,
+    roleTier: memberRoles.length >= 20 ? "legendary" : memberRoles.length >= 15 ? "elite" : memberRoles.length >= 10 ? "veteran" : memberRoles.length >= 5 ? "regular" : memberRoles.length >= 1 ? "newcomer" : null,
+    upsellProducts,
+    ownsAll,
+    ctaMessage,
+    ctaIndex,
+    tierBtnText,
+    tierBtnIndex,
   });
 });
 

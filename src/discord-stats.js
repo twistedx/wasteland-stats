@@ -49,6 +49,17 @@ function initDb() {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_member_events_ts ON member_events (ts)`);
   try { db.exec("ALTER TABLE member_events ADD COLUMN membership_days INTEGER"); } catch (e) { /* exists */ }
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS member_roles (
+      discord_id TEXT NOT NULL,
+      role_name TEXT NOT NULL,
+      role_color TEXT NOT NULL DEFAULT '#99aab5',
+      position INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (discord_id, role_name)
+    )
+  `);
+
   // Prune old data
   const cutoff = Date.now() - RETENTION_DAYS * 86400000;
   db.prepare("DELETE FROM online_snapshots WHERE ts < ?").run(cutoff);
@@ -290,4 +301,28 @@ function getRecentDepartures(limit = 30) {
   return db.prepare("SELECT username, discord_id, ts, membership_days FROM member_events WHERE event_type = 'leave' ORDER BY ts DESC LIMIT ?").all(limit);
 }
 
-module.exports = { init, getStats, getOnlineHistory, recordMemberEvent, getMemberEventHistory, getRecentDepartures };
+function ensureDb() {
+  if (!db) initDb();
+}
+
+function saveMemberRoles(discordId, roles) {
+  ensureDb();
+  if (!db) return;
+  const del = db.prepare("DELETE FROM member_roles WHERE discord_id = ?");
+  const ins = db.prepare("INSERT INTO member_roles (discord_id, role_name, role_color, position) VALUES (?, ?, ?, ?)");
+  const tx = db.transaction((id, roleList) => {
+    del.run(id);
+    for (const r of roleList) {
+      ins.run(id, r.name, r.color, r.position);
+    }
+  });
+  tx(discordId, roles);
+}
+
+function getMemberRoles(discordId) {
+  ensureDb();
+  if (!db) return [];
+  return db.prepare("SELECT role_name as name, role_color as color FROM member_roles WHERE discord_id = ? ORDER BY position DESC").all(discordId);
+}
+
+module.exports = { init, getStats, getOnlineHistory, recordMemberEvent, getMemberEventHistory, getRecentDepartures, saveMemberRoles, getMemberRoles };

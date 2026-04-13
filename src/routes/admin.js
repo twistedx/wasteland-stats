@@ -1270,6 +1270,8 @@ router.get("/analytics", async (req, res) => {
     auditStats,
     blockedIPs: user.isAdmin ? ipBlock.getAll() : [],
     ipBlockStats: user.isAdmin ? ipBlock.getStats() : { total: 0, today: 0 },
+    ctaStats: user.isAdmin ? analytics.getCtaStats() : [],
+    ctaRecent: user.isAdmin ? analytics.getCtaRecent(20) : [],
     economyStats: user.isAdmin ? economyTracker.getStats(atmDays) : null,
     economyHistoryJson: JSON.stringify(user.isAdmin && economyTracker.getStats(atmDays) ? economyTracker.getStats(atmDays).dailyHistory : []),
     atmDays,

@@ -10,6 +10,7 @@
     {{#if user.isAdmin}}
       <button class="tab analytics-tab" data-tab="tab-atm" type="button">ATM</button>
       <button class="tab analytics-tab" data-tab="tab-audit" type="button">Audit Log</button>
+      <button class="tab analytics-tab" data-tab="tab-profile" type="button">Profile</button>
       <button class="tab analytics-tab" data-tab="tab-security" type="button">Security</button>
     {{/if}}
   </div>
@@ -622,6 +623,67 @@
     {{/if}}
   </div>
 
+  <!-- ═══════════════ PROFILE CTA TAB (Admin Only) ═══════════════ -->
+  <div id="tab-profile" style="display:none;">
+    <h3 style="margin-bottom:1rem;">Profile CTA Performance</h3>
+
+    {{#if ctaStats.length}}
+    <div class="admin-form-card" style="margin-bottom:1rem;">
+      <h3>CTA Click Rates</h3>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>CTA Message</th>
+              <th>Clicks</th>
+              <th>Unique Users</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each ctaStats}}
+            <tr>
+              <td>{{this.cta_index}}</td>
+              <td>{{this.cta_text}}</td>
+              <td style="font-weight:700;color:#22c55e;">{{this.clicks}}</td>
+              <td>{{this.unique_users}}</td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {{else}}
+    <div class="empty-state">No CTA clicks recorded yet.</div>
+    {{/if}}
+
+    {{#if ctaRecent.length}}
+    <div class="admin-form-card">
+      <h3>Recent Clicks</h3>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>CTA Message</th>
+              <th>When</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each ctaRecent}}
+            <tr>
+              <td class="player-name">{{fallback this.username "Unknown"}}</td>
+              <td>{{this.cta_text}}</td>
+              <td>{{formatDateEST this.ts}}</td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {{/if}}
+  </div>
+
   <!-- ═══════════════ SECURITY TAB (Admin Only) ═══════════════ -->
   <div id="tab-security" style="display:none;">
 
@@ -728,6 +790,8 @@
       if (auditEl) auditEl.style.display = 'none';
       var atmEl = document.getElementById('tab-atm');
       if (atmEl) atmEl.style.display = 'none';
+      var profileEl = document.getElementById('tab-profile');
+      if (profileEl) profileEl.style.display = 'none';
       var securityEl = document.getElementById('tab-security');
       if (securityEl) securityEl.style.display = 'none';
       document.getElementById(this.getAttribute('data-tab')).style.display = '';

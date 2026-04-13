@@ -174,4 +174,14 @@ router.get("/players/search", async (req, res) => {
   }
 });
 
+// Track profile CTA clicks
+router.post("/profile-cta", (req, res) => {
+  const user = req.session?.user;
+  if (!user) return res.status(401).json({ error: "Not logged in" });
+  const { ctaIndex, ctaText } = req.body;
+  if (ctaIndex === undefined || !ctaText) return res.status(400).json({ error: "Missing fields" });
+  analytics.recordCtaClick(user.discord_id, user.username, Number(ctaIndex), String(ctaText).slice(0, 200));
+  res.json({ ok: true });
+});
+
 module.exports = router;

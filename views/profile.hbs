@@ -1,4 +1,14 @@
-<section class="profile-page">
+<section class="profile-page {{#if donorTier}}profile-tier-{{donorTier}}{{/if}}">
+  {{#if donorTier}}
+  <div class="profile-tier-watermarks" aria-hidden="true">
+    <span>{{#if (eq donorTier 'legendary')}}&#9733;{{else if (eq donorTier 'diamond')}}&#9830;{{else if (eq donorTier 'platinum')}}&#9827;{{else if (eq donorTier 'gold')}}&#9829;{{else if (eq donorTier 'silver')}}&#9826;{{else}}&#9679;{{/if}}</span>
+    <span>{{#if (eq donorTier 'legendary')}}&#9733;{{else if (eq donorTier 'diamond')}}&#9830;{{else if (eq donorTier 'platinum')}}&#9827;{{else if (eq donorTier 'gold')}}&#9829;{{else if (eq donorTier 'silver')}}&#9826;{{else}}&#9679;{{/if}}</span>
+    <span>{{#if (eq donorTier 'legendary')}}&#9733;{{else if (eq donorTier 'diamond')}}&#9830;{{else if (eq donorTier 'platinum')}}&#9827;{{else if (eq donorTier 'gold')}}&#9829;{{else if (eq donorTier 'silver')}}&#9826;{{else}}&#9679;{{/if}}</span>
+    <span>{{#if (eq donorTier 'legendary')}}&#9733;{{else if (eq donorTier 'diamond')}}&#9830;{{else if (eq donorTier 'platinum')}}&#9827;{{else if (eq donorTier 'gold')}}&#9829;{{else if (eq donorTier 'silver')}}&#9826;{{else}}&#9679;{{/if}}</span>
+    <span>{{#if (eq donorTier 'legendary')}}&#9733;{{else if (eq donorTier 'diamond')}}&#9830;{{else if (eq donorTier 'platinum')}}&#9827;{{else if (eq donorTier 'gold')}}&#9829;{{else if (eq donorTier 'silver')}}&#9826;{{else}}&#9679;{{/if}}</span>
+    <span>{{#if (eq donorTier 'legendary')}}&#9733;{{else if (eq donorTier 'diamond')}}&#9830;{{else if (eq donorTier 'platinum')}}&#9827;{{else if (eq donorTier 'gold')}}&#9829;{{else if (eq donorTier 'silver')}}&#9826;{{else}}&#9679;{{/if}}</span>
+  </div>
+  {{/if}}
 
   <!-- Hero Banner -->
   <div class="profile-hero {{#if donorTier}}hero-tier-{{donorTier}}{{/if}}">
@@ -93,19 +103,19 @@
         <span class="profile-big-value kd-glow">{{fallback stats.kdRatio "0.0"}}</span>
         <span class="profile-big-label">K/D Ratio</span>
       </div>
-      {{#if atmBalance}}
-      <div class="profile-big-stat">
-        <span class="profile-big-value cash-glow">${{formatNumber atmBalance}}</span>
-        <span class="profile-big-label">Cash Balance</span>
-      </div>
-      {{/if}}
-      {{#if atmLimit}}
-      <div class="profile-big-stat">
-        <span class="profile-big-value" style="color:#fbbf24;">${{formatNumber atmLimit}}</span>
-        <span class="profile-big-label">ATM Limit</span>
-      </div>
-      {{/if}}
     </div>
+
+    <!-- Support CTA for non-supporters -->
+    {{#if ctaMessage}}
+    <div class="profile-cta-banner">
+      <div class="profile-cta-glow"></div>
+      <div class="profile-cta-content">
+        <h3 class="profile-cta-headline">{{ctaMessage.headline}}</h3>
+        <p class="profile-cta-sub">{{ctaMessage.sub}}</p>
+        <a href="/store" class="btn btn-donate profile-cta-btn" data-cta-index="{{ctaIndex}}" data-cta-text="{{ctaMessage.headline}}">Support the Project</a>
+      </div>
+    </div>
+    {{/if}}
 
     <!-- Combat Details -->
     <div class="profile-grid">
@@ -117,21 +127,21 @@
           Rivals
         </div>
         <div class="profile-card-body">
-          {{#if stats.mostKilled}}
+          {{#if hasMostKilled}}
           <div class="profile-rival">
             <span class="profile-rival-label">Favorite Target</span>
             <span class="profile-rival-name">{{stats.mostKilled}}</span>
             <span class="profile-rival-count">{{stats.mostKilledCount}}x</span>
           </div>
           {{/if}}
-          {{#if stats.mostKilledBy}}
+          {{#if hasMostKilledBy}}
           <div class="profile-rival">
             <span class="profile-rival-label">Nemesis</span>
             <span class="profile-rival-name" style="color:#ef4444;">{{stats.mostKilledBy}}</span>
             <span class="profile-rival-count">{{stats.mostKilledByCount}}x</span>
           </div>
           {{/if}}
-          {{#unless stats.mostKilled}}{{#unless stats.mostKilledBy}}
+          {{#unless hasMostKilled}}{{#unless hasMostKilledBy}}
             <div class="empty-state">No rival data yet.</div>
           {{/unless}}{{/unless}}
         </div>
@@ -160,15 +170,35 @@
         </div>
       </div>
 
-      <!-- Supporter Status -->
-      {{#if purchaseCount}}
+      <!-- Economy -->
+      <div class="profile-card profile-card-wide">
+        <div class="profile-card-header" style="background:linear-gradient(90deg, rgba(34,197,94,0.08), transparent);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="color:#22c55e;"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
+          Economy
+        </div>
+        <div class="profile-card-body">
+          <div class="profile-stats-grid">
+            <div class="profile-stat-item">
+              <span class="profile-stat-val cash-glow">{{#if atmBalance}}${{formatNumber atmBalance}}{{else}}<span style="font-size:0.8rem;color:var(--text-secondary);font-family:inherit;">Go earn some money!</span>{{/if}}</span>
+              <span class="profile-stat-lbl">Cash Balance</span>
+            </div>
+            <div class="profile-stat-item">
+              <span class="profile-stat-val" style="color:#fbbf24;">{{#if atmLimit}}${{formatNumber atmLimit}}{{else}}$150,000{{/if}}</span>
+              <span class="profile-stat-lbl">ATM Limit</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Supporter Awards -->
       <div class="profile-card profile-card-wide">
         <div class="profile-card-header" style="background:linear-gradient(90deg, rgba(245,158,11,0.08), transparent);">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="color:#f59e0b;"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-          Supporter Status
+          Supporter Awards
         </div>
         <div class="profile-card-body">
-          <div class="profile-supporter-stats">
+          {{#if purchaseCount}}
+          <div class="profile-supporter-stats" style="margin-bottom:1.25rem;">
             <div class="profile-supporter-item">
               <span class="profile-supporter-value" style="color:#22c55e;">${{totalSpent}}</span>
               <span class="profile-supporter-label">Total Contributed</span>
@@ -188,13 +218,47 @@
             </div>
             {{/if}}
           </div>
+          {{/if}}
+
+          {{#if nextTier}}
+          <div class="tier-progress-bar">
+            <div class="tier-progress-info">
+              <span>{{#if donorTier}}<span class="tier-current-label tier-color-{{donorTier}}">{{donorTier}}</span>{{else}}No Tier{{/if}}</span>
+              <span class="tier-next-label">Next: <strong class="tier-color-{{nextTier.key}}">{{nextTier.label}}</strong></span>
+            </div>
+            <div class="tier-progress-track">
+              <div class="tier-progress-fill tier-fill-{{donorTier}}" style="width:{{nextTierProgress}}%;"></div>
+            </div>
+            <div class="tier-progress-pct">{{nextTierProgress}}%</div>
+          </div>
+          {{/if}}
+
+          <div class="tier-awards-grid">
+            {{#each awards}}
+            <div class="tier-award {{#if this.isCurrent}}tier-current{{else if this.unlocked}}tier-unlocked{{else}}tier-locked{{/if}} tier-card-{{this.key}}">
+              {{#if this.isCurrent}}<div class="tier-current-banner">Current</div>{{/if}}
+              <div class="tier-award-icon">{{{this.icon}}}</div>
+              <div class="tier-award-label">{{this.label}}</div>
+              {{#if this.unlocked}}
+                <div class="tier-award-check">&#10003;</div>
+              {{else}}
+                <div class="tier-award-lock">&#128274;</div>
+              {{/if}}
+              <div class="tier-award-perks">
+                {{#each this.perks}}<span>{{this}}</span>{{/each}}
+              </div>
+            </div>
+            {{/each}}
+          </div>
+          <div style="text-align:center;margin-top:1.25rem;">
+            <a href="/store" class="btn btn-donate profile-tier-btn" data-cta-index="tier-{{tierBtnIndex}}" data-cta-text="{{tierBtnText}}">{{tierBtnText}}</a>
+          </div>
         </div>
       </div>
-      {{/if}}
 
-      <!-- Skins & Roles — 50/50 -->
+      <!-- Skins & Roles -->
       {{#if (or skinCount memberRoles.length)}}
-      <div class="profile-half-row">
+      <div class="profile-half-row {{#unless memberRoles.length}}profile-half-single{{/unless}} {{#unless skinCount}}profile-half-single{{/unless}}">
         {{#if skinCount}}
         <div class="profile-card">
           <div class="profile-card-header" style="background:linear-gradient(90deg, rgba(167,139,250,0.08), transparent);">
@@ -203,10 +267,10 @@
           </div>
           <div class="profile-card-body">
             <div class="profile-skin-list">
-              {{#each skinDraws}}
-              <div class="profile-skin-item rarity-{{this.result_rarity}}">
-                <span class="profile-skin-name">{{this.result_name}}</span>
-                <span class="profile-skin-rarity">{{this.result_rarity}}</span>
+              {{#each ownedSkins}}
+              <div class="profile-skin-item {{#if this.rarity}}rarity-{{this.rarity}}{{/if}}">
+                <span class="profile-skin-name">{{this.name}}</span>
+                <span class="profile-skin-rarity">{{#if (gt this.quantity 1)}}x{{this.quantity}}{{/if}} {{#if this.rarity}}{{this.rarity}}{{/if}}</span>
               </div>
               {{/each}}
             </div>
@@ -214,10 +278,12 @@
         </div>
         {{/if}}
         {{#if memberRoles.length}}
-        <div class="profile-card">
-          <div class="profile-card-header" style="background:linear-gradient(90deg, rgba(88,101,242,0.08), transparent);">
+        <div class="profile-card roles-card-{{roleTier}}">
+          <div class="profile-card-header roles-header-{{roleTier}}">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="color:#5865F2;"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
-            Discord Roles ({{memberRoles.length}})
+            Discord Roles ({{roleCount}})
+            <span class="roles-tier-badge roles-badge-{{roleTier}}">{{roleTier}}</span>
+            <span class="roles-info-icon" title="Gain more Discord roles to grow your status">&#9432;</span>
           </div>
           <div class="profile-card-body">
             <div class="profile-roles-wrap">
@@ -279,11 +345,117 @@
     <div class="loading" style="margin-top:2rem;">Loading your profile...</div>
   {{/if}}
 
+  <!-- Upsell / Completionist -->
+  {{#if ownsAll}}
+  <div class="profile-completionist">
+    <div class="profile-completionist-glow"></div>
+    <div class="profile-completionist-icon">&#9733;</div>
+    <h3 class="profile-completionist-title">You Own Everything</h3>
+    <p class="profile-completionist-text">You've collected every skin in the armory. You're a true Wasteland legend.</p>
+  </div>
+  {{else if upsellProducts.length}}
+  <div class="profile-upsell">
+    <div class="profile-upsell-header">
+      <h3>Complete Your Collection</h3>
+      <p>Skins you don't own yet — stand out on the battlefield.</p>
+    </div>
+    <div class="profile-upsell-grid">
+      {{#each upsellProducts}}
+      <a href="/store" class="profile-upsell-card {{#if this.onSale}}profile-upsell-sale{{/if}}">
+        {{#if this.onSale}}<div class="profile-upsell-sale-tag">SALE</div>{{/if}}
+        {{#if this.image}}
+        <div class="profile-upsell-img" style="background-image:url('{{this.image}}');"></div>
+        {{else}}
+        <div class="profile-upsell-img profile-upsell-img-placeholder"></div>
+        {{/if}}
+        <div class="profile-upsell-info">
+          <span class="profile-upsell-name">{{this.name}}</span>
+          {{#if this.badge}}<span class="profile-upsell-badge">{{this.badge}}</span>{{/if}}
+          <div class="profile-upsell-price-row">
+            {{#if this.originalPrice}}<span class="profile-upsell-original">${{this.originalPrice}}</span>{{/if}}
+            <span class="profile-upsell-price">${{this.price}}</span>
+          </div>
+        </div>
+      </a>
+      {{/each}}
+    </div>
+    <div class="profile-upsell-cta">
+      <a href="/store" class="btn btn-donate">Browse the Skin Store</a>
+    </div>
+  </div>
+  {{/if}}
+
 </section>
 
+<script>
+(function() {
+  var csrf = '{{csrfToken}}';
+  function trackCta(el) {
+    if (!el) return;
+    el.addEventListener('click', function() {
+      var idx = el.getAttribute('data-cta-index');
+      var text = el.getAttribute('data-cta-text');
+      fetch('/api/profile-cta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf },
+        body: JSON.stringify({ ctaIndex: idx, ctaText: text })
+      }).catch(function() {});
+    });
+  }
+  trackCta(document.querySelector('.profile-cta-btn'));
+  trackCta(document.querySelector('.profile-tier-btn'));
+})();
+</script>
+
 <style>
+/* ── Profile Page ── */
+.profile-page { max-width: 960px; margin: 0 auto; position: relative; overflow: hidden; }
+
+/* ── Tier Watermarks ── */
+.profile-tier-watermarks {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.profile-tier-watermarks span {
+  position: absolute;
+  font-size: 8rem;
+  opacity: 0.025;
+  animation: watermark-drift 30s linear infinite;
+}
+.profile-tier-watermarks span:nth-child(1) { top: 5%; left: -5%; animation-delay: 0s; animation-duration: 35s; }
+.profile-tier-watermarks span:nth-child(2) { top: 25%; right: -8%; animation-delay: -5s; animation-duration: 40s; font-size: 6rem; }
+.profile-tier-watermarks span:nth-child(3) { top: 50%; left: 10%; animation-delay: -12s; animation-duration: 45s; font-size: 10rem; }
+.profile-tier-watermarks span:nth-child(4) { top: 70%; right: 5%; animation-delay: -18s; animation-duration: 38s; font-size: 5rem; }
+.profile-tier-watermarks span:nth-child(5) { top: 85%; left: -3%; animation-delay: -8s; animation-duration: 42s; font-size: 7rem; }
+.profile-tier-watermarks span:nth-child(6) { top: 40%; right: -10%; animation-delay: -22s; animation-duration: 50s; font-size: 12rem; opacity: 0.015; }
+
+@keyframes watermark-drift {
+  0% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-30px) rotate(8deg); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+
+/* Tier-specific watermark colors */
+.profile-tier-bronze .profile-tier-watermarks span { color: #cd7f32; }
+.profile-tier-silver .profile-tier-watermarks span { color: #c0c0c0; }
+.profile-tier-gold .profile-tier-watermarks span { color: #ffd700; opacity: 0.03; }
+.profile-tier-platinum .profile-tier-watermarks span { color: #e5e4e2; opacity: 0.03; }
+.profile-tier-diamond .profile-tier-watermarks span { color: #b9f2ff; opacity: 0.035; }
+.profile-tier-legendary .profile-tier-watermarks span { color: #ff6b6b; opacity: 0.04; animation: watermark-legendary 30s linear infinite; }
+@keyframes watermark-legendary {
+  0% { transform: translateY(0) rotate(0deg); color: #ff6b6b; }
+  33% { transform: translateY(-20px) rotate(5deg); color: #ffd700; }
+  66% { transform: translateY(-10px) rotate(-3deg); color: #a78bfa; }
+  100% { transform: translateY(0) rotate(0deg); color: #ff6b6b; }
+}
+
+/* Ensure content sits above watermarks */
+.profile-hero, .profile-toggle-bar, .profile-stats-hero, .profile-grid, .profile-half-row { position: relative; z-index: 1; }
+
 /* ── Profile Hero ── */
-.profile-page { max-width: 960px; margin: 0 auto; }
 
 .profile-hero {
   position: relative;
@@ -310,24 +482,13 @@
   pointer-events: none;
 }
 .hero-tier-bronze .profile-hero-bg { background: linear-gradient(135deg, #1a1a2e 0%, #2a1a0e 60%, #3d2510 100%); }
-.hero-tier-bronze .profile-hero-tier-img { background-image: url('/img/bank.png'); opacity: 0.15; }
-
 .hero-tier-silver .profile-hero-bg { background: linear-gradient(135deg, #1a1a2e 0%, #1e2430 60%, #2a3040 100%); }
-.hero-tier-silver .profile-hero-tier-img { background-image: url('/img/silver (1).png'); opacity: 0.18; }
-
 .hero-tier-gold .profile-hero-bg { background: linear-gradient(135deg, #1a1a2e 0%, #2a2210 60%, #3d3010 100%); }
-.hero-tier-gold .profile-hero-tier-img { background-image: url('/img/gold (1).png'); opacity: 0.2; }
-
 .hero-tier-platinum .profile-hero-bg { background: linear-gradient(135deg, #1a1a2e 0%, #22242e 60%, #303540 100%); }
-.hero-tier-platinum .profile-hero-tier-img { background-image: url('/img/plat (1).png'); opacity: 0.2; }
-
 .hero-tier-diamond .profile-hero-bg { background: linear-gradient(135deg, #0d1a2e 0%, #0f2540 60%, #103050 100%); }
-.hero-tier-diamond .profile-hero-tier-img { background-image: url('/img/plat (1).png'); opacity: 0.22; filter: hue-rotate(180deg) brightness(1.3); }
-
 .hero-tier-legendary .profile-hero-bg { background: linear-gradient(135deg, #1a0a1e 0%, #2a1030 60%, #3d0a20 100%); animation: legendary-bg 6s ease infinite; }
-.hero-tier-legendary .profile-hero-tier-img { background-image: url('/img/gold (1).png'); opacity: 0.25; filter: hue-rotate(320deg) saturate(1.5); animation: legendary-img-pulse 3s ease-in-out infinite; }
+.profile-hero-tier-img { display: none; }
 @keyframes legendary-bg { 0%,100% { background: linear-gradient(135deg, #1a0a1e 0%, #2a1030 60%, #3d0a20 100%); } 50% { background: linear-gradient(135deg, #1a1a0e 0%, #2a2010 60%, #3d2a10 100%); } }
-@keyframes legendary-img-pulse { 0%,100% { opacity: 0.2; } 50% { opacity: 0.3; } }
 .profile-hero-content {
   position: relative;
   display: flex;
@@ -589,6 +750,7 @@
   gap: 1rem;
   grid-column: 1 / -1;
 }
+.profile-half-single { grid-template-columns: 1fr; }
 
 /* ── Skin Collection ── */
 .profile-skin-list { display: flex; flex-direction: column; gap: 0.4rem; max-height: 320px; overflow-y: auto; }
@@ -613,9 +775,279 @@
 .profile-purchase-amount { color: #22c55e; font-weight: 700; font-family: 'Orbitron', sans-serif; font-size: 0.8rem; }
 .profile-purchase-date { color: var(--text-secondary); font-size: 0.7rem; min-width: 90px; text-align: right; }
 
-/* ── Discord Roles ── */
+/* ── Discord Roles — Tiered ── */
 .profile-roles-wrap { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.profile-role-pill { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 12px; border: 1px solid; font-size: 0.75rem; font-weight: 600; background: rgba(255,255,255,0.03); }
+.profile-role-pill { display: inline-block; padding: 0.25rem 0.65rem; border-radius: 12px; border: 1px solid; font-size: 0.75rem; font-weight: 600; background: rgba(255,255,255,0.03); transition: transform 0.15s, box-shadow 0.15s; }
+
+.roles-info-icon {
+  position: relative;
+  cursor: help;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+.roles-info-icon:hover { opacity: 1; }
+.roles-info-icon::after {
+  content: "Gain more Discord roles to grow your status";
+  position: absolute;
+  bottom: 130%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a1a;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 10;
+}
+.roles-info-icon:hover::after { opacity: 1; }
+
+.roles-tier-badge {
+  margin-left: auto;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  font-family: 'Orbitron', sans-serif;
+}
+
+/* Newcomer — 1 role */
+.roles-card-newcomer { border-color: rgba(156,163,175,0.2); }
+.roles-header-newcomer { background: linear-gradient(90deg, rgba(156,163,175,0.06), transparent); }
+.roles-badge-newcomer { background: rgba(156,163,175,0.15); color: #9ca3af; }
+
+/* Regular — 2-3 roles */
+.roles-card-regular { border-color: rgba(34,197,94,0.2); }
+.roles-header-regular { background: linear-gradient(90deg, rgba(34,197,94,0.06), transparent); }
+.roles-badge-regular { background: rgba(34,197,94,0.15); color: #22c55e; }
+.roles-card-regular .profile-role-pill:hover { transform: translateY(-1px); }
+
+/* Veteran — 4-5 roles */
+.roles-card-veteran { border-color: rgba(59,130,246,0.3); box-shadow: 0 0 10px rgba(59,130,246,0.08); }
+.roles-header-veteran { background: linear-gradient(90deg, rgba(59,130,246,0.08), transparent); }
+.roles-badge-veteran { background: rgba(59,130,246,0.2); color: #3b82f6; }
+.roles-card-veteran .profile-role-pill { background: rgba(255,255,255,0.04); }
+.roles-card-veteran .profile-role-pill:hover { transform: translateY(-2px); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+
+/* Elite — 6-7 roles */
+.roles-card-elite { border-color: rgba(167,139,250,0.35); box-shadow: 0 0 15px rgba(167,139,250,0.1); }
+.roles-header-elite { background: linear-gradient(90deg, rgba(167,139,250,0.1), transparent); }
+.roles-badge-elite { background: linear-gradient(135deg, rgba(167,139,250,0.3), rgba(88,101,242,0.3)); color: #a78bfa; }
+.roles-card-elite .profile-role-pill { background: rgba(255,255,255,0.05); border-width: 2px; }
+.roles-card-elite .profile-role-pill:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+
+/* Legendary — 8+ roles */
+.roles-card-legendary {
+  border-color: rgba(255,215,0,0.4);
+  box-shadow: 0 0 20px rgba(255,215,0,0.1);
+  animation: roles-legendary-border 4s ease infinite;
+}
+.roles-header-legendary { background: linear-gradient(90deg, rgba(255,215,0,0.08), rgba(239,68,68,0.05), transparent); }
+.roles-badge-legendary {
+  background: linear-gradient(135deg, #ffd700, #ff6b6b, #a78bfa);
+  background-size: 200% 200%;
+  color: #000;
+  font-weight: 800;
+  animation: legendary-shift 3s ease infinite;
+}
+.roles-card-legendary .profile-role-pill {
+  background: rgba(255,255,255,0.06);
+  border-width: 2px;
+  animation: roles-pill-glow 3s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * 0.3s);
+}
+.roles-card-legendary .profile-role-pill:hover {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 4px 16px rgba(255,215,0,0.2);
+}
+@keyframes roles-legendary-border {
+  0% { border-color: rgba(255,215,0,0.4); box-shadow: 0 0 20px rgba(255,215,0,0.1); }
+  33% { border-color: rgba(239,68,68,0.4); box-shadow: 0 0 20px rgba(239,68,68,0.1); }
+  66% { border-color: rgba(167,139,250,0.4); box-shadow: 0 0 20px rgba(167,139,250,0.1); }
+  100% { border-color: rgba(255,215,0,0.4); box-shadow: 0 0 20px rgba(255,215,0,0.1); }
+}
+@keyframes roles-pill-glow {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: 0 0 6px rgba(255,255,255,0.08); }
+}
+
+/* ── Economy Card ── */
+.profile-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; }
+.profile-stat-item { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 6px; }
+.profile-stat-val { font-family: 'Orbitron', sans-serif; font-size: 1.4rem; font-weight: 700; color: var(--text-primary); }
+.profile-stat-lbl { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.25rem; }
+
+/* ── Tier Progress Bar ── */
+.tier-progress-bar { margin-bottom: 1.25rem; }
+.tier-progress-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; font-size: 0.8rem; }
+.tier-current-label { text-transform: uppercase; font-weight: 700; font-family: 'Orbitron', sans-serif; font-size: 0.75rem; letter-spacing: 0.06em; }
+.tier-next-label { color: var(--text-secondary); font-size: 0.75rem; }
+.tier-progress-track { height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; position: relative; }
+.tier-progress-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+.tier-progress-pct { text-align: right; font-size: 0.65rem; color: var(--text-secondary); margin-top: 0.2rem; }
+
+.tier-fill-bronze { background: linear-gradient(90deg, #cd7f32, #a0522d); }
+.tier-fill-silver { background: linear-gradient(90deg, #c0c0c0, #808080); }
+.tier-fill-gold { background: linear-gradient(90deg, #ffd700, #daa520); }
+.tier-fill-platinum { background: linear-gradient(90deg, #e5e4e2, #b0b0b0); }
+.tier-fill-diamond { background: linear-gradient(90deg, #b9f2ff, #87ceeb); }
+.tier-fill-legendary { background: linear-gradient(90deg, #ff6b6b, #a78bfa, #ffd700); background-size: 200% 100%; animation: legendary-text 3s linear infinite; }
+
+.tier-color-bronze { color: #cd7f32; }
+.tier-color-silver { color: #c0c0c0; }
+.tier-color-gold { color: #ffd700; }
+.tier-color-platinum { color: #e5e4e2; }
+.tier-color-diamond { color: #b9f2ff; }
+.tier-color-legendary { color: #ff6b6b; }
+
+/* ── Tier Awards Grid ── */
+.tier-awards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.75rem;
+}
+.tier-award {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1rem 0.5rem 0.75rem;
+  border-radius: 10px;
+  border: 2px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+  transition: transform 0.2s, border-color 0.2s;
+  overflow: hidden;
+}
+.tier-award:hover { transform: translateY(-2px); }
+
+.tier-locked {
+  opacity: 0.2 !important;
+  filter: grayscale(1);
+  border-color: rgba(255,255,255,0.04) !important;
+  background: rgba(255,255,255,0.01) !important;
+  box-shadow: none !important;
+}
+.tier-unlocked {
+  opacity: 0.65;
+}
+.tier-current {
+  opacity: 1 !important;
+  filter: none !important;
+  transform: scale(1.08);
+  z-index: 1;
+}
+.tier-current-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.55rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.25rem 0;
+  color: #000;
+  background: var(--accent);
+  border-radius: 8px 8px 0 0;
+}
+
+/* Current tier card glow per tier */
+.tier-current.tier-card-bronze { border-color: #cd7f32 !important; box-shadow: 0 0 25px rgba(205,127,50,0.5) !important; background: rgba(205,127,50,0.15) !important; }
+.tier-current.tier-card-silver { border-color: #c0c0c0 !important; box-shadow: 0 0 25px rgba(192,192,192,0.5) !important; background: rgba(192,192,192,0.12) !important; }
+.tier-current.tier-card-gold { border-color: #ffd700 !important; box-shadow: 0 0 30px rgba(255,215,0,0.5) !important; background: rgba(255,215,0,0.12) !important; }
+.tier-current.tier-card-platinum { border-color: #e5e4e2 !important; box-shadow: 0 0 30px rgba(229,228,226,0.4) !important; background: rgba(229,228,226,0.1) !important; }
+.tier-current.tier-card-diamond { border-color: #b9f2ff !important; box-shadow: 0 0 35px rgba(185,242,255,0.5) !important; background: rgba(185,242,255,0.12) !important; animation: diamond-card-glow 3s ease-in-out infinite; }
+.tier-current.tier-card-legendary { border-color: #ff6b6b !important; box-shadow: 0 0 40px rgba(255,107,107,0.4) !important; background: linear-gradient(135deg, rgba(255,107,107,0.15), rgba(167,139,250,0.15), rgba(255,215,0,0.15)) !important; animation: legendary-card 4s ease infinite; }
+
+/* Per-tier card styles */
+.tier-card-bronze.tier-unlocked { border-color: rgba(205,127,50,0.4); background: rgba(205,127,50,0.06); }
+.tier-card-silver.tier-unlocked { border-color: rgba(192,192,192,0.4); background: rgba(192,192,192,0.06); }
+.tier-card-gold.tier-unlocked { border-color: rgba(255,215,0,0.4); background: rgba(255,215,0,0.06); box-shadow: 0 0 12px rgba(255,215,0,0.1); }
+.tier-card-platinum.tier-unlocked { border-color: rgba(229,228,226,0.4); background: rgba(229,228,226,0.06); box-shadow: 0 0 15px rgba(229,228,226,0.08); }
+.tier-card-diamond.tier-unlocked { border-color: rgba(185,242,255,0.4); background: rgba(185,242,255,0.06); box-shadow: 0 0 20px rgba(185,242,255,0.1); animation: diamond-card-glow 3s ease-in-out infinite; }
+@keyframes diamond-card-glow { 0%,100% { box-shadow: 0 0 15px rgba(185,242,255,0.08); } 50% { box-shadow: 0 0 25px rgba(185,242,255,0.18); } }
+.tier-card-legendary.tier-unlocked {
+  border-color: rgba(255,107,107,0.5);
+  background: linear-gradient(135deg, rgba(255,107,107,0.08), rgba(167,139,250,0.08), rgba(255,215,0,0.08));
+  box-shadow: 0 0 25px rgba(255,107,107,0.15);
+  animation: legendary-card 4s ease infinite;
+}
+@keyframes legendary-card { 0% { border-color: rgba(255,107,107,0.5); } 33% { border-color: rgba(255,215,0,0.5); } 66% { border-color: rgba(167,139,250,0.5); } 100% { border-color: rgba(255,107,107,0.5); } }
+
+.tier-award-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+  margin-bottom: 0.3rem;
+  filter: drop-shadow(0 0 6px currentColor);
+}
+.tier-card-bronze .tier-award-icon { color: #cd7f32; }
+.tier-card-silver .tier-award-icon { color: #c0c0c0; }
+.tier-card-gold .tier-award-icon { color: #ffd700; }
+.tier-card-platinum .tier-award-icon { color: #e5e4e2; }
+.tier-card-diamond .tier-award-icon { color: #b9f2ff; }
+.tier-card-legendary .tier-award-icon { animation: legendary-icon 3s ease infinite; }
+
+.tier-award-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
+}
+.tier-award-threshold {
+  font-size: 0.6rem;
+  color: var(--text-secondary);
+  margin-top: 0.15rem;
+}
+.tier-award-check {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.4rem;
+  font-size: 0.75rem;
+  color: #22c55e;
+  font-weight: 700;
+}
+.tier-award-lock {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.4rem;
+  font-size: 0.65rem;
+  opacity: 0.5;
+}
+.tier-award-perks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-top: 0.5rem;
+}
+.tier-award-perks span {
+  font-size: 0.55rem;
+  color: var(--text-secondary);
+  background: rgba(255,255,255,0.04);
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  line-height: 1.3;
+}
+.tier-unlocked .tier-award-perks span {
+  color: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.06);
+}
 
 /* ── Detail Grid ── */
 .profile-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; }
@@ -623,6 +1055,197 @@
 .profile-detail-item:hover { border-color: var(--accent); }
 .profile-detail-value { font-weight: 700; font-size: 1rem; color: var(--text-primary); }
 .profile-detail-label { font-size: 0.68rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 0.15rem; }
+
+/* ── Upsell ── */
+.profile-upsell {
+  position: relative;
+  z-index: 1;
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 2rem;
+}
+.profile-upsell-header {
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+.profile-upsell-header h3 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  margin: 0 0 0.3rem;
+}
+.profile-upsell-header p {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+.profile-upsell-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+.profile-upsell-card {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.profile-upsell-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-3px);
+}
+.profile-upsell-img {
+  height: 240px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-color: rgba(255,255,255,0.03);
+}
+.profile-upsell-img-placeholder {
+  background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+}
+.profile-upsell-info {
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.profile-upsell-name {
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.profile-upsell-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+.profile-upsell-price-row { display: flex; align-items: center; gap: 0.4rem; }
+.profile-upsell-original { font-size: 0.75rem; color: var(--text-secondary); text-decoration: line-through; }
+.profile-upsell-price {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #22c55e;
+}
+.profile-upsell-sale .profile-upsell-price { color: #ef4444; }
+.profile-upsell-sale { border-color: rgba(239,68,68,0.3); }
+.profile-upsell-sale:hover { border-color: #ef4444; }
+.profile-upsell-sale-tag {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: #ef4444;
+  color: #fff;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  z-index: 1;
+  letter-spacing: 0.06em;
+}
+.profile-upsell-card { position: relative; }
+.profile-upsell-cta {
+  text-align: center;
+  margin-top: 1.25rem;
+}
+
+/* ── Completionist ── */
+.profile-completionist {
+  position: relative;
+  z-index: 1;
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  background: var(--bg-card);
+  border: 2px solid rgba(255,215,0,0.3);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.profile-completionist-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(255,215,0,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+.profile-completionist-icon {
+  font-size: 3rem;
+  color: #ffd700;
+  filter: drop-shadow(0 0 15px rgba(255,215,0,0.5));
+  margin-bottom: 0.5rem;
+  animation: completionist-pulse 2s ease-in-out infinite;
+}
+@keyframes completionist-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+.profile-completionist-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.2rem;
+  color: #ffd700;
+  margin: 0 0 0.5rem;
+  text-shadow: 0 0 10px rgba(255,215,0,0.3);
+}
+.profile-completionist-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+/* ── Support CTA Banner ── */
+.profile-cta-banner {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 1.5rem;
+  padding: 2rem 1.5rem;
+  border-radius: 10px;
+  border: 1px solid rgba(245,158,11,0.25);
+  background: linear-gradient(135deg, rgba(245,158,11,0.06), rgba(239,68,68,0.04));
+  text-align: center;
+  overflow: hidden;
+}
+.profile-cta-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(245,158,11,0.08) 0%, transparent 70%);
+  pointer-events: none;
+  animation: cta-glow-pulse 4s ease-in-out infinite;
+}
+@keyframes cta-glow-pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+.profile-cta-content { position: relative; }
+.profile-cta-headline {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.1rem;
+  color: var(--accent);
+  margin: 0 0 0.5rem;
+  text-shadow: 0 0 12px rgba(245,158,11,0.3);
+}
+.profile-cta-sub {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0 0 1.25rem;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.profile-cta-btn {
+  font-size: 0.85rem;
+  padding: 0.6rem 2rem;
+}
 
 /* ── Mobile ── */
 @media (max-width: 600px) {
@@ -640,5 +1263,11 @@
   .profile-rival-label { min-width: 70px; font-size: 0.65rem; }
   .profile-half-row { grid-template-columns: 1fr; }
   .profile-purchase-date { display: none; }
+  .profile-upsell-grid { grid-template-columns: 1fr; }
+  .tier-awards-grid { grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+  .tier-award { padding: 0.75rem 0.35rem 0.6rem; }
+  .tier-award-icon { font-size: 1.4rem; }
+  .tier-award-label { font-size: 0.6rem; }
+  .tier-award-perks { display: none; }
 }
 </style>

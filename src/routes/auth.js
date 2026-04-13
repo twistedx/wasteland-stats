@@ -166,6 +166,39 @@ router.get("/discord/callback", async (req, res) => {
       if (err) console.error("Session regenerate error:", err.message);
       req.session.user = userData;
 
+      // Cache Discord roles in background (don't block login)
+      (async () => {
+        try {
+          const { getClient } = require("../discord-bot");
+          const discordStats = require("../discord-stats");
+          const bot = getClient();
+          if (bot?.isReady()) {
+            const guild = bot.guilds.cache.get(config.discordGuildId);
+            if (guild) {
+              const member = await guild.members.fetch(userData.discord_id).catch(() => null);
+              if (member) {
+                const HIDE_ROLES = ["community member", "verified", "server booster"];
+                const HIDE_SUFFIXES = ["'s fans", "\u2019s fans"];
+                const roles = member.roles.cache
+                  .filter(r => {
+                    if (r.id === guild.id) return false;
+                    const name = r.name.toLowerCase();
+                    if (HIDE_ROLES.includes(name)) return false;
+                    if (HIDE_SUFFIXES.some(s => name.endsWith(s))) return false;
+                    if (r.managed) return false;
+                    return true;
+                  })
+                  .map(r => ({ name: r.name, color: r.hexColor, position: r.position }));
+                discordStats.saveMemberRoles(userData.discord_id, roles);
+                console.log(`Cached ${roles.length} roles for ${userData.username}`);
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Role cache error:", err.message);
+        }
+      })();
+
       // Check watchlist in background (don't block login)
       checkWatchlist(req.session.user);
 
