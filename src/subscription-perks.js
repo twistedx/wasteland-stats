@@ -59,11 +59,21 @@ async function setBankLimit(armaId, limit) {
 }
 
 async function grantSkins(discordId, count) {
+  // Fetch owned skins to avoid duplicates
+  let ownedNames = new Set();
+  try {
+    const itemsRes = await apiClient.get("/itemsUser/getUserItemsByDiscordId", {
+      params: { discord_id: discordId, token: config.apiToken },
+      timeout: 10000,
+    });
+    (itemsRes.data?.items || []).forEach(i => ownedNames.add(i.item_name.toLowerCase()));
+  } catch {}
+
   // Draw all skins first, then grant in parallel
   const skins = [];
   const now = Date.now();
   for (let i = 0; i < count; i++) {
-    const skin = skinDraw.draw();
+    const skin = skinDraw.draw(ownedNames);
     if (!skin) {
       console.warn("SubscriptionPerks: skin draw pool is empty, cannot grant skin");
       break;
@@ -74,6 +84,8 @@ async function grantSkins(discordId, count) {
       result_rarity: skin.rarity,
       stripe_session_id: `sub-perk-${discordId}-${now}-${i}`,
     });
+    // Add to owned set so next draw in this batch doesn't duplicate
+    ownedNames.add((skin.game_item_name || skin.name).toLowerCase());
     skins.push(skin);
   }
 

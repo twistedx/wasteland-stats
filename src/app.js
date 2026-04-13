@@ -1064,8 +1064,21 @@ app.get("/draw/result", async (req, res) => {
       const pool = skinDraw.getPool();
       result = pool.find(p => p.name === existing.result_name) || { name: existing.result_name, rarity: existing.result_rarity, image: null };
     } else {
+      // Fetch owned skins to exclude from draw
+      let ownedNames = new Set();
+      const drawDiscordId = session.metadata?.discord_id;
+      if (drawDiscordId) {
+        try {
+          const itemsRes = await apiClient.get("/itemsUser/getUserItemsByDiscordId", {
+            params: { discord_id: drawDiscordId, token: config.apiToken },
+            timeout: 10000,
+          });
+          (itemsRes.data?.items || []).forEach(i => ownedNames.add(i.item_name.toLowerCase()));
+        } catch {}
+      }
+
       // Roll!
-      result = skinDraw.draw();
+      result = skinDraw.draw(ownedNames);
       if (!result) return res.redirect("/draw?error=No skins in pool");
 
       // Record and fulfill

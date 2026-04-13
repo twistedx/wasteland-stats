@@ -93,8 +93,22 @@ function removeFromPool(id) {
 }
 
 // Weighted random draw — cryptographically secure
-function draw() {
-  const pool = getPool();
+// Pass ownedNames (Set of lowercase item names) to exclude skins the player already has
+function draw(ownedNames) {
+  let pool = getPool();
+  if (ownedNames && ownedNames.size > 0) {
+    const filtered = pool.filter(item => {
+      const name = (item.game_item_name || item.name || "").toLowerCase();
+      const skinKey = (item.skin_key || "").toLowerCase();
+      return !ownedNames.has(name) && !ownedNames.has(skinKey);
+    });
+    if (filtered.length > 0) {
+      pool = filtered;
+    } else {
+      // Player owns everything in the pool — fall back to full pool
+      console.log("[SkinDraw] Player owns all skins in pool, drawing from full pool");
+    }
+  }
   if (pool.length === 0) return null;
 
   const totalWeight = pool.reduce((sum, item) => sum + item.weight, 0);
