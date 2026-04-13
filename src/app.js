@@ -642,7 +642,12 @@ app.get("/profile", async (req, res) => {
   let memberSince = null;
   let memberDays = null;
   const discordStats = require("./discord-stats");
-  let memberRoles = discordStats.getMemberRoles(user.discord_id);
+  let memberRoles = discordStats.getMemberRoles(user.discord_id).map(r => {
+    // Fix dark/default colors that are invisible on dark backgrounds
+    const hex = (r.color || "#000000").replace("#", "");
+    const brightness = (parseInt(hex.slice(0, 2), 16) * 299 + parseInt(hex.slice(2, 4), 16) * 587 + parseInt(hex.slice(4, 6), 16) * 114) / 1000;
+    return { ...r, color: brightness < 50 ? "#9ca3af" : r.color };
+  });
 
   try {
     const { getClient } = require("./discord-bot");
