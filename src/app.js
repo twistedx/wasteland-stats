@@ -806,6 +806,7 @@ app.get("/profile", async (req, res) => {
     roleCount: memberRoles.length,
     roleTier: memberRoles.length >= 20 ? "legendary" : memberRoles.length >= 15 ? "elite" : memberRoles.length >= 10 ? "veteran" : memberRoles.length >= 5 ? "regular" : memberRoles.length >= 1 ? "newcomer" : null,
     upsellProducts,
+    allProductsJson: JSON.stringify(allProducts.map(p => ({ id: p.id, name: p.name, price: store.getEffectivePrice(p) / 100 }))),
     ownsAll,
     ctaMessage,
     ctaIndex,
@@ -1112,7 +1113,7 @@ app.get("/build*", (req, res) => {
   res.redirect(301, newPath);
 });
 
-app.get("/store", (req, res) => {
+app.get("/store", async (req, res) => {
   const user = req.session.user || null;
   if (user) {
     if (user.avatar) {
@@ -1126,6 +1127,28 @@ app.get("/store", (req, res) => {
     }
   }
   const categories = store.getCategoriesWithProducts();
+
+  // Fetch owned items for logged-in users
+  let ownedItemNames = [];
+  if (user) {
+    try {
+      const itemsRes = await apiClient.get("/itemsUser/getUserItemsByDiscordId", {
+        params: { discord_id: user.discord_id, token: config.apiToken },
+        timeout: 10000,
+      });
+      const items = itemsRes.data?.items || [];
+      ownedItemNames = items.map(i => i.item_name.toLowerCase());
+    } catch {}
+  }
+
+  // Mark owned products in each category
+  for (const cat of categories) {
+    for (const p of (cat.products || [])) {
+      const gameName = (p.game_item_name || p.name || "").toLowerCase();
+      const productName = (p.name || "").toLowerCase();
+      p.owned = ownedItemNames.some(n => n === gameName || n === productName || gameName.includes(n) || n.includes(gameName));
+    }
+  }
 
   res.render("build", {
     page: "store",

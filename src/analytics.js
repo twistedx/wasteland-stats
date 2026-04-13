@@ -59,7 +59,7 @@ function init() {
       ts INTEGER NOT NULL,
       discord_id TEXT,
       username TEXT,
-      cta_index INTEGER NOT NULL,
+      cta_index TEXT NOT NULL,
       cta_text TEXT NOT NULL
     )
   `);

@@ -63,6 +63,7 @@
       badge: p.badge,
       category: p.category,
       onSale: p.sale_price && p.sale_price > 0,
+      owned: !!p.owned,
     };
   }
 
@@ -109,23 +110,29 @@
 
   // ── Render ──
   function renderProductCard(p) {
-    const badgeHtml = p.badge === 'new' ? '<span class="store-badge new-badge">New</span>'
+    let badgeHtml = p.badge === 'new' ? '<span class="store-badge new-badge">New</span>'
       : p.badge === 'limited' ? '<span class="store-badge limited">Limited Time</span>'
       : p.badge === 'sale' || p.onSale ? '<span class="store-badge sale-badge">Sale</span>'
       : p.badge ? `<span class="store-badge new-badge">${p.badge}</span>` : '';
+    if (p.owned) badgeHtml = '<span class="store-badge owned-badge">Owned</span>' + badgeHtml;
     const isSub = p.category === 'subscriptions';
     const priceLabel = isSub ? '/mo' : '';
     const priceHtml = p.onSale
       ? `<span class="store-original-price">$${p.originalPrice.toFixed(2)}${priceLabel}</span> <strong>$${p.price.toFixed(2)}${priceLabel}</strong>`
       : `<strong>$${p.price.toFixed(2)}${priceLabel}</strong>`;
     const isDrawProduct = p.name === 'Random Skin Draw' || p.name === 'Mystery Skin Bundle';
-    const buttonHtml = isDrawProduct
-      ? `<a href="/draw" class="btn btn-discord" style="text-decoration:none;display:inline-block;">Browse Bundle — $${p.price.toFixed(2)}</a>`
-      : isSub
-      ? `<button class="btn btn-discord btn-add-cart" data-id="${p.id}">Subscribe</button>`
-      : `<button class="btn btn-discord btn-add-cart" data-id="${p.id}">Add to Cart</button>`;
+    let buttonHtml;
+    if (isDrawProduct) {
+      buttonHtml = `<a href="/draw" class="btn btn-discord" style="text-decoration:none;display:inline-block;">Browse Bundle — $${p.price.toFixed(2)}</a>`;
+    } else if (p.owned) {
+      buttonHtml = `<button class="btn btn-discord btn-gift" data-id="${p.id}" style="background:#f59e0b;color:#000;">Gift to a Friend</button>`;
+    } else if (isSub) {
+      buttonHtml = `<button class="btn btn-discord btn-add-cart" data-id="${p.id}">Subscribe</button>`;
+    } else {
+      buttonHtml = `<button class="btn btn-discord btn-add-cart" data-id="${p.id}">Add to Cart</button>`;
+    }
     return `
-      <div class="feature-card store-card has-image">
+      <div class="feature-card store-card has-image ${p.owned ? 'store-card-owned' : ''}">
         <div class="store-image-wrap">
           ${p.image ? `<img src="${p.image}" alt="${p.name}" class="card-image">` : ""}
           ${badgeHtml}
@@ -155,6 +162,19 @@
 
     container.querySelectorAll(".btn-add-cart").forEach(btn => {
       btn.addEventListener("click", () => addToCart(btn.dataset.id));
+    });
+
+    container.querySelectorAll(".btn-gift").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const discordId = prompt("Enter your friend's Discord ID to gift this skin:");
+        if (!discordId || !discordId.trim()) return;
+        // Store gift recipient in cart item
+        const cart = getCart();
+        cart.push({ id: btn.dataset.id, qty: 1, giftTo: discordId.trim() });
+        saveCart(cart);
+        renderCart();
+        openDrawer();
+      });
     });
   }
 
@@ -469,6 +489,20 @@
   background: var(--danger);
   color: #fff;
   box-shadow: 0 0 10px rgba(255, 62, 62, 0.4);
+}
+.store-badge.owned-badge {
+  background: #22c55e;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.4);
+}
+.store-card-owned {
+  border-color: rgba(34, 197, 94, 0.3);
+}
+.store-card-owned .card-image {
+  opacity: 0.7;
+}
+.btn-gift {
+  font-weight: 700;
 }
 .store-price {
   font-size: 1.3rem;

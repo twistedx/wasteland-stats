@@ -191,7 +191,7 @@
       </div>
 
       <!-- Supporter Awards -->
-      <div class="profile-card profile-card-wide">
+      <div class="profile-card profile-card-wide profile-awards-card">
         <div class="profile-card-header" style="background:linear-gradient(90deg, rgba(245,158,11,0.08), transparent);">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="color:#f59e0b;"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
           Supporter Awards
@@ -361,7 +361,7 @@
     </div>
     <div class="profile-upsell-grid">
       {{#each upsellProducts}}
-      <a href="/store" class="profile-upsell-card {{#if this.onSale}}profile-upsell-sale{{/if}}">
+      <div class="profile-upsell-card {{#if this.onSale}}profile-upsell-sale{{/if}}">
         {{#if this.onSale}}<div class="profile-upsell-sale-tag">SALE</div>{{/if}}
         {{#if this.image}}
         <div class="profile-upsell-img" style="background-image:url('{{this.image}}');"></div>
@@ -375,8 +375,9 @@
             {{#if this.originalPrice}}<span class="profile-upsell-original">${{this.originalPrice}}</span>{{/if}}
             <span class="profile-upsell-price">${{this.price}}</span>
           </div>
+          <button class="btn btn-discord profile-upsell-buy" data-id="{{this.id}}" data-name="{{this.name}}" data-price="{{this.price}}" style="margin-top:0.5rem;font-size:0.75rem;padding:0.4rem 0.8rem;">Add to Cart</button>
         </div>
-      </a>
+      </div>
       {{/each}}
     </div>
     <div class="profile-upsell-cta">
@@ -384,6 +385,35 @@
     </div>
   </div>
   {{/if}}
+
+  <!-- Floating cart icon -->
+  <button id="profile-cart-icon" class="profile-cart-icon" style="display:none;" type="button">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>
+    <span class="profile-cart-count">0</span>
+  </button>
+
+  <!-- Cart drawer -->
+  <div id="profile-cart-drawer" class="profile-cart-drawer" role="dialog">
+    <div class="profile-cart-drawer-header">
+      <h3>Your Cart</h3>
+      <button id="profile-cart-close" class="profile-cart-close" type="button">&times;</button>
+    </div>
+    <div id="profile-cart-items" class="profile-cart-items">
+      <p class="cart-empty">Your cart is empty.</p>
+    </div>
+    <div id="profile-cart-footer" class="profile-cart-footer" style="display:none;">
+      <div class="profile-cart-total">
+        Total: <span id="profile-cart-total-amount">$0.00</span>
+      </div>
+      <form method="POST" action="/store/checkout">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <input type="hidden" name="cart" id="profile-cart-data" value="">
+        <button type="submit" class="btn btn-checkout btn-large" style="width:100%;">Checkout with Stripe</button>
+      </form>
+      <button id="profile-cart-clear" class="btn btn-small" style="margin-top:0.5rem;width:100%;background:var(--text-secondary);" type="button">Clear Cart</button>
+    </div>
+  </div>
+  <div id="profile-cart-overlay" class="profile-cart-overlay"></div>
 
 </section>
 
@@ -404,6 +434,136 @@
   }
   trackCta(document.querySelector('.profile-cta-btn'));
   trackCta(document.querySelector('.profile-tier-btn'));
+
+  // Cart system — mirrors store page logic
+  var ALL_PRODUCTS = {{{allProductsJson}}};
+  function getCart() {
+    try { return JSON.parse(localStorage.getItem('iwpg_cart')) || []; } catch(e) { return []; }
+  }
+  function saveCart(cart) { localStorage.setItem('iwpg_cart', JSON.stringify(cart)); }
+
+  function updateCartIcon() {
+    var cart = getCart();
+    var total = cart.reduce(function(s, i) { return s + (i.qty || 1); }, 0);
+    var icon = document.getElementById('profile-cart-icon');
+    if (!icon) return;
+    var count = icon.querySelector('.profile-cart-count');
+    if (total > 0) {
+      icon.style.display = 'flex';
+      count.textContent = total;
+    } else {
+      icon.style.display = 'none';
+    }
+  }
+
+  function renderProfileCart() {
+    var cart = getCart();
+    var itemsEl = document.getElementById('profile-cart-items');
+    var footerEl = document.getElementById('profile-cart-footer');
+    var totalEl = document.getElementById('profile-cart-total-amount');
+    var dataEl = document.getElementById('profile-cart-data');
+    if (!itemsEl) return;
+
+    updateCartIcon();
+
+    if (cart.length === 0) {
+      itemsEl.innerHTML = '<p class="cart-empty">Your cart is empty.</p>';
+      footerEl.style.display = 'none';
+      return;
+    }
+
+    var total = 0;
+    itemsEl.innerHTML = cart.map(function(ci) {
+      var cid = typeof ci.id === 'string' ? parseInt(ci.id) : ci.id;
+      var p = ALL_PRODUCTS.find(function(pr) { return pr.id === cid; });
+      if (!p) return '';
+      var lineTotal = p.price * ci.qty;
+      total += lineTotal;
+      return '<div class="profile-cart-item">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+          '<strong>' + p.name + '</strong>' +
+          '<button class="profile-cart-remove" data-id="' + p.id + '" title="Remove">&times;</button>' +
+        '</div>' +
+        '<span style="font-size:0.75rem;color:var(--text-secondary);">$' + p.price.toFixed(2) + ' each</span>' +
+        '<div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.3rem;">' +
+          '<button class="profile-qty-btn" data-id="' + p.id + '" data-delta="-1">&minus;</button>' +
+          '<span>' + ci.qty + '</span>' +
+          '<button class="profile-qty-btn" data-id="' + p.id + '" data-delta="1">+</button>' +
+          '<span style="margin-left:auto;font-weight:700;color:#22c55e;">$' + lineTotal.toFixed(2) + '</span>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    totalEl.textContent = '$' + total.toFixed(2);
+    footerEl.style.display = 'block';
+    dataEl.value = JSON.stringify(cart);
+
+    itemsEl.querySelectorAll('.profile-qty-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = Number(btn.getAttribute('data-id'));
+        var delta = parseInt(btn.getAttribute('data-delta'));
+        var c = getCart();
+        var item = c.find(function(i) { return i.id === id; });
+        if (!item) return;
+        item.qty += delta;
+        if (item.qty <= 0) { c = c.filter(function(i) { return i.id !== id; }); }
+        saveCart(c);
+        renderProfileCart();
+      });
+    });
+    itemsEl.querySelectorAll('.profile-cart-remove').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = Number(btn.getAttribute('data-id'));
+        saveCart(getCart().filter(function(i) { return i.id !== id; }));
+        renderProfileCart();
+      });
+    });
+  }
+
+  function openProfileCart() {
+    document.getElementById('profile-cart-drawer').classList.add('open');
+    document.getElementById('profile-cart-overlay').classList.add('open');
+    renderProfileCart();
+  }
+  function closeProfileCart() {
+    document.getElementById('profile-cart-drawer').classList.remove('open');
+    document.getElementById('profile-cart-overlay').classList.remove('open');
+  }
+
+  document.getElementById('profile-cart-icon').addEventListener('click', openProfileCart);
+  document.getElementById('profile-cart-close').addEventListener('click', closeProfileCart);
+  document.getElementById('profile-cart-overlay').addEventListener('click', closeProfileCart);
+  document.getElementById('profile-cart-clear').addEventListener('click', function() {
+    saveCart([]);
+    renderProfileCart();
+  });
+
+  updateCartIcon();
+
+  // Add to Cart from profile upsell
+  document.querySelectorAll('.profile-upsell-buy').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var id = btn.getAttribute('data-id');
+      var name = btn.getAttribute('data-name');
+      var price = btn.getAttribute('data-price');
+
+      // Add to store cart (shared localStorage with /store)
+      var cart = getCart();
+      var existing = cart.find(function(i) { return i.id == id; });
+      if (existing) { existing.qty += 1; } else { cart.push({ id: Number(id), qty: 1 }); }
+      saveCart(cart);
+
+      // Track as profile purchase event
+      fetch('/api/profile-cta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf },
+        body: JSON.stringify({ ctaIndex: 'upsell-' + id, ctaText: 'Add to Cart: ' + name + ' ($' + price + ')' })
+      }).catch(function() {});
+
+      // Open drawer
+      openProfileCart();
+    });
+  });
 })();
 </script>
 
@@ -883,6 +1043,30 @@
   50% { box-shadow: 0 0 6px rgba(255,255,255,0.08); }
 }
 
+/* ── Diagonal "NEW" Ribbon ── */
+.profile-awards-card {
+  position: relative;
+  overflow: hidden;
+}
+.profile-awards-card::before {
+  content: "NEW";
+  position: absolute;
+  top: 18px;
+  right: -30px;
+  width: 120px;
+  text-align: center;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+  color: #fff;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  padding: 0.3rem 0;
+  z-index: 2;
+  box-shadow: 0 2px 8px rgba(245,158,11,0.4);
+}
+
 /* ── Economy Card ── */
 .profile-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; }
 .profile-stat-item { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 6px; }
@@ -1205,6 +1389,67 @@
   max-width: 400px;
   margin: 0 auto;
 }
+
+/* ── Floating Cart Icon ── */
+.profile-cart-icon {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #000;
+  box-shadow: 0 4px 16px rgba(245,158,11,0.4);
+  text-decoration: none;
+  transition: transform 0.2s, box-shadow 0.2s;
+  animation: cart-bounce 0.5s ease;
+}
+.profile-cart-icon:hover { transform: scale(1.1); box-shadow: 0 6px 24px rgba(245,158,11,0.5); }
+@keyframes cart-bounce { 0% { transform: scale(0); } 60% { transform: scale(1.15); } 100% { transform: scale(1); } }
+.profile-cart-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+/* ── Cart Drawer ── */
+.profile-cart-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1100; }
+.profile-cart-overlay.open { display:block; }
+.profile-cart-drawer {
+  position:fixed; top:0; right:-400px; width:380px; max-width:90vw; height:100vh;
+  background:var(--bg-secondary); border-left:1px solid var(--border);
+  z-index:1200; display:flex; flex-direction:column; transition:right 0.3s ease;
+}
+.profile-cart-drawer.open { right:0; }
+.profile-cart-drawer-header { display:flex; justify-content:space-between; align-items:center; padding:1.25rem; border-bottom:1px solid var(--border); }
+.profile-cart-drawer-header h3 { font-family:'Orbitron',sans-serif; font-size:0.9rem; text-transform:uppercase; letter-spacing:0.1em; color:var(--accent); margin:0; }
+.profile-cart-close { background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer; }
+.profile-cart-close:hover { color:#fff; }
+.profile-cart-items { flex:1; overflow-y:auto; padding:1rem; }
+.profile-cart-item { padding:0.75rem; background:rgba(255,255,255,0.03); border-radius:6px; margin-bottom:0.5rem; font-size:0.85rem; }
+.profile-cart-item strong { color:var(--text-primary); }
+.profile-cart-remove { background:none; border:none; color:var(--text-secondary); font-size:1.2rem; cursor:pointer; }
+.profile-cart-remove:hover { color:#ef4444; }
+.profile-qty-btn { background:var(--bg-card); border:1px solid var(--border); color:var(--text-primary); width:26px; height:26px; border-radius:4px; cursor:pointer; font-size:0.9rem; display:flex; align-items:center; justify-content:center; }
+.profile-qty-btn:hover { border-color:var(--accent); }
+.profile-cart-footer { padding:1rem; border-top:1px solid var(--border); }
+.profile-cart-total { font-family:'Orbitron',sans-serif; font-size:1rem; color:var(--accent); margin-bottom:0.75rem; text-align:right; }
 
 /* ── Support CTA Banner ── */
 .profile-cta-banner {
