@@ -349,7 +349,9 @@ app.use((req, res, next) => {
           return res.redirect(url.pathname + url.search);
         } catch {}
       }
-      return res.redirect(req.path + "?error=Form+expired.+Please+try+again.");
+      // For POST routes, redirect to a sensible GET page
+      const safePath = req.path.replace(/\/edit\/\d+/, "").replace(/\/delete\/\d+/, "") || "/";
+      return res.redirect(safePath + "?error=Form+expired.+Please+try+again.");
     }
     next();
   });
