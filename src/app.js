@@ -697,7 +697,7 @@ app.get("/profile", async (req, res) => {
   }
 
   // Supporter tier system
-  const TIERS = [
+  const BASE_TIERS = [
     { key: "bronze",    label: "Bronze",    threshold: 500,   icon: "&#9679;", perks: ["Donator role", "Profile badge"] },
     { key: "silver",    label: "Silver",    threshold: 2500,  icon: "&#9826;", perks: ["Silver profile ring", "Supporter card"] },
     { key: "gold",      label: "Gold",      threshold: 5000,  icon: "&#9829;", perks: ["Gold hero banner", "Priority support"] },
@@ -705,6 +705,16 @@ app.get("/profile", async (req, res) => {
     { key: "diamond",   label: "Diamond",   threshold: 25000, icon: "&#9830;", perks: ["Diamond glow aura", "Animated profile"] },
     { key: "legendary", label: "Legendary", threshold: 50000, icon: "&#9733;", perks: ["Legendary animated banner", "RGB effects", "Custom profile"] },
   ];
+  const PRESTIGE_TIERS = [
+    { key: "warlord",   label: "Warlord",   threshold: 100000, icon: "&#x2694;&#xFE0F;", perks: ["Warlord title", "Exclusive prestige badge", "Custom profile frame"] },
+    { key: "overlord",  label: "Overlord",  threshold: 200000, icon: "&#x1F480;",      perks: ["Overlord title", "Skull animated border", "Legendary aura"] },
+    { key: "immortal",  label: "Immortal",  threshold: 300000, icon: "&#x1F451;",      perks: ["Immortal title", "Permanent legacy", "Hall of Fame"] },
+  ];
+
+  const prestige = store.getPrestige(user.discord_id);
+  const isPrestiged = prestige && prestige.prestige_level > 0;
+  const TIERS = isPrestiged ? [...BASE_TIERS, ...PRESTIGE_TIERS] : BASE_TIERS;
+  const canPrestige = !isPrestiged && totalSpent >= 50000; // can prestige once at legendary
 
   // Build upsell — store products the player doesn't own
   const allProducts = store.getActiveProducts();
@@ -816,6 +826,8 @@ app.get("/profile", async (req, res) => {
     activeTier,
     activeTierName,
     donorTier,
+    currentTierIcon: TIERS.find(t => t.key === donorTier)?.icon || null,
+    tierWatermarks: donorTier ? Array(6).fill(TIERS.find(t => t.key === donorTier)?.icon || "&#9679;") : [],
     awards,
     nextTier: nextTier ? { ...nextTier, thresholdDollars: (nextTier.threshold / 100).toFixed(0) } : null,
     nextTierProgress,
@@ -830,6 +842,9 @@ app.get("/profile", async (req, res) => {
     upsellProducts,
     allProductsJson: JSON.stringify(allProducts.map(p => ({ id: p.id, name: p.name, price: store.getEffectivePrice(p) / 100 }))),
     ownsAll,
+    canPrestige,
+    isPrestiged,
+    prestigeLevel: prestige?.prestige_level || 0,
     ctaMessage,
     ctaIndex,
     tierBtnText,

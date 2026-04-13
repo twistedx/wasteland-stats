@@ -11,12 +11,7 @@
   {{/if}}
   {{#if donorTier}}
   <div class="profile-tier-watermarks" aria-hidden="true">
-    <span>{{#if (eq donorTier 'legendary')}}&#9733;{{else if (eq donorTier 'diamond')}}&#9830;{{else if (eq donorTier 'platinum')}}&#9827;{{else if (eq donorTier 'gold')}}&#9829;{{else if (eq donorTier 'silver')}}&#9826;{{else}}&#9679;{{/if}}</span>
-    <span>{{#if (eq donorTier 'legendary')}}&#9733;{{else if (eq donorTier 'diamond')}}&#9830;{{else if (eq donorTier 'platinum')}}&#9827;{{else if (eq donorTier 'gold')}}&#9829;{{else if (eq donorTier 'silver')}}&#9826;{{else}}&#9679;{{/if}}</span>
-    <span>{{#if (eq donorTier 'legendary')}}&#9733;{{else if (eq donorTier 'diamond')}}&#9830;{{else if (eq donorTier 'platinum')}}&#9827;{{else if (eq donorTier 'gold')}}&#9829;{{else if (eq donorTier 'silver')}}&#9826;{{else}}&#9679;{{/if}}</span>
-    <span>{{#if (eq donorTier 'legendary')}}&#9733;{{else if (eq donorTier 'diamond')}}&#9830;{{else if (eq donorTier 'platinum')}}&#9827;{{else if (eq donorTier 'gold')}}&#9829;{{else if (eq donorTier 'silver')}}&#9826;{{else}}&#9679;{{/if}}</span>
-    <span>{{#if (eq donorTier 'legendary')}}&#9733;{{else if (eq donorTier 'diamond')}}&#9830;{{else if (eq donorTier 'platinum')}}&#9827;{{else if (eq donorTier 'gold')}}&#9829;{{else if (eq donorTier 'silver')}}&#9826;{{else}}&#9679;{{/if}}</span>
-    <span>{{#if (eq donorTier 'legendary')}}&#9733;{{else if (eq donorTier 'diamond')}}&#9830;{{else if (eq donorTier 'platinum')}}&#9827;{{else if (eq donorTier 'gold')}}&#9829;{{else if (eq donorTier 'silver')}}&#9826;{{else}}&#9679;{{/if}}</span>
+    {{#each tierWatermarks}}<span>{{{this}}}</span>{{/each}}
   </div>
   {{/if}}
 
@@ -76,7 +71,7 @@
       <div class="profile-hero-right">
         {{#if donorTier}}
         <div class="profile-tier-showcase donor-showcase-{{donorTier}}">
-          <div class="profile-tier-icon">{{#if (eq donorTier 'legendary')}}&#9733;{{else if (eq donorTier 'diamond')}}&#9830;{{else if (eq donorTier 'platinum')}}&#9827;{{else if (eq donorTier 'gold')}}&#9829;{{else if (eq donorTier 'silver')}}&#9826;{{else}}&#9679;{{/if}}</div>
+          <div class="profile-tier-icon">{{{currentTierIcon}}}</div>
           <div class="profile-tier-title">{{donorTier}}</div>
           <div class="profile-tier-subtitle">Supporter</div>
         </div>
@@ -261,7 +256,7 @@
             {{#each awards}}
             <div class="tier-award {{#if this.isCurrent}}tier-current{{else if this.unlocked}}tier-unlocked{{else}}tier-locked{{/if}} tier-card-{{this.key}}">
               {{#if this.isCurrent}}<div class="tier-current-banner">Current</div>{{/if}}
-              <div class="tier-award-icon">{{{this.icon}}}</div>
+              <div class="tier-award-icon" style="{{#if this.isCurrent}}margin-top:0.75rem;{{/if}}">{{{this.icon}}}</div>
               <div class="tier-award-label">{{this.label}}</div>
               {{#if this.unlocked}}
                 <div class="tier-award-check">&#10003;</div>
@@ -274,8 +269,11 @@
             </div>
             {{/each}}
           </div>
-          <div style="text-align:center;margin-top:1.25rem;">
+          <div style="text-align:center;margin-top:1.25rem;display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap;">
             <a href="/store" class="btn btn-donate profile-tier-btn" data-cta-index="tier-{{tierBtnIndex}}" data-cta-text="{{tierBtnText}}">{{tierBtnText}}</a>
+            {{#if canPrestige}}
+            <button type="button" class="btn btn-prestige" id="prestige-btn">&#9876; Prestige Your Store</button>
+            {{/if}}
           </div>
         </div>
       </div>
@@ -458,6 +456,46 @@
   }
   trackCta(document.querySelector('.profile-cta-btn'));
   trackCta(document.querySelector('.profile-tier-btn'));
+
+  // Prestige button
+  var prestigeBtn = document.getElementById('prestige-btn');
+  if (prestigeBtn) {
+    prestigeBtn.addEventListener('click', function() {
+      var confirmed = confirm(
+        'PRESTIGE YOUR STORE\n\n' +
+        'This is a permanent change. Your supporter tier progress will reset and you will unlock three new elite tiers:\n\n' +
+        '⚔ WARLORD ($1,000)\n' +
+        '☠ OVERLORD ($2,000)\n' +
+        '☥ IMMORTAL ($3,000)\n\n' +
+        'Your previous contributions and perks are preserved. This cannot be undone.\n\n' +
+        'Are you sure you want to prestige?'
+      );
+      if (!confirmed) return;
+      prestigeBtn.disabled = true;
+      prestigeBtn.textContent = 'Prestiging...';
+      fetch('/api/prestige', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf },
+        body: JSON.stringify({})
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          showSpinner('Reloading profile...');
+          window.location.reload();
+        } else {
+          alert(data.error || 'Failed to prestige');
+          prestigeBtn.disabled = false;
+          prestigeBtn.textContent = '⚔ Prestige Your Store';
+        }
+      })
+      .catch(function() {
+        alert('Failed to prestige. Please try again.');
+        prestigeBtn.disabled = false;
+        prestigeBtn.textContent = '⚔ Prestige Your Store';
+      });
+    });
+  }
 
   // Cart system — mirrors store page logic
   var ALL_PRODUCTS = {{{allProductsJson}}};
@@ -822,6 +860,9 @@
 .profile-tier-platinum .profile-tier-watermarks span { color: #e5e4e2; opacity: 0.03; }
 .profile-tier-diamond .profile-tier-watermarks span { color: #b9f2ff; opacity: 0.035; }
 .profile-tier-legendary .profile-tier-watermarks span { color: #ff6b6b; opacity: 0.04; animation: watermark-legendary 30s linear infinite; }
+.profile-tier-warlord .profile-tier-watermarks span { color: #dc2626; opacity: 0.045; animation: watermark-drift 30s linear infinite; }
+.profile-tier-overlord .profile-tier-watermarks span { color: #8b5cf6; opacity: 0.045; animation: watermark-legendary 30s linear infinite; }
+.profile-tier-immortal .profile-tier-watermarks span { color: #ffd700; opacity: 0.05; animation: watermark-legendary 25s linear infinite; }
 @keyframes watermark-legendary {
   0% { transform: translateY(0) rotate(0deg); color: #ff6b6b; }
   33% { transform: translateY(-20px) rotate(5deg); color: #ffd700; }
@@ -864,6 +905,9 @@
 .hero-tier-platinum .profile-hero-bg { background: linear-gradient(135deg, #1a1a2e 0%, #22242e 60%, #303540 100%); }
 .hero-tier-diamond .profile-hero-bg { background: linear-gradient(135deg, #0d1a2e 0%, #0f2540 60%, #103050 100%); }
 .hero-tier-legendary .profile-hero-bg { background: linear-gradient(135deg, #1a0a1e 0%, #2a1030 60%, #3d0a20 100%); animation: legendary-bg 6s ease infinite; }
+.hero-tier-warlord .profile-hero-bg { background: linear-gradient(135deg, #1a0808 0%, #2a0e0e 40%, #3d1010 100%); }
+.hero-tier-overlord .profile-hero-bg { background: linear-gradient(135deg, #0f0a1e 0%, #1a1030 40%, #250d40 100%); }
+.hero-tier-immortal .profile-hero-bg { background: linear-gradient(135deg, #1a1508 0%, #2a1f0a 30%, #1a0a1e 70%, #0d0a04 100%); animation: legendary-bg 6s ease infinite; }
 .profile-hero-tier-img { display: none; }
 @keyframes legendary-bg { 0%,100% { background: linear-gradient(135deg, #1a0a1e 0%, #2a1030 60%, #3d0a20 100%); } 50% { background: linear-gradient(135deg, #1a1a0e 0%, #2a2010 60%, #3d2a10 100%); } }
 .profile-hero-content {
@@ -931,6 +975,23 @@
 .donor-showcase-legendary .profile-tier-icon { animation: legendary-icon 3s ease infinite; }
 .donor-showcase-legendary .profile-tier-title { background: linear-gradient(90deg, #ff6b6b, #ffd700, #a78bfa, #ff6b6b); background-size: 300% 100%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; animation: legendary-text 3s linear infinite; }
 @keyframes legendary-border { 0% { border-color: #ff6b6b; } 33% { border-color: #ffd700; } 66% { border-color: #a78bfa; } 100% { border-color: #ff6b6b; } }
+
+/* Prestige showcase styles */
+.donor-showcase-warlord { border-color: #dc2626; box-shadow: 0 0 30px rgba(220,38,38,0.4); }
+.donor-showcase-warlord::before { background: linear-gradient(135deg, #dc2626, #991b1b); }
+.donor-showcase-warlord .profile-tier-icon { color: #dc2626; font-size: 2.2rem; }
+.donor-showcase-warlord .profile-tier-title { color: #dc2626; }
+
+.donor-showcase-overlord { border-color: #8b5cf6; box-shadow: 0 0 30px rgba(139,92,246,0.4); animation: overlord-showcase 3s ease-in-out infinite; }
+.donor-showcase-overlord::before { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+.donor-showcase-overlord .profile-tier-icon { color: #8b5cf6; font-size: 2.2rem; }
+.donor-showcase-overlord .profile-tier-title { color: #8b5cf6; }
+@keyframes overlord-showcase { 0%,100% { box-shadow: 0 0 25px rgba(139,92,246,0.3); } 50% { box-shadow: 0 0 40px rgba(139,92,246,0.5); } }
+
+.donor-showcase-immortal { border-color: #ffd700; box-shadow: 0 0 35px rgba(255,215,0,0.3); animation: legendary-border 3s ease infinite; }
+.donor-showcase-immortal::before { background: linear-gradient(135deg, #ff6b6b, #a78bfa, #ffd700); background-size: 200% 200%; animation: legendary-shift 3s ease infinite; }
+.donor-showcase-immortal .profile-tier-icon { font-size: 2.4rem; animation: legendary-icon 3s ease infinite; }
+.donor-showcase-immortal .profile-tier-title { background: linear-gradient(90deg, #ff6b6b, #ffd700, #a78bfa, #ff6b6b); background-size: 300% 100%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; animation: legendary-text 3s linear infinite; }
 @keyframes legendary-icon { 0% { color: #ff6b6b; } 33% { color: #ffd700; } 66% { color: #a78bfa; } 100% { color: #ff6b6b; } }
 @keyframes legendary-text { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
 
@@ -1283,6 +1344,71 @@
   z-index: 2;
   box-shadow: 0 2px 8px rgba(245,158,11,0.4);
 }
+
+/* ── Prestige Button ── */
+.btn-prestige {
+  background: linear-gradient(135deg, #ff6b6b, #a78bfa, #ffd700) !important;
+  background-size: 200% 200% !important;
+  animation: prestige-shift 3s ease infinite;
+  color: #fff !important;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 800;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  border: none;
+  padding: 0.6rem 1.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 0 20px rgba(255, 107, 107, 0.3);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.btn-prestige:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 30px rgba(255, 107, 107, 0.5);
+}
+@keyframes prestige-shift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+/* ── Prestige Tier Cards ── */
+.tier-card-warlord.tier-unlocked, .tier-current.tier-card-warlord {
+  border-color: rgba(220, 38, 38, 0.5) !important;
+  background: rgba(220, 38, 38, 0.1) !important;
+  box-shadow: 0 0 25px rgba(220, 38, 38, 0.2) !important;
+}
+.tier-card-warlord .tier-award-icon { color: #dc2626; }
+.tier-card-warlord.tier-locked { border-color: rgba(220, 38, 38, 0.1) !important; }
+
+.tier-card-overlord.tier-unlocked, .tier-current.tier-card-overlord {
+  border-color: rgba(139, 92, 246, 0.5) !important;
+  background: rgba(139, 92, 246, 0.1) !important;
+  box-shadow: 0 0 30px rgba(139, 92, 246, 0.25) !important;
+  animation: overlord-glow 3s ease-in-out infinite;
+}
+@keyframes overlord-glow { 0%,100% { box-shadow: 0 0 25px rgba(139,92,246,0.2); } 50% { box-shadow: 0 0 40px rgba(139,92,246,0.35); } }
+.tier-card-overlord .tier-award-icon { color: #8b5cf6; }
+.tier-card-overlord.tier-locked { border-color: rgba(139, 92, 246, 0.1) !important; }
+
+.tier-card-immortal.tier-unlocked, .tier-current.tier-card-immortal {
+  border-color: rgba(255, 215, 0, 0.5) !important;
+  background: linear-gradient(135deg, rgba(255, 107, 107, 0.1), rgba(139, 92, 246, 0.1), rgba(255, 215, 0, 0.1)) !important;
+  box-shadow: 0 0 35px rgba(255, 215, 0, 0.2) !important;
+  animation: immortal-glow 4s ease infinite;
+}
+@keyframes immortal-glow {
+  0% { border-color: rgba(255, 107, 107, 0.5); box-shadow: 0 0 30px rgba(255, 107, 107, 0.2); }
+  33% { border-color: rgba(139, 92, 246, 0.5); box-shadow: 0 0 30px rgba(139, 92, 246, 0.2); }
+  66% { border-color: rgba(255, 215, 0, 0.5); box-shadow: 0 0 30px rgba(255, 215, 0, 0.2); }
+  100% { border-color: rgba(255, 107, 107, 0.5); box-shadow: 0 0 30px rgba(255, 107, 107, 0.2); }
+}
+.tier-card-immortal .tier-award-icon { animation: legendary-icon 3s ease infinite; }
+.tier-card-immortal.tier-locked { border-color: rgba(255, 215, 0, 0.1) !important; }
+
+/* Prestige progress bar fills */
+.tier-fill-warlord { background: linear-gradient(90deg, #dc2626, #991b1b); }
+.tier-fill-overlord { background: linear-gradient(90deg, #8b5cf6, #6d28d9); }
+.tier-fill-immortal { background: linear-gradient(90deg, #ff6b6b, #a78bfa, #ffd700); background-size: 200% 100%; animation: legendary-text 3s linear infinite; }
+.tier-color-warlord { color: #dc2626; }
+.tier-color-overlord { color: #8b5cf6; }
+.tier-color-immortal { color: #ffd700; }
 
 /* ── Economy Card ── */
 .profile-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; }

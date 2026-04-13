@@ -75,6 +75,16 @@ function init() {
   try { db.exec(`ALTER TABLE store_purchases ADD COLUMN discord_id TEXT DEFAULT NULL`); } catch (e) { /* exists */ }
   try { db.exec(`ALTER TABLE store_purchases ADD COLUMN discord_username TEXT DEFAULT NULL`); } catch (e) { /* exists */ }
 
+  // Prestige system — tracks players who reset their tier for prestige tiers
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS store_prestige (
+      discord_id TEXT PRIMARY KEY,
+      prestige_level INTEGER NOT NULL DEFAULT 0,
+      total_spent_at_prestige INTEGER NOT NULL DEFAULT 0,
+      prestiged_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS store_categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -426,8 +436,26 @@ function getTotalSpentByDiscordId(discordId) {
   return row.total;
 }
 
+function getPrestige(discordId) {
+  if (!db) return null;
+  return db.prepare("SELECT * FROM store_prestige WHERE discord_id = ?").get(discordId) || null;
+}
+
+function activatePrestige(discordId, totalSpentAtPrestige) {
+  if (!db) return;
+  const existing = getPrestige(discordId);
+  if (existing) {
+    db.prepare("UPDATE store_prestige SET prestige_level = prestige_level + 1, total_spent_at_prestige = ?, prestiged_at = datetime('now') WHERE discord_id = ?")
+      .run(totalSpentAtPrestige, discordId);
+  } else {
+    db.prepare("INSERT INTO store_prestige (discord_id, prestige_level, total_spent_at_prestige) VALUES (?, 1, ?)")
+      .run(discordId, totalSpentAtPrestige);
+  }
+}
+
 module.exports = {
   init, getActiveProducts, getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, getEffectivePrice, updatePurchaseStatus,
   getAllCategories, getCategoryBySlug, getCategoryById, createCategory, updateCategory, deleteCategory, getCategoriesWithProducts,
   recordPurchase, getStoreStats, syncToStripe, upsertSyncData, getPurchasesByDiscordId, getTotalSpentByDiscordId,
+  getPrestige, activatePrestige,
 };

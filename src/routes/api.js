@@ -184,4 +184,25 @@ router.post("/profile-cta", (req, res) => {
   res.json({ ok: true });
 });
 
+// Activate prestige
+router.post("/prestige", (req, res) => {
+  const user = req.session?.user;
+  if (!user) return res.status(401).json({ error: "Not logged in" });
+  const store = require("../store");
+  const totalSpent = store.getTotalSpentByDiscordId(user.discord_id);
+  const existing = store.getPrestige(user.discord_id);
+  if (existing && existing.prestige_level > 0) return res.status(400).json({ error: "Already prestiged" });
+  if (totalSpent < 50000) return res.status(400).json({ error: "Must reach Legendary tier first" });
+  store.activatePrestige(user.discord_id, totalSpent);
+  const auditLog = require("../audit-log");
+  auditLog.log("store", "Prestige Activated", `${user.username} prestiged at $${(totalSpent / 100).toFixed(2)}`, user);
+  const { sendWebhook } = require("../webhook");
+  sendWebhook({
+    title: "Prestige Unlocked!",
+    description: `<@${user.discord_id}> has **prestiged** their supporter tier! Total contributed: $${(totalSpent / 100).toFixed(2)}`,
+    color: 0xff6b6b,
+  });
+  res.json({ ok: true, prestigeLevel: 1 });
+});
+
 module.exports = router;
