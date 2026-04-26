@@ -1,0 +1,225 @@
+<div class="outfit-rules-stack">
+
+  <section class="outfit-rules-section" data-accent="#5865F2">
+    <h2 class="outfit-rules-h">🎩 Crew &amp; Ranks</h2>
+    <div class="outfit-rules-grid outfit-rules-grid-row">
+      <div class="outfit-rules-card" data-accent="#5865F2">
+        <h4>👥 Crew Cap</h4>
+        <p>Max <strong class="hl-blue">10 members</strong> per outfit (1 Don + up to 9 Capos/Soldiers).</p>
+      </div>
+      <div class="outfit-rules-card" data-accent="#fbbf24">
+        <h4>⏳ Rejoin Cooldown</h4>
+        <p>Leaving an outfit (or being kicked) locks you out of joining/creating any crew for <strong class="hl-yellow">30 days</strong>. Pick your family carefully.</p>
+      </div>
+      <div class="outfit-rules-card" data-accent="#a855f7">
+        <h4>🎩 Don Powers</h4>
+        <p>One per crew. Declares wars, distributes treasury, promotes/demotes, kicks, edits outfit details, and disbands. Can transfer the title to another made man.</p>
+      </div>
+      <div class="outfit-rules-card" data-accent="#fbbf24">
+        <h4>🥃 Capo Powers</h4>
+        <p>Made by the Don. Invites new members and kicks Soldiers. Cannot declare war or touch treasury.</p>
+      </div>
+      <div class="outfit-rules-card" data-accent="#22c55e">
+        <h4>🔫 Soldier</h4>
+        <p>Default rank for new members. Earns kill points for the crew; receives treasury cuts.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="outfit-rules-section" data-accent="#ef4444">
+    <h2 class="outfit-rules-h">⚔️ Wars</h2>
+    <div class="outfit-rules-grid">
+      <div class="outfit-rules-card" data-accent="#5865F2">
+        <h4>📣 Declaring</h4>
+        <p>Only the Don declares. Wars run a fixed <strong class="hl-yellow">48 hours</strong>. Cost is dynamic — base <strong class="hl-yellow">20,000 💀</strong> ±2,000 per W/L differential against that specific opponent (floor 2,000 💀). Beating up the same crew gets pricier; underdogs get a discount.</p>
+      </div>
+      <div class="outfit-rules-card" data-accent="#22c55e">
+        <h4>🎯 Scoring</h4>
+        <p>Only one thing scores: <strong class="hl-red">killing a member of the enemy crew</strong>. Each war-target kill = <strong class="hl-green">10 points</strong> to your outfit. General gameplay (random kills, missions, vehicle destroys) does <em>not</em> score — this is a turf war, not a grind.</p>
+      </div>
+      <div class="outfit-rules-card outfit-rules-card-danger" data-accent="#ef4444">
+        <h4 class="hl-red">💤 Anti-AFK Penalty</h4>
+        <p>Don't put in at least <strong class="hl-red">60 minutes per UTC day</strong> during the war? Your crew loses <strong class="hl-red">−25 points per missing day</strong> for each AFK member — credited <strong>to the enemy</strong>. No "whack one and lay low" wins.</p>
+      </div>
+      <div class="outfit-rules-card" data-accent="#fde047">
+        <h4>🏁 Winning</h4>
+        <p>War-target kill points are summed across each crew over the 48h, then AFK penalties are applied. Highest net score wins. Ties refund both stakes.</p>
+      </div>
+      <div class="outfit-rules-card" data-accent="#fde047">
+        <h4>💰 The Pot</h4>
+        <p>Both crews' war stakes combine into a single pot. Winner's treasury receives the pot minus a small house rake. Loser eats their stake.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="outfit-rules-section" data-accent="#fde047">
+    <h2 class="outfit-rules-h">💰 Treasury &amp; Payouts</h2>
+    <div class="outfit-rules-grid">
+      <div class="outfit-rules-card" data-accent="#22c55e">
+        <h4>📥 Funding</h4>
+        <p>Treasury is funded only by member deposits — run <code>/outfit deposit &lt;amount&gt;</code> in Discord. It is <em>not</em> earned through gameplay.</p>
+      </div>
+      <div class="outfit-rules-card" data-accent="#a855f7">
+        <h4>📤 Distribution Modes</h4>
+        <p>The Don uses <code>/outfit distribute</code>. Modes: <strong class="hl-yellow">even</strong> (equal shares), <strong class="hl-yellow">rank-high</strong> (Don 50 / Capo 30 / Soldier 20), <strong class="hl-yellow">rank-low</strong> (reversed), or <strong class="hl-yellow">custom</strong> (per-member percentages).</p>
+      </div>
+      <div class="outfit-rules-card" data-accent="#ef4444">
+        <h4>🚪 Disbanding</h4>
+        <p>If the Don disbands the crew, the remaining treasury is split evenly among the current members.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="outfit-rules-section" data-accent="#fde047">
+    <h2 class="outfit-rules-h">🏆 Leaderboard</h2>
+    <div class="outfit-rules-leaderboard">
+      <p style="margin:0 0 0.6rem;">Outfit ranking on the directory uses two scores summed:</p>
+      <ul>
+        <li><strong class="hl-green">+1 point</strong> per war participated (settled, win or loss)</li>
+        <li><strong class="hl-yellow">+10 points</strong> per opponent against whom you have a positive W/L ratio</li>
+      </ul>
+      <p class="outfit-rules-claim">Top of the board claims the title: <strong class="hl-yellow">The Outfit</strong> 🎩</p>
+    </div>
+  </section>
+
+</div>
+
+<style>
+.outfit-rules-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+  color: #fff;
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+.outfit-rules-section {
+  position: relative;
+  padding: 1.25rem 1.4rem 1.4rem;
+  background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.outfit-rules-section::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--section-accent, #5865F2);
+  opacity: 0.7;
+}
+.outfit-rules-section[data-accent="#ef4444"] { --section-accent: #ef4444; }
+.outfit-rules-section[data-accent="#fde047"] { --section-accent: #fde047; }
+.outfit-rules-section[data-accent="#5865F2"] { --section-accent: #5865F2; }
+
+.outfit-rules-h {
+  font-family: 'Orbitron', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 1.15rem;
+  margin: 0 0 1rem;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px solid var(--section-accent, #5865F2);
+}
+
+.outfit-rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.85rem;
+}
+.outfit-rules-grid-row {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+@media (max-width: 1100px) {
+  .outfit-rules-grid-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .outfit-rules-grid-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.outfit-rules-card {
+  position: relative;
+  padding: 0.9rem 1rem 0.95rem 1.1rem;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-left: 3px solid var(--card-accent, #5865F2);
+  border-radius: 6px;
+  transition: background 0.15s, transform 0.15s, border-color 0.15s;
+}
+.outfit-rules-card:hover {
+  background: rgba(255,255,255,0.06);
+  transform: translateY(-1px);
+}
+.outfit-rules-card[data-accent="#5865F2"] { --card-accent: #5865F2; }
+.outfit-rules-card[data-accent="#fbbf24"] { --card-accent: #fbbf24; }
+.outfit-rules-card[data-accent="#a855f7"] { --card-accent: #a855f7; }
+.outfit-rules-card[data-accent="#22c55e"] { --card-accent: #22c55e; }
+.outfit-rules-card[data-accent="#ef4444"] { --card-accent: #ef4444; }
+.outfit-rules-card[data-accent="#fde047"] { --card-accent: #fde047; }
+
+.outfit-rules-card h4 {
+  margin: 0 0 0.5rem;
+  color: #fff;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+.outfit-rules-card p {
+  margin: 0;
+  color: #e5e7eb;
+  font-size: 0.9rem;
+}
+.outfit-rules-card code {
+  background: rgba(255,255,255,0.08);
+  color: #fde047;
+  padding: 0.1em 0.4em;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+
+.outfit-rules-card-danger {
+  background: rgba(239,68,68,0.08);
+  border-color: rgba(239,68,68,0.35);
+}
+.outfit-rules-card-danger:hover {
+  background: rgba(239,68,68,0.13);
+}
+
+.outfit-rules-leaderboard ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  line-height: 1.7;
+}
+.outfit-rules-leaderboard li { margin-bottom: 0.25rem; }
+.outfit-rules-claim {
+  margin: 0.85rem 0 0;
+  padding: 0.65rem 0.9rem;
+  background: linear-gradient(135deg, rgba(253,224,71,0.10), rgba(168,85,247,0.08));
+  border: 1px solid rgba(253,224,71,0.30);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+.hl-yellow  { color: #fde047; }
+.hl-green   { color: #22c55e; }
+.hl-red     { color: #ef4444; }
+.hl-blue    { color: #5865F2; }
+
+@media (max-width: 640px) {
+  .outfit-rules-stack { font-size: 0.95rem; gap: 1rem; }
+  .outfit-rules-section { padding: 1rem 0.9rem 1.1rem; }
+  .outfit-rules-h { font-size: 1rem; letter-spacing: 0.04em; }
+  .outfit-rules-grid { grid-template-columns: 1fr; gap: 0.65rem; }
+  .outfit-rules-card { padding: 0.8rem 0.9rem; }
+  .outfit-rules-card h4 { font-size: 0.92rem; }
+  .outfit-rules-card p { font-size: 0.88rem; }
+}
+</style>

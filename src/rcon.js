@@ -1,8 +1,13 @@
 // BattlEye RCON client for Arma Reforger servers
-const { BattlEye } = require("@senfo/battleye");
+const { Socket } = require("@senfo/battleye");
 const config = require("./config");
 
+let socket = null;
 const connections = [];
+
+const AUTH_TIMEOUT_MS = 8000;
+const PLAYERS_INTER_PACKET_MS = 1000;
+const PLAYERS_OVERALL_TIMEOUT_MS = 10000;
 
 function init() {
   const rconServers = config.rconServers || [];
@@ -11,7 +16,20 @@ function init() {
     return;
   }
 
+  socket = new Socket();
+  socket.on("error", (err) => {
+    console.error("RCON socket error:", err.message || err);
+  });
+  socket.on("listening", () => {
+    console.log("RCON: UDP socket listening.");
+  });
+
   for (const srv of rconServers) {
+    if (!srv.address) {
+      console.warn(`RCON [${srv.name}]: skipping — no address configured.`);
+      continue;
+    }
+
     const conn = {
       name: srv.name,
       address: srv.address,
@@ -19,40 +37,73 @@ function init() {
       password: srv.password,
       client: null,
       connected: false,
+      lastError: null,
+      messageBuffer: [],   // accumulates server messages between commands
+      messageWaiters: [],  // promise resolvers waiting for messages
     };
 
     try {
-      conn.client = new BattlEye({
-        ip: srv.address,
-        port: srv.port,
-        password: srv.password,
-      });
-
-      conn.client.on("connected", () => {
-        console.log(`RCON [${srv.name}]: connected`);
-        conn.connected = true;
-      });
-
-      conn.client.on("disconnected", () => {
-        console.log(`RCON [${srv.name}]: disconnected`);
-        conn.connected = false;
-      });
-
-      conn.client.on("error", (err) => {
-        console.error(`RCON [${srv.name}]: error:`, err.message || err);
-        conn.connected = false;
-      });
-
-      conn.client.on("message", (msg) => {
-        // Debug: log server messages
-      });
-
-      conn.client.connect();
+      createConnection(conn);
       connections.push(conn);
       console.log(`RCON [${srv.name}]: connecting to ${srv.address}:${srv.port}...`);
+
+      // After a few seconds, if still not connected, log a clearer reason
+      setTimeout(() => {
+        if (!conn.connected) {
+          console.warn(`RCON [${conn.name}]: not connected after ${AUTH_TIMEOUT_MS}ms — likely wrong password, BE RCON disabled on server, or wrong RConPort.`);
+        }
+      }, AUTH_TIMEOUT_MS);
     } catch (err) {
       console.error(`RCON [${srv.name}]: failed to initialize:`, err.message);
+      conn.lastError = err.message;
+      connections.push(conn);
     }
+  }
+}
+
+function createConnection(conn) {
+  try {
+    conn.client = socket.connection({
+      name: conn.name,
+      ip: conn.address,
+      port: conn.port,
+      password: conn.password,
+    }, { reconnect: false });
+
+    conn.client.on("connected", () => {
+      console.log(`RCON [${conn.name}]: connected & authenticated`);
+      conn.connected = true;
+      conn.lastError = null;
+    });
+
+    conn.client.on("disconnected", (reason) => {
+      const reasonMsg = reason?.message || reason || "no reason";
+      console.log(`RCON [${conn.name}]: disconnected (${reasonMsg})`);
+      conn.connected = false;
+      if (conn.client && socket && socket.connections) {
+        delete socket.connections[conn.client.id];
+      }
+    });
+
+    conn.client.on("error", (err) => {
+      const msg = err?.message || String(err);
+      conn.lastError = msg;
+      console.error(`RCON [${conn.name}]: error:`, msg);
+      conn.connected = false;
+    });
+
+    // Server-broadcast messages (player list, kicks, chat, etc.)
+    conn.client.on("message", (msg) => {
+      const text = typeof msg === "string" ? msg : (msg?.toString?.() || "");
+      conn.messageBuffer.push(text);
+      // Notify any pending waiters
+      for (const waiter of conn.messageWaiters) waiter(text);
+    });
+  } catch (err) {
+    console.error(`RCON [${conn.name}]: connection error:`, err.message);
+    conn.client = null;
+    conn.connected = false;
+    conn.lastError = err.message;
   }
 }
 
@@ -65,23 +116,19 @@ async function reconnect() {
     }
     try {
       if (conn.client) {
-        conn.client.disconnect();
+        const id = conn.client.id;
+        try { conn.client.kill(); } catch {}
+        if (socket && socket.connections) delete socket.connections[id];
       }
-      conn.client = new BattlEye({
-        ip: conn.address,
-        port: conn.port,
-        password: conn.password,
+      conn.messageBuffer = [];
+      conn.messageWaiters = [];
+      createConnection(conn);
+      // Wait for connection up to AUTH_TIMEOUT_MS
+      await new Promise(resolve => setTimeout(resolve, AUTH_TIMEOUT_MS));
+      results.push({
+        name: conn.name,
+        status: conn.connected ? "reconnected" : `failed${conn.lastError ? " — " + conn.lastError : ""}`,
       });
-
-      conn.client.on("connected", () => { conn.connected = true; });
-      conn.client.on("disconnected", () => { conn.connected = false; });
-      conn.client.on("error", () => { conn.connected = false; });
-
-      conn.client.connect();
-
-      // Wait a bit for connection
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      results.push({ name: conn.name, status: conn.connected ? "reconnected" : "failed" });
     } catch (err) {
       results.push({ name: conn.name, status: `error: ${err.message}` });
     }
@@ -89,25 +136,72 @@ async function reconnect() {
   return results;
 }
 
+// Send a command and collect server messages that arrive in response.
+// Returns the concatenated message text (empty string if none arrived).
+async function sendAndCollect(conn, command, { interPacketMs = PLAYERS_INTER_PACKET_MS, overallMs = PLAYERS_OVERALL_TIMEOUT_MS } = {}) {
+  if (!conn.connected || !conn.client) {
+    throw new Error("Not connected");
+  }
+  // Snapshot how many messages have already been buffered so we only return new ones
+  const startIndex = conn.messageBuffer.length;
+
+  let lastArrived = Date.now();
+  const onMsg = () => { lastArrived = Date.now(); };
+  conn.messageWaiters.push(onMsg);
+
+  let cmdResult = "";
+  try {
+    const res = await conn.client.command(command);
+    cmdResult = res?.data || "";
+  } catch (err) {
+    conn.messageWaiters = conn.messageWaiters.filter(w => w !== onMsg);
+    throw err;
+  }
+
+  // Wait until either no new messages for `interPacketMs`, or `overallMs` elapses.
+  const startedAt = Date.now();
+  await new Promise(resolve => {
+    const tick = setInterval(() => {
+      const idle = Date.now() - lastArrived;
+      const elapsed = Date.now() - startedAt;
+      if (idle >= interPacketMs || elapsed >= overallMs) {
+        clearInterval(tick);
+        resolve();
+      }
+    }, 200);
+  });
+
+  conn.messageWaiters = conn.messageWaiters.filter(w => w !== onMsg);
+
+  const newMessages = conn.messageBuffer.slice(startIndex);
+  // Combine: command-reply data first (often empty for `players`), then broadcast messages
+  return [cmdResult, ...newMessages].filter(Boolean).join("\n");
+}
+
 async function getPlayers() {
   const allPlayers = [];
   for (const conn of connections) {
     if (!conn.connected || !conn.client) continue;
     try {
-      const response = await sendCommand(conn, "players");
+      const response = await sendAndCollect(conn, "players");
       if (!response) continue;
 
-      // Parse player list from RCON response
-      const lines = response.split("\n");
+      const lines = response.split(/\r?\n/);
       for (const line of lines) {
-        // Format: "PlayerNumber ; GUID ; Name"
-        const match = line.match(/^\s*(\d+)\s*;\s*(\S+)\s*;\s*(.+)$/);
-        if (match) {
+        // Match formats like:
+        //   "1   123.45.67.89:1234  100  abc123def456...  Username (Lobby)"
+        //   "1; abc123...; Username"
+        let m = line.match(/^\s*(\d+)\s*;\s*(\S+)\s*;\s*(.+)$/);
+        if (!m) {
+          // BE-style players output: "<num> <ip:port> <ping> <guid>(OK) <name>"
+          m = line.match(/^\s*(\d+)\s+\S+\s+\d+\s+([0-9a-f]{32,})(?:\([A-Z]+\))?\s+(.+?)\s*$/i);
+        }
+        if (m) {
           allPlayers.push({
             server: conn.name,
-            number: parseInt(match[1]),
-            guid: match[2].trim(),
-            name: match[3].trim(),
+            number: parseInt(m[1], 10),
+            guid: m[2].trim(),
+            name: m[3].trim().replace(/\s*\(Lobby\)\s*$/i, ""),
           });
         }
       }
@@ -134,7 +228,7 @@ async function kickPlayer(guid) {
       continue;
     }
     try {
-      const response = await sendCommand(conn, `kick ${player.number}`);
+      const response = await sendAndCollect(conn, `kick ${player.number}`, { overallMs: 5000 });
       results.push({ server: player.server, result: response || "Kick sent" });
       console.log(`RCON [${conn.name}]: kicked player #${player.number} (${player.name})`);
     } catch (err) {
@@ -144,43 +238,12 @@ async function kickPlayer(guid) {
   return results;
 }
 
-function sendCommand(conn, command) {
-  return new Promise((resolve, reject) => {
-    if (!conn.connected || !conn.client) {
-      return reject(new Error("Not connected"));
-    }
-
-    let response = "";
-    const timeout = setTimeout(() => {
-      resolve(response || null);
-    }, 5000);
-
-    const handler = (msg) => {
-      response += (response ? "\n" : "") + msg;
-    };
-
-    conn.client.on("message", handler);
-
-    conn.client.send(command).then(() => {
-      // Wait for response messages
-      setTimeout(() => {
-        clearTimeout(timeout);
-        conn.client.removeListener("message", handler);
-        resolve(response || null);
-      }, 2000);
-    }).catch(err => {
-      clearTimeout(timeout);
-      conn.client.removeListener("message", handler);
-      reject(err);
-    });
-  });
-}
-
 function getStatus() {
   return connections.map(c => ({
     name: c.name,
     connected: c.connected,
     address: `${c.address}:${c.port}`,
+    lastError: c.lastError || null,
   }));
 }
 

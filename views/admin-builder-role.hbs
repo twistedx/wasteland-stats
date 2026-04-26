@@ -1,0 +1,88 @@
+<section id="admin-section">
+  {{> admin-nav}}
+
+  {{#if successMessage}}
+    <div class="notice success-notice">
+      <strong>Success</strong>
+      <p>{{successMessage}}</p>
+    </div>
+  {{/if}}
+
+  {{#if errorMessage}}
+    <div class="error">{{errorMessage}}</div>
+  {{/if}}
+
+  <div class="admin-form-card">
+    <h3>Search Discord Members</h3>
+    <form class="filter-bar" method="GET" action="/admin/builder-role">
+      <input
+        type="text"
+        name="search"
+        class="filter-input"
+        placeholder="Search by Discord username..."
+        value="{{search}}"
+      >
+      <button type="submit" class="btn btn-admin">Search</button>
+    </form>
+
+    {{#if searchError}}
+      <div class="error">{{searchError}}</div>
+    {{/if}}
+
+    {{#if members.length}}
+      <p class="result-count">{{members.length}} member{{#unless (eq members.length 1)}}s{{/unless}} found</p>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Member</th>
+              <th>Discord ID</th>
+              <th>Builder Role</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each members}}
+              <tr>
+                <td class="player-name" style="display:flex;align-items:center;gap:0.5rem;">
+                  <img src="{{this.avatar}}" alt="" width="24" height="24" style="border-radius:50%;">
+                  <span>{{this.displayName}}</span>
+                  {{#unless (eq this.displayName this.username)}}
+                    <span style="color:var(--text-muted);font-size:0.85em;">({{this.username}})</span>
+                  {{/unless}}
+                </td>
+                <td class="guid">{{this.discord_id}}</td>
+                <td>
+                  {{#if this.hasBuilderRole}}
+                    <span style="color:#22c55e;font-weight:600;">Yes</span>
+                  {{else}}
+                    <span style="color:var(--text-muted);">No</span>
+                  {{/if}}
+                </td>
+                <td>
+                  <form method="POST" action="/admin/builder-role" style="display:inline;">
+                    <input type="hidden" name="_csrf" value="{{../csrfToken}}">
+                    <input type="hidden" name="discord_id" value="{{this.discord_id}}">
+                    {{#if this.hasBuilderRole}}
+                      <input type="hidden" name="action" value="remove">
+                      <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Remove Role</button>
+                    {{else}}
+                      <input type="hidden" name="action" value="assign">
+                      <button type="submit" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Assign Role</button>
+                    {{/if}}
+                  </form>
+                </td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    {{else if search}}
+      {{#unless searchError}}
+        <div class="empty-state">No members found matching "{{search}}".</div>
+      {{/unless}}
+    {{/if}}
+  </div>
+</section>
+
+{{> ban-modal}}

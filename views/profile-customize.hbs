@@ -1,0 +1,278 @@
+<section class="customize-page" style="max-width:1100px;margin:2rem auto;padding:0 1rem;">
+  <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+    <img src="{{user.avatarUrl}}" alt="" width="56" height="56" style="border-radius:50%;border:2px solid var(--border);">
+    <div>
+      <h1 style="margin:0;">Customize Profile</h1>
+      <p style="margin:0.25rem 0 0;color:var(--text-secondary);font-size:0.9rem;">Buy items once, keep them forever. Equip what you own.</p>
+    </div>
+    <div class="coin-pill" title="Earn with /daily in Discord, or buy items here">
+      <span class="coin-emoji">{{coinEmoji}}</span>
+      <span class="coin-balance">{{coinBalance}}</span>
+      <span class="coin-label">{{coinName}}</span>
+    </div>
+    <a href="/profile" class="btn btn-admin btn-small" style="text-decoration:none;">View My Profile</a>
+  </div>
+
+  {{#if successMessage}}
+    <div class="notice success-notice" style="margin-bottom:1rem;"><strong>Success</strong><p>{{successMessage}}</p></div>
+  {{/if}}
+  {{#if errorMessage}}
+    <div class="error" style="margin-bottom:1rem;">{{errorMessage}}</div>
+  {{/if}}
+
+  <!-- Backgrounds -->
+  <div class="customize-section">
+    <div class="customize-section-header">
+      <h2>Backgrounds</h2>
+      {{#if equipped.background}}
+        <form method="POST" action="/profile/customize/equip" style="margin:0;">
+          <input type="hidden" name="_csrf" value="{{csrfToken}}">
+          <input type="hidden" name="type" value="background">
+          <input type="hidden" name="item_id" value="">
+          <button type="submit" class="btn btn-admin btn-small" style="background:var(--bg-card);">Clear</button>
+        </form>
+      {{/if}}
+    </div>
+    {{#if backgrounds.length}}
+      <div class="customize-grid">
+        {{#each backgrounds}}
+          <div class="customize-card rarity-{{this.rarity}}{{#if this.isEquipped}} equipped{{/if}}">
+            <div class="customize-preview" style="background:{{this.css_value}};"></div>
+            <div class="customize-info">
+              <div class="customize-name">{{this.name}}</div>
+              <div class="customize-desc">{{this.description}}</div>
+              <div class="customize-meta">
+                <span class="rarity-badge rarity-badge-{{this.rarity}}">{{this.rarity}}</span>
+                {{#unless this.owned}}<span class="customize-price">${{this.priceFormatted}}</span>{{/unless}}
+              </div>
+              <div class="customize-actions">
+                {{#if this.owned}}
+                  {{#if this.isEquipped}}
+                    <span class="customize-equipped-tag">Equipped</span>
+                  {{else}}
+                    <form method="POST" action="/profile/customize/equip" style="margin:0;">
+                      <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                      <input type="hidden" name="type" value="background">
+                      <input type="hidden" name="item_id" value="{{this.id}}">
+                      <button type="submit" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;width:100%;">Equip</button>
+                    </form>
+                  {{/if}}
+                {{else}}
+                  <div class="dual-buy">
+                    <form method="POST" action="/profile/customize/buy/{{this.id}}" style="margin:0;">
+                      <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                      <button type="submit" class="btn btn-admin btn-small" style="background:#5865F2;color:#fff;width:100%;">Buy ${{this.priceFormatted}}</button>
+                    </form>
+                    <form method="POST" action="/profile/customize/redeem-coins/{{this.id}}" style="margin:0;" onsubmit="return confirm('Spend {{this.coinPrice}} {{@root.coinEmoji}} on this item?');">
+                      <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                      <button type="submit" class="btn btn-admin btn-small dual-buy-coin" {{#unless this.canAffordCoins}}disabled title="Not enough coins"{{/unless}}>{{@root.coinEmoji}} {{this.coinPrice}}</button>
+                    </form>
+                  </div>
+                {{/if}}
+              </div>
+            </div>
+          </div>
+        {{/each}}
+      </div>
+    {{else}}
+      <div class="empty-state">No backgrounds available yet.</div>
+    {{/if}}
+  </div>
+
+  <!-- Name Colors -->
+  <div class="customize-section">
+    <div class="customize-section-header">
+      <h2>Name Colors</h2>
+      {{#if equipped.name_color}}
+        <form method="POST" action="/profile/customize/equip" style="margin:0;">
+          <input type="hidden" name="_csrf" value="{{csrfToken}}">
+          <input type="hidden" name="type" value="name_color">
+          <input type="hidden" name="item_id" value="">
+          <button type="submit" class="btn btn-admin btn-small" style="background:var(--bg-card);">Clear</button>
+        </form>
+      {{/if}}
+    </div>
+    {{#if nameColors.length}}
+      <div class="customize-grid">
+        {{#each nameColors}}
+          <div class="customize-card rarity-{{this.rarity}}{{#if this.isEquipped}} equipped{{/if}}">
+            <div class="customize-preview" style="background:#0a0a0a;display:flex;align-items:center;justify-content:center;">
+              <span style="color:{{this.css_value}};font-weight:700;font-size:1.4rem;">{{@root.user.username}}</span>
+            </div>
+            <div class="customize-info">
+              <div class="customize-name">{{this.name}}</div>
+              <div class="customize-desc">{{this.description}}</div>
+              <div class="customize-meta">
+                <span class="rarity-badge rarity-badge-{{this.rarity}}">{{this.rarity}}</span>
+                {{#unless this.owned}}<span class="customize-price">${{this.priceFormatted}}</span>{{/unless}}
+              </div>
+              <div class="customize-actions">
+                {{#if this.owned}}
+                  {{#if this.isEquipped}}
+                    <span class="customize-equipped-tag">Equipped</span>
+                  {{else}}
+                    <form method="POST" action="/profile/customize/equip" style="margin:0;">
+                      <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                      <input type="hidden" name="type" value="name_color">
+                      <input type="hidden" name="item_id" value="{{this.id}}">
+                      <button type="submit" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;width:100%;">Equip</button>
+                    </form>
+                  {{/if}}
+                {{else}}
+                  <div class="dual-buy">
+                    <form method="POST" action="/profile/customize/buy/{{this.id}}" style="margin:0;">
+                      <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                      <button type="submit" class="btn btn-admin btn-small" style="background:#5865F2;color:#fff;width:100%;">Buy ${{this.priceFormatted}}</button>
+                    </form>
+                    <form method="POST" action="/profile/customize/redeem-coins/{{this.id}}" style="margin:0;" onsubmit="return confirm('Spend {{this.coinPrice}} {{@root.coinEmoji}} on this item?');">
+                      <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                      <button type="submit" class="btn btn-admin btn-small dual-buy-coin" {{#unless this.canAffordCoins}}disabled title="Not enough coins"{{/unless}}>{{@root.coinEmoji}} {{this.coinPrice}}</button>
+                    </form>
+                  </div>
+                {{/if}}
+              </div>
+            </div>
+          </div>
+        {{/each}}
+      </div>
+    {{else}}
+      <div class="empty-state">No name colors available yet.</div>
+    {{/if}}
+  </div>
+
+  <!-- Badges -->
+  <div class="customize-section">
+    <div class="customize-section-header">
+      <h2>Badges <span style="font-size:0.75rem;color:var(--text-secondary);font-weight:400;">(equip up to 3)</span></h2>
+    </div>
+    {{#if badges.length}}
+      <div class="customize-grid">
+        {{#each badges}}
+          <div class="customize-card rarity-{{this.rarity}}{{#if this.isEquipped}} equipped{{/if}}">
+            <div class="customize-preview" style="background:#0a0a0a;display:flex;align-items:center;justify-content:center;font-size:2.5rem;">
+              {{{this.css_value}}}
+            </div>
+            <div class="customize-info">
+              <div class="customize-name">{{this.name}}</div>
+              <div class="customize-desc">{{this.description}}</div>
+              <div class="customize-meta">
+                <span class="rarity-badge rarity-badge-{{this.rarity}}">{{this.rarity}}</span>
+                {{#unless this.owned}}<span class="customize-price">${{this.priceFormatted}}</span>{{/unless}}
+              </div>
+              <div class="customize-actions">
+                {{#if this.owned}}
+                  <form method="POST" action="/profile/customize/equip" style="margin:0;">
+                    <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                    <input type="hidden" name="type" value="badge">
+                    <input type="hidden" name="item_id" value="{{this.id}}">
+                    {{#if this.isEquipped}}
+                      <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;width:100%;">Unequip</button>
+                    {{else}}
+                      <button type="submit" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;width:100%;">Equip</button>
+                    {{/if}}
+                  </form>
+                {{else}}
+                  <div class="dual-buy">
+                    <form method="POST" action="/profile/customize/buy/{{this.id}}" style="margin:0;">
+                      <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                      <button type="submit" class="btn btn-admin btn-small" style="background:#5865F2;color:#fff;width:100%;">Buy ${{this.priceFormatted}}</button>
+                    </form>
+                    <form method="POST" action="/profile/customize/redeem-coins/{{this.id}}" style="margin:0;" onsubmit="return confirm('Spend {{this.coinPrice}} {{@root.coinEmoji}} on this item?');">
+                      <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                      <button type="submit" class="btn btn-admin btn-small dual-buy-coin" {{#unless this.canAffordCoins}}disabled title="Not enough coins"{{/unless}}>{{@root.coinEmoji}} {{this.coinPrice}}</button>
+                    </form>
+                  </div>
+                {{/if}}
+              </div>
+            </div>
+          </div>
+        {{/each}}
+      </div>
+    {{else}}
+      <div class="empty-state">No badges available yet.</div>
+    {{/if}}
+  </div>
+
+  {{#if activeSubscription}}
+  <!-- Subscription Management (collapsed by default) -->
+  <div class="customize-section">
+    <details class="subscription-section">
+      <summary class="subscription-summary">
+        <span>Manage Subscription</span>
+        <span class="subscription-status-pill {{#if activeSubscription.cancelAtPeriodEnd}}canceling{{else}}active{{/if}}">
+          {{#if activeSubscription.cancelAtPeriodEnd}}Ends {{activeSubscription.currentPeriodEndDisplay}}{{else}}Active{{/if}}
+        </span>
+      </summary>
+      <div class="subscription-body">
+        {{#if activeSubscription.productName}}
+          <p style="margin:0 0 0.5rem;"><strong>Plan:</strong> {{activeSubscription.productName}}</p>
+        {{/if}}
+        {{#if activeSubscription.currentPeriodEndDisplay}}
+          <p style="margin:0 0 0.75rem;color:var(--text-secondary);font-size:0.85rem;">
+            {{#if activeSubscription.cancelAtPeriodEnd}}
+              Auto-renewal is off. Your access ends on <strong>{{activeSubscription.currentPeriodEndDisplay}}</strong>.
+            {{else}}
+              Next renewal: <strong>{{activeSubscription.currentPeriodEndDisplay}}</strong>
+            {{/if}}
+          </p>
+        {{/if}}
+
+        {{#if activeSubscription.cancelAtPeriodEnd}}
+          <form method="POST" action="/profile/customize/resume-subscription" style="margin:0;">
+            <input type="hidden" name="_csrf" value="{{csrfToken}}">
+            <button type="submit" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Resume Subscription</button>
+          </form>
+        {{else}}
+          <form method="POST" action="/profile/customize/cancel-subscription" style="margin:0;" onsubmit="return confirm('Cancel your subscription? You will keep access until the end of your current billing period.');">
+            <input type="hidden" name="_csrf" value="{{csrfToken}}">
+            <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Cancel Subscription</button>
+          </form>
+        {{/if}}
+      </div>
+    </details>
+  </div>
+  {{/if}}
+</section>
+
+<style>
+.customize-section { margin-bottom: 2.5rem; }
+.customize-section-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+.customize-section-header h2 { margin: 0; font-size: 1.15rem; }
+.customize-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+.customize-card { border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); overflow: hidden; display: flex; flex-direction: column; transition: transform 0.12s, border-color 0.12s; }
+.customize-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+.customize-card.equipped { border-color: #22c55e; box-shadow: 0 0 0 1px #22c55e; }
+.customize-card.rarity-rare { border-top: 3px solid #5865F2; }
+.customize-card.rarity-epic { border-top: 3px solid #a855f7; }
+.customize-card.rarity-legendary { border-top: 3px solid #fbbf24; }
+.customize-preview { width: 100%; height: 110px; border-bottom: 1px solid var(--border); }
+.customize-info { padding: 0.75rem; display: flex; flex-direction: column; gap: 0.4rem; flex: 1; }
+.customize-name { font-weight: 600; color: var(--text-primary); }
+.customize-desc { font-size: 0.8rem; color: var(--text-secondary); flex: 1; }
+.customize-meta { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.customize-price { font-weight: 700; color: var(--accent); font-size: 0.95rem; }
+.customize-actions { margin-top: 0.4rem; }
+.customize-equipped-tag { display: inline-block; padding: 0.3rem 0.6rem; background: rgba(34,197,94,0.15); color: #4ade80; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; width: 100%; text-align: center; box-sizing: border-box; }
+.rarity-badge { padding: 0.15rem 0.45rem; border-radius: 3px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.rarity-badge-common { background: rgba(148,163,184,0.15); color: #cbd5e1; }
+.rarity-badge-rare { background: rgba(88,101,242,0.2); color: #818cf8; }
+.rarity-badge-epic { background: rgba(168,85,247,0.2); color: #c084fc; }
+.rarity-badge-legendary { background: rgba(251,191,36,0.2); color: #fde047; }
+.subscription-section { border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); }
+.subscription-summary { display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem; cursor: pointer; user-select: none; font-weight: 600; color: var(--text-primary); list-style: none; gap: 0.75rem; }
+.subscription-summary::-webkit-details-marker { display: none; }
+.subscription-summary::after { content: "\25BE"; color: var(--text-secondary); transition: transform 0.2s; margin-left: 0.5rem; }
+details[open] .subscription-summary::after { transform: rotate(180deg); }
+.subscription-status-pill { padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-left: auto; }
+.subscription-status-pill.active { background: rgba(34,197,94,0.15); color: #4ade80; }
+.subscription-status-pill.canceling { background: rgba(251,191,36,0.15); color: #fbbf24; }
+.subscription-body { padding: 0 1rem 1rem; border-top: 1px solid var(--border); padding-top: 0.85rem; }
+.coin-pill { margin-left: auto; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.75rem; background: linear-gradient(135deg, rgba(168,85,247,0.18), rgba(88,101,242,0.18)); border: 1px solid rgba(168,85,247,0.4); border-radius: 999px; font-weight: 700; }
+.coin-pill .coin-emoji { font-size: 1.05rem; }
+.coin-pill .coin-balance { color: #fbbf24; }
+.coin-pill .coin-label { font-size: 0.72rem; color: var(--text-secondary); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+.dual-buy { display: flex; gap: 0.35rem; }
+.dual-buy form { flex: 1; }
+.dual-buy-coin { background: rgba(168,85,247,0.2); color: #fde047; border: 1px solid rgba(168,85,247,0.5); width: 100%; }
+.dual-buy-coin:disabled { opacity: 0.4; cursor: not-allowed; }
+</style>

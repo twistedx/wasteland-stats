@@ -1,0 +1,94 @@
+<section id="admin-section">
+  {{> admin-nav}}
+
+  {{#if errorMessage}}
+    <div class="error">{{errorMessage}}</div>
+  {{/if}}
+
+  <div class="admin-form-card" style="margin-bottom:1rem;">
+    <h3>Search Players</h3>
+    <form class="filter-bar" method="GET" action="/admin/search" style="flex-wrap:wrap;">
+      <select name="type" class="filter-select" style="max-width:160px;">
+        <option value="name" {{#if (eq searchType 'name')}}selected{{/if}}>Username</option>
+        <option value="arma_id" {{#if (eq searchType 'arma_id')}}selected{{/if}}>Arma ID</option>
+        <option value="discord" {{#if (eq searchType 'discord')}}selected{{/if}}>Discord ID</option>
+      </select>
+      <input
+        type="text"
+        name="q"
+        class="filter-input"
+        placeholder="{{#if (eq searchType 'discord')}}Enter Discord ID...{{else if (eq searchType 'arma_id')}}Enter Arma GUID...{{else}}Search by username...{{/if}}"
+        value="{{query}}"
+        required
+      >
+      <button type="submit" class="btn btn-admin">Search</button>
+    </form>
+  </div>
+
+  {{#if results.length}}
+  <div class="admin-form-card">
+    <p class="result-count">{{results.length}} player{{#unless (eq results.length 1)}}s{{/unless}} found{{#if (eq searchType 'name')}} for "{{query}}"{{/if}}</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Arma ID</th>
+            <th>Steam</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each results}}
+          <tr>
+            <td class="player-name">{{fallback this.arma_username "Unknown"}}</td>
+            <td class="guid">{{fallback this.arma_id "-"}}</td>
+            <td>
+              {{#if this.steamId}}
+                <a href="https://steamcommunity.com/profiles/{{this.steamId}}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;font-size:0.8rem;">Steam</a>
+              {{else}}
+                <span style="color:var(--text-secondary);font-size:0.8rem;">—</span>
+              {{/if}}
+            </td>
+            <td>
+              {{#if this.isWatchlisted}}
+                <span class="badge badge-warning" style="font-size:0.7rem;">Watchlisted</span>
+              {{else}}
+                <span style="color:#4ade80;font-size:0.75rem;font-weight:600;">Active</span>
+              {{/if}}
+            </td>
+            <td style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+              <a href="/admin/player/{{this.arma_id}}" class="btn btn-admin btn-small" style="text-decoration:none;">Profile</a>
+              <a href="/admin/money?arma_id={{this.arma_id}}&username={{this.arma_username}}&search={{this.arma_username}}" class="btn btn-admin btn-small" style="text-decoration:none;background:#22c55e;color:#fff;">Money</a>
+              {{#if this.arma_id}}
+              <a href="/admin/watchlist?search={{this.arma_username}}" class="btn btn-admin btn-small" style="text-decoration:none;background:#f59e0b;color:#000;">Watchlist</a>
+              {{/if}}
+            </td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+
+    {{#if (or hasPrev hasMore)}}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.75rem;">
+      {{#if hasPrev}}
+        <a href="/admin/search?q={{query}}&type={{searchType}}&p={{subtract searchPage 1}}" class="btn btn-admin btn-small">&laquo; Previous</a>
+      {{else}}
+        <span></span>
+      {{/if}}
+      <span style="font-size:0.8rem;color:var(--text-secondary);">Page {{searchPage}}</span>
+      {{#if hasMore}}
+        <a href="/admin/search?q={{query}}&type={{searchType}}&p={{add searchPage 1}}" class="btn btn-admin btn-small">Next &raquo;</a>
+      {{else}}
+        <span></span>
+      {{/if}}
+    </div>
+    {{/if}}
+  </div>
+
+  {{else if query}}
+  <div class="empty-state" style="padding:2rem;">No players found for "{{query}}".</div>
+  {{/if}}
+</section>

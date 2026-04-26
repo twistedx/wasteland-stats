@@ -1,3 +1,18 @@
+<!-- Ban progress overlay (live log) -->
+<div id="ban-progress-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:10000;align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:var(--bg-card,#0f1217);border:1px solid var(--border,#2a2f38);border-radius:10px;max-width:560px;width:100%;padding:1.5rem;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
+      <div id="ban-progress-spinner" style="width:24px;height:24px;border:3px solid rgba(239,68,68,0.25);border-top-color:#ef4444;border-radius:50%;animation:bp-spin 0.8s linear infinite;"></div>
+      <h3 id="ban-progress-title" style="margin:0;font-family:'Orbitron',sans-serif;color:#ef4444;text-transform:uppercase;letter-spacing:0.05em;">Banning Player…</h3>
+    </div>
+    <div id="ban-progress-log" style="background:#06080b;border:1px solid var(--border,#2a2f38);border-radius:6px;padding:0.75rem;font-family:'Consolas',monospace;font-size:0.78rem;max-height:280px;overflow-y:auto;line-height:1.6;"></div>
+    <div id="ban-progress-actions" style="display:none;margin-top:1rem;text-align:right;">
+      <button type="button" id="ban-progress-close" class="btn btn-admin btn-small">Close</button>
+    </div>
+  </div>
+</div>
+<style>@keyframes bp-spin { to { transform: rotate(360deg); } }</style>
+
 <!-- Ban/Unban Player Modal -->
 <div id="action-modal" class="modal-overlay" style="display:none;" role="dialog" aria-labelledby="modal-title" aria-modal="true">
   <div class="modal-content">
@@ -131,6 +146,118 @@
         return;
       }
       armaIdInput.style.borderColor = '';
+
+      // Only intercept BAN flow (not unban) — stream progress so admin can watch each step
+      if (mode === 'ban') {
+        e.preventDefault();
+        streamBan(new FormData(form));
+      }
+    });
+
+    // ── Live ban-progress streaming ──
+    var STEP_LABELS = {
+      validate: 'Validating inputs',
+      ban_api: 'Recording ban on game server',
+      rcon_kick: 'Kicking from RCON servers',
+      audit: 'Writing audit log',
+      webhook: 'Posting Discord webhook',
+      complete: 'Done',
+    };
+    var STATUS_ICON = {
+      start: '⏳',
+      ok: '✓',
+      info: '…',
+      warn: '⚠',
+      skip: '○',
+      error: '✗',
+    };
+    var STATUS_COLOR = {
+      start: '#fbbf24',
+      ok: '#22c55e',
+      info: '#9ca3af',
+      warn: '#fbbf24',
+      skip: '#6b7280',
+      error: '#ef4444',
+    };
+
+    function appendLog(line) {
+      var log = document.getElementById('ban-progress-log');
+      var div = document.createElement('div');
+      div.style.color = STATUS_COLOR[line.status] || '#e8e8e8';
+      var icon = STATUS_ICON[line.status] || '·';
+      var label = STEP_LABELS[line.step] || line.step;
+      var time = (line.ts / 1000).toFixed(2) + 's';
+      div.textContent = '[' + time + '] ' + icon + ' ' + label + ' — ' + line.msg;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    async function streamBan(formData) {
+      var overlay = document.getElementById('ban-progress-overlay');
+      var logBox = document.getElementById('ban-progress-log');
+      var title = document.getElementById('ban-progress-title');
+      var spinner = document.getElementById('ban-progress-spinner');
+      var actions = document.getElementById('ban-progress-actions');
+      var closeBtn = document.getElementById('ban-progress-close');
+      logBox.innerHTML = '';
+      title.textContent = 'Banning Player…';
+      title.style.color = '#ef4444';
+      spinner.style.display = '';
+      actions.style.display = 'none';
+      overlay.style.display = 'flex';
+
+      // Hide the input modal so the progress overlay is the focus
+      modal.style.display = 'none';
+
+      var redirectTo = null;
+      var hadError = false;
+
+      try {
+        var res = await fetch('/admin/bans/ban-progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams(formData).toString(),
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+
+        var reader = res.body.getReader();
+        var decoder = new TextDecoder();
+        var buffer = '';
+        while (true) {
+          var chunk = await reader.read();
+          if (chunk.done) break;
+          buffer += decoder.decode(chunk.value, { stream: true });
+          var parts = buffer.split('\n');
+          buffer = parts.pop(); // last partial line stays
+          for (var i = 0; i < parts.length; i++) {
+            if (!parts[i].trim()) continue;
+            try {
+              var line = JSON.parse(parts[i]);
+              appendLog(line);
+              if (line.status === 'error') hadError = true;
+              if (line.redirect) redirectTo = line.redirect;
+            } catch (e) { /* skip malformed line */ }
+          }
+        }
+      } catch (err) {
+        hadError = true;
+        appendLog({ step: 'error', status: 'error', msg: err.message, ts: 0 });
+      }
+
+      spinner.style.display = 'none';
+      title.textContent = hadError ? 'Ban Failed' : 'Ban Complete';
+      title.style.color = hadError ? '#ef4444' : '#22c55e';
+
+      if (!hadError && redirectTo) {
+        // Brief pause so the admin can read the final lines, then redirect
+        setTimeout(function() { window.location.href = redirectTo; }, 1200);
+      } else {
+        actions.style.display = '';
+      }
+    }
+
+    document.getElementById('ban-progress-close').addEventListener('click', function() {
+      document.getElementById('ban-progress-overlay').style.display = 'none';
     });
 
     var banBtn = document.getElementById('open-ban-modal');

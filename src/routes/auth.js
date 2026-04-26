@@ -124,9 +124,11 @@ router.get("/discord/callback", async (req, res) => {
     }
 
     // Fetch guild member roles using bot token
+    const OWNER_ROLE_ID = "1254129890127777893";
     let isAdmin = false;
     let isWriteAdmin = false;
     let isBlogAdmin = false;
+    let isOwner = false;
     try {
       console.log(`Discord API: GET /guilds/${config.discordGuildId}/members/${discordUser.id} (fetch guild roles)`);
       const memberRes = await axios.get(
@@ -137,9 +139,13 @@ router.get("/discord/callback", async (req, res) => {
       isAdmin = memberRoles.some(r => config.adminRoleIds.includes(r));
       isWriteAdmin = memberRoles.some(r => config.adminWriteRoleIds.includes(r));
       isBlogAdmin = memberRoles.some(r => config.blogRoleIds.includes(r));
+      isOwner = memberRoles.includes(OWNER_ROLE_ID);
     } catch (roleErr) {
       if (!handleRateLimit(roleErr)) {
-        console.error("Role fetch error:", roleErr.response?.status, roleErr.response?.data || roleErr.message);
+        // 10007 = Unknown Member (user not in guild) — expected, don't log as error
+        if (roleErr.response?.data?.code !== 10007) {
+          console.error("Role fetch error:", roleErr.response?.status, roleErr.response?.data || roleErr.message);
+        }
       }
     }
 
@@ -157,6 +163,7 @@ router.get("/discord/callback", async (req, res) => {
       isAdmin,
       isWriteAdmin,
       isBlogAdmin,
+      isOwner,
       connections,
       steamId: steamConn?.id || null,
     };

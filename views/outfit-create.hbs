@@ -1,0 +1,93 @@
+<section style="max-width:760px;margin:2rem auto 4rem;padding:0 1rem;">
+  <a href="/outfits" style="color:var(--text-secondary);font-size:0.85rem;text-decoration:none;">&larr; All Outfits</a>
+
+  <div style="text-align:center;margin:1.5rem 0 2rem;">
+    <h1 style="font-family:'Orbitron',sans-serif;text-transform:uppercase;letter-spacing:0.04em;margin:0 0 0.5rem;">🎩 Build Your Crew</h1>
+    <p style="color:var(--text-secondary);max-width:520px;margin:0 auto;">Forge a {{constants.MAX_MEMBERS_DEFAULT}}-member crew, stake the treasury, and hunt rival outfits in 48-hour turf wars. Only hits against your declared enemy score — this is a war for the title, not a grind.</p>
+  </div>
+
+  {{#if errorMessage}}
+    <div class="error" style="margin-bottom:1rem;">{{errorMessage}}</div>
+  {{/if}}
+
+  {{#unless user}}
+    <div class="admin-form-card" style="text-align:center;">
+      <p>You need to <a href="/auth/discord" style="color:var(--accent);">sign in with Discord</a> to create an outfit.</p>
+    </div>
+  {{else}}
+    {{#if userOutfit}}
+      <div class="admin-form-card" style="text-align:center;border-left:4px solid #fbbf24;">
+        <h3 style="margin:0 0 0.5rem;">You're already in an outfit</h3>
+        <p style="color:var(--text-secondary);margin:0 0 0.75rem;">You're a member of <strong>[{{userOutfit.outfit_tag}}] {{userOutfit.outfit_name}}</strong>. Leave it first to create a new one (30-day cooldown applies).</p>
+        <a href="/outfits/{{userOutfit.outfit_id}}" class="btn btn-admin" style="text-decoration:none;background:#5865F2;color:#fff;">View My Outfit</a>
+      </div>
+    {{else}}
+      <div class="admin-form-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
+          <h3 style="margin:0;">Outfit Details</h3>
+          <span style="color:#fde047;font-weight:700;">Cost: 5,000 💀</span>
+        </div>
+
+        <form method="POST" action="/outfits/create">
+          <input type="hidden" name="_csrf" value="{{csrfToken}}">
+
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label" style="display:block;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);margin-bottom:0.3rem;">Outfit Name *</label>
+            <input type="text" name="name" class="filter-input" placeholder="e.g. The Wasteland Wraiths" required minlength="3" maxlength="32" style="width:100%;">
+            <small style="color:var(--text-muted);font-size:0.7rem;">3–32 characters. Must be unique.</small>
+          </div>
+
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label" style="display:block;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);margin-bottom:0.3rem;">Tag *</label>
+            <input type="text" name="tag" class="filter-input" placeholder="e.g. WRTH" required minlength="2" maxlength="5" pattern="[A-Za-z0-9]+" style="width:100%;text-transform:uppercase;">
+            <small style="color:var(--text-muted);font-size:0.7rem;">2–5 letters/numbers. Shown in brackets next to your name in-game.</small>
+          </div>
+
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label" style="display:block;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);margin-bottom:0.3rem;">Motto (optional)</label>
+            <input type="text" name="motto" class="filter-input" placeholder="e.g. We die with our boots on." maxlength="200" style="width:100%;">
+          </div>
+
+          <div class="form-group" style="margin-bottom:1.5rem;">
+            <label class="form-label" style="display:block;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);margin-bottom:0.3rem;">Outfit Color</label>
+            <div style="display:flex;gap:0.5rem;align-items:center;">
+              <input type="color" name="color" value="#5865F2" style="width:60px;height:42px;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+              <span style="font-size:0.7rem;color:var(--text-muted);">Used as your outfit's accent color across the site.</span>
+            </div>
+          </div>
+
+          <div style="background:rgba(88,101,242,0.08);border:1px solid rgba(88,101,242,0.25);border-radius:6px;padding:0.75rem 1rem;margin-bottom:1.25rem;">
+            <strong style="color:#5865F2;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;">As Don 🎩 you call the shots:</strong>
+            <ul style="margin:0.5rem 0 0;padding-left:1.25rem;color:var(--text-secondary);font-size:0.85rem;line-height:1.6;">
+              <li>Recruit up to 9 Capos and Soldiers</li>
+              <li>Declare war on rival crews (48h, dynamic cost vs. that opponent's W/L)</li>
+              <li>Loot the enemy treasury and distribute it (even, rank-weighted, or custom)</li>
+              <li>Promote Soldiers to Capos 🥃 to share invite/kick power</li>
+            </ul>
+            <p style="margin:0.6rem 0 0;color:#fbbf24;font-size:0.78rem;"><strong>⚠ Warning:</strong> Wars are PvP-only. If your members go AFK during a war, the enemy is awarded your missing points. No lazy victories.</p>
+          </div>
+
+          <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+            <button type="submit" class="btn btn-admin" style="background:#5865F2;color:#fff;flex:1;min-width:200px;">Create Outfit (5,000 💀)</button>
+            <a href="/outfits" class="btn btn-admin btn-small" style="text-decoration:none;">Cancel</a>
+          </div>
+
+          {{#if balanceWarning}}
+            <div style="margin:0.75rem 0 0;padding:0.75rem 1rem;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.30);border-radius:6px;">
+              <p style="color:#ef4444;font-size:0.8rem;margin:0 0 0.5rem;text-align:center;font-weight:600;">⚠ Your balance is {{wastedCoinsBalance}} 💀 — you need 5,000 to create.</p>
+              <p style="color:var(--text-secondary);font-size:0.75rem;margin:0;line-height:1.55;">
+                <strong style="color:var(--text-primary);">How to earn:</strong>
+                Run <code>/daily</code> in Discord (~100 💀 + streak bonus up to 500),
+                play <code>/slots</code>, <code>/trail</code>, or <code>/dealer</code>,
+                or buy <code>/lottery</code> tickets for a shot at the weekly pot.
+                <a href="/wasted-coins" style="color:var(--accent);">Full guide →</a>
+              </p>
+            </div>
+          {{else if wastedCoinsBalance}}
+            <p style="color:var(--text-secondary);font-size:0.75rem;margin:0.75rem 0 0;text-align:center;">Your balance: <strong style="color:#fde047;">{{wastedCoinsBalance}} 💀</strong></p>
+          {{/if}}
+        </form>
+      </div>
+    {{/if}}
+  {{/unless}}
+</section>

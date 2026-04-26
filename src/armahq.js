@@ -45,10 +45,32 @@ async function fetchServers() {
     peakDate = today;
   }
 
+  // If any ArmaHQ call failed, try AMP as a fallback source for player counts
+  let ampFallback = null;
+  if (results.some(r => r.status === "rejected")) {
+    try {
+      const amp = require("./amp");
+      ampFallback = amp.getStatus();
+      if (!ampFallback?.instances?.length) {
+        ampFallback = await amp.getFreshStatus().catch(() => null);
+      }
+    } catch (e) {
+      console.error("ArmaHQ: AMP fallback unavailable:", e.message);
+    }
+  }
+
+  function matchAmpInstance(label) {
+    if (!ampFallback?.instances) return null;
+    const running = ampFallback.instances.filter(i => i.running && i.appState >= 5 && /wasteland/i.test(i.friendlyName));
+    // Map "Server 1" → first running wasteland instance, "Server 2" → second, etc.
+    const m = label.match(/(\d+)/);
+    const idx = m ? parseInt(m[1], 10) - 1 : 0;
+    return running[idx] || null;
+  }
+
   serverData = results.map((r, i) => {
     if (r.status === "fulfilled") {
       const srv = r.value;
-      // Update daily peak
       if (!peaks[srv.id] || srv.players > peaks[srv.id]) {
         peaks[srv.id] = srv.players;
       }
@@ -56,7 +78,29 @@ async function fetchServers() {
       console.log(`ArmaHQ: ${srv.label} "${srv.name}" — ${srv.players}/${srv.maxPlayers} players, queue: ${srv.queue} (peak: ${srv.peak})`);
       return srv;
     }
+
     console.error(`ArmaHQ: ${SERVERS[i].label} fetch failed:`, r.reason?.message);
+
+    const ampInst = matchAmpInstance(SERVERS[i].label);
+    if (ampInst) {
+      const players = ampInst.players.current || 0;
+      if (!peaks[SERVERS[i].id] || players > peaks[SERVERS[i].id]) {
+        peaks[SERVERS[i].id] = players;
+      }
+      console.log(`ArmaHQ: ${SERVERS[i].label} falling back to AMP "${ampInst.friendlyName}" — ${players}/${ampInst.players.max} players`);
+      return {
+        id: SERVERS[i].id,
+        label: SERVERS[i].label,
+        name: ampInst.friendlyName,
+        players,
+        maxPlayers: ampInst.players.max || 0,
+        queue: 0,
+        peak: peaks[SERVERS[i].id] || 0,
+        status: "online",
+        source: "amp",
+      };
+    }
+
     return {
       id: SERVERS[i].id,
       label: SERVERS[i].label,

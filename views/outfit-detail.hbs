@@ -1,0 +1,398 @@
+<section style="max-width:1000px;margin:2rem auto 4rem;padding:0 1rem;">
+  <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+    {{#if outfit.logo_url}}
+      <img src="{{outfit.logo_url}}" alt="{{outfit.tag}} logo" style="width:60px;height:60px;border-radius:10px;object-fit:contain;background:{{outfit.color}};padding:4px;">
+    {{else}}
+      <div style="width:60px;height:60px;border-radius:10px;background:{{outfit.color}};display:flex;align-items:center;justify-content:center;font-weight:900;font-size:1.4rem;font-family:'Orbitron',monospace;color:#fff;">{{outfit.tag}}</div>
+    {{/if}}
+    <div style="flex:1;">
+      <h1 style="margin:0;">[{{outfit.tag}}] {{outfit.name}}</h1>
+      {{#if outfit.motto}}<p style="margin:0.25rem 0 0;color:var(--text-secondary);font-size:0.9rem;font-style:italic;">"{{outfit.motto}}"</p>{{/if}}
+      <p style="margin:0.25rem 0 0;color:var(--text-muted);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;">A crew vying for the title of The Outfit</p>
+    </div>
+    <a href="/outfits" class="btn btn-admin btn-small" style="text-decoration:none;">All Outfits</a>
+  </div>
+
+  {{#if successMessage}}<div class="notice success-notice" style="margin-bottom:1rem;"><strong>Success</strong><p>{{successMessage}}</p></div>{{/if}}
+  {{#if errorMessage}}<div class="error" style="margin-bottom:1rem;">{{errorMessage}}</div>{{/if}}
+
+  {{#if myMember}}
+    <div class="my-rank-banner" style="display:flex;align-items:center;gap:0.75rem;padding:0.85rem 1.1rem;margin-bottom:1.5rem;background:linear-gradient(135deg,rgba(88,101,242,0.12),rgba(168,85,247,0.10));border:1px solid rgba(88,101,242,0.35);border-radius:8px;color:#fff;">
+      <span style="font-size:1.5rem;line-height:1;">{{#if (eq myMember 'don')}}🎩{{else if (eq myMember 'capo')}}🥃{{else}}🔫{{/if}}</span>
+      <p style="margin:0;font-size:0.95rem;">
+        You are {{#if (eq myMember 'don')}}<strong>the Don</strong>{{else if (eq myMember 'capo')}}<strong>a Capo</strong>{{else}}<strong>a Soldier</strong>{{/if}}
+        of <strong style="color:{{outfit.color}};">[{{outfit.tag}}]</strong> {{outfit.name}}.
+      </p>
+    </div>
+  {{/if}}
+
+  {{#if incomingAttacks.length}}
+    {{#each incomingAttacks}}
+      <div class="incoming-attack-banner" style="background:linear-gradient(135deg,rgba(239,68,68,0.18),rgba(251,146,60,0.12));border:2px solid #ef4444;border-radius:10px;padding:1.1rem 1.25rem;margin-bottom:1.25rem;animation:pulse-attack 2s ease-in-out infinite;">
+        <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+          <span style="font-size:1.8rem;line-height:1;">🚨</span>
+          <div style="flex:1;min-width:200px;">
+            <div style="font-family:'Orbitron',sans-serif;font-size:1.05rem;font-weight:900;color:#ef4444;letter-spacing:0.05em;">UNDER ATTACK</div>
+            <div style="color:#fff;font-size:0.95rem;margin-top:0.2rem;">
+              <a href="/outfits/{{this.challenger.id}}" style="color:{{#if this.challenger.color}}{{this.challenger.color}}{{else}}#fbbf24{{/if}};text-decoration:none;font-weight:700;">[{{this.challenger.tag}}] {{this.challenger.name}}</a>
+              has declared war.
+              {{#if this.wager}}<span style="color:var(--text-secondary);">Wager: <strong style="color:#fde047;">💀 {{formatNumber this.wager}}</strong>.</span>{{/if}}
+            </div>
+            <div style="color:var(--text-secondary);font-size:0.8rem;margin-top:0.25rem;">
+              Declared <span class="history-ts" data-ts="{{this.declared_at}}">{{formatDate this.declared_at}}</span>
+            </div>
+          </div>
+        </div>
+        {{#if (eq @root.myMember 'don')}}
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <form method="POST" action="/outfits/{{@root.outfit.id}}/wars/{{this.id}}/accept" style="margin:0;" onsubmit="return confirm('Accept this war? The 48-hour clock will start immediately.');">
+              <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+              <button type="submit" class="btn btn-admin" style="background:#ef4444;color:#fff;font-weight:700;">⚔️ Accept War</button>
+            </form>
+            <form method="POST" action="/outfits/{{@root.outfit.id}}/wars/{{this.id}}/decline" style="margin:0;" onsubmit="return confirm('Decline this war? The challenger will be refunded.');">
+              <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+              <button type="submit" class="btn btn-admin" style="background:#6b7280;color:#fff;">Decline</button>
+            </form>
+          </div>
+        {{else}}
+          <p style="margin:0;color:var(--text-secondary);font-size:0.85rem;">Only the Don can respond.</p>
+        {{/if}}
+      </div>
+    {{/each}}
+  {{/if}}
+
+  {{#if activeAttacks.length}}
+    {{#each activeAttacks}}
+      <div style="background:rgba(239,68,68,0.10);border:1px solid #ef4444;border-radius:8px;padding:0.85rem 1.1rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+        <span style="font-size:1.4rem;line-height:1;">⚔️</span>
+        <div style="flex:1;min-width:200px;font-size:0.95rem;color:#fff;">
+          Currently at war with
+          <a href="/outfits/{{this.challenger.id}}" style="color:{{#if this.challenger.color}}{{this.challenger.color}}{{else}}#fbbf24{{/if}};text-decoration:none;font-weight:700;">[{{this.challenger.tag}}] {{this.challenger.name}}</a>.
+          {{#if this.ends_at}}<span style="color:var(--text-secondary);">Ends <span class="history-ts" data-ts="{{this.ends_at}}">{{formatDate this.ends_at}}</span>.</span>{{/if}}
+          <span style="color:var(--text-secondary);">Score:</span>
+          <strong style="color:#fff;">{{#if this.challenger_score}}{{this.challenger_score}}–{{this.defender_score}}{{else}}0–0{{/if}}</strong>
+        </div>
+      </div>
+    {{/each}}
+  {{/if}}
+
+  <style>
+    @keyframes pulse-attack {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.45); }
+      50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+    }
+  </style>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:2rem;">
+    <div class="admin-form-card" style="text-align:center;">
+      <div style="font-size:1.8rem;font-weight:700;color:var(--text-primary);">{{members.length}}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Members</div>
+    </div>
+    <div class="admin-form-card" style="text-align:center;">
+      <div style="font-size:1.8rem;font-weight:700;color:#22c55e;">{{record.wins}}<span style="color:var(--text-secondary);">W</span> / <span style="color:#ef4444;">{{record.losses}}</span><span style="color:var(--text-secondary);">L</span> / {{record.ties}}<span style="color:var(--text-secondary);">T</span></div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">War Record</div>
+    </div>
+    <div class="admin-form-card" style="text-align:center;">
+      <div style="font-size:1.8rem;font-weight:700;color:#fde047;">💀 {{formatNumber outfit.treasury}}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Treasury</div>
+    </div>
+  </div>
+
+  <div class="admin-form-card" style="margin-bottom:2rem;border-left:3px solid #f59e0b;">
+    <h3 style="margin:0 0 0.75rem;">⚔️ Current Wars ({{currentWars.length}})</h3>
+    {{#if currentWars.length}}
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Matchup</th>
+              <th>Status</th>
+              <th>Wager</th>
+              <th>Score</th>
+              <th>Declared</th>
+              <th>Ends</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each currentWars}}
+              <tr>
+                <td>
+                  <a href="/outfits/{{this.challenger.id}}" style="color:{{#if this.challenger.color}}{{this.challenger.color}}{{else}}var(--accent){{/if}};text-decoration:none;font-weight:600;">[{{this.challenger.tag}}]</a>
+                  <span style="color:var(--text-secondary);"> vs </span>
+                  <a href="/outfits/{{this.defender.id}}" style="color:{{#if this.defender.color}}{{this.defender.color}}{{else}}var(--accent){{/if}};text-decoration:none;font-weight:600;">[{{this.defender.tag}}]</a>
+                </td>
+                <td>
+                  {{#if (eq this.status 'pending')}}<span style="color:#fbbf24;font-weight:600;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.05em;">PENDING</span>
+                  {{else if (eq this.status 'active')}}<span style="color:#ef4444;font-weight:600;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.05em;">ACTIVE</span>
+                  {{else if (eq this.status 'accepted')}}<span style="color:#ef4444;font-weight:600;text-transform:uppercase;font-size:0.75rem;letter-spacing:0.05em;">ACTIVE</span>
+                  {{else}}<span style="text-transform:uppercase;font-size:0.75rem;letter-spacing:0.05em;">{{this.status}}</span>{{/if}}
+                </td>
+                <td>{{#if this.wager}}💀 {{formatNumber this.wager}}{{else}}Honor{{/if}}</td>
+                <td>{{#if this.challenger_score}}{{this.challenger_score}}–{{this.defender_score}}{{else}}<span style="color:var(--text-muted);">—</span>{{/if}}</td>
+                <td><span class="history-ts" data-ts="{{this.declared_at}}">{{formatDate this.declared_at}}</span></td>
+                <td>{{#if this.ends_at}}<span class="history-ts" data-ts="{{this.ends_at}}">{{formatDate this.ends_at}}</span>{{else}}<span style="color:var(--text-muted);">—</span>{{/if}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    {{else}}
+      <p style="margin:0;color:var(--text-secondary);font-size:0.9rem;">No active or pending wars.</p>
+    {{/if}}
+  </div>
+
+  {{#if myMember}}
+  <div class="admin-form-card" style="margin-bottom:2rem;border-left:4px solid #fde047;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.5rem;">
+      <h3 style="margin:0;">💰 Deposit to Treasury</h3>
+      <span style="font-size:0.8rem;color:var(--text-secondary);">Your balance: <strong style="color:#fde047;">🪙 {{formatNumber myCoinsBalance}}</strong></span>
+    </div>
+    <p style="color:var(--text-secondary);font-size:0.8rem;margin:0 0 0.75rem;">Donate Wasted Coins to fund wars. Only the Don can spend the treasury.</p>
+    <form method="POST" action="/outfits/{{outfit.id}}/deposit" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;" onsubmit="return confirm('Deposit ' + this.amount.value + ' coins to the outfit treasury? This is non-refundable.');">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <input type="number" name="amount" min="1" step="1" max="{{myCoinsBalance}}" placeholder="Amount" required class="filter-input" style="flex:1;min-width:160px;">
+      <button type="submit" class="btn btn-admin" style="background:#fde047;color:#1a1a1a;font-weight:700;">Deposit</button>
+    </form>
+  </div>
+  {{/if}}
+
+  <div class="admin-form-card" style="margin-bottom:2rem;">
+    <h3>Roster</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Player</th><th>Role</th><th>Joined</th>{{#if (eq myMember 'don')}}<th style="text-align:right;">Actions</th>{{/if}}</tr></thead>
+        <tbody>
+          {{#each members}}
+            <tr>
+              <td class="player-name">
+                {{#if (eq this.role 'don')}}🎩 {{else if (eq this.role 'capo')}}🥃 {{else}}🔫 {{/if}}{{#if this.arma_username}}{{this.arma_username}}{{else if this.username}}{{this.username}}{{else}}<span style="color:var(--text-muted);">Unknown</span>{{/if}}
+              </td>
+              <td>{{#if (eq this.role 'don')}}Don{{else if (eq this.role 'capo')}}Capo{{else}}Soldier{{/if}}</td>
+              <td>{{formatDate this.joined_at}}</td>
+              {{#if (eq @root.myMember 'don')}}
+                <td style="text-align:right;">
+                  {{#if (eq this.role 'soldier')}}
+                    <form method="POST" action="/outfits/{{@root.outfit.id}}/members/{{this.discord_id}}/promote" style="display:inline;" onsubmit="return confirm('Promote this Soldier to Capo?');">
+                      <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                      <button type="submit" class="btn btn-admin btn-small" style="background:#fbbf24;color:#1a1a1a;font-size:0.7rem;padding:0.25rem 0.6rem;font-weight:700;">Promote → Capo</button>
+                    </form>
+                  {{else if (eq this.role 'capo')}}
+                    <form method="POST" action="/outfits/{{@root.outfit.id}}/members/{{this.discord_id}}/demote" style="display:inline;" onsubmit="return confirm('Demote this Capo to Soldier?');">
+                      <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                      <button type="submit" class="btn btn-admin btn-small" style="background:#6b7280;color:#fff;font-size:0.7rem;padding:0.25rem 0.6rem;">Demote → Soldier</button>
+                    </form>
+                  {{else}}
+                    <span style="color:var(--text-muted);font-size:0.75rem;">—</span>
+                  {{/if}}
+                </td>
+              {{/if}}
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {{#if (or (eq myMember 'don') (eq myMember 'capo'))}}
+  <div class="admin-form-card" style="margin-bottom:2rem;">
+    <h3>Invite Players</h3>
+    <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.75rem;">Search by Arma username. The player will receive a Discord DM with an invite link to accept on the website.</p>
+    <div style="display:flex;gap:0.5rem;align-items:end;flex-wrap:wrap;margin-bottom:0.75rem;">
+      <input type="text" id="invite-search" class="filter-input" placeholder="Search username..." style="flex:1;min-width:200px;">
+      <button type="button" class="btn btn-admin" id="invite-search-btn">Search</button>
+    </div>
+    <div id="invite-results"></div>
+  </div>
+  <script nonce="{{cspNonce}}">
+  (function() {
+    var searchBtn = document.getElementById('invite-search-btn');
+    var searchInput = document.getElementById('invite-search');
+    var resultsDiv = document.getElementById('invite-results');
+    if (!searchBtn) return;
+    function doSearch() {
+      var q = searchInput.value.trim();
+      if (q.length < 2) { resultsDiv.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;">Type at least 2 characters.</p>'; return; }
+      resultsDiv.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;">Searching...</p>';
+      function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+      fetch('/api/players/search?q=' + encodeURIComponent(q)).then(function(r) { return r.json(); }).then(function(data) {
+        if (!data.players || !data.players.length) { resultsDiv.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;">No players found.</p>'; return; }
+        resultsDiv.innerHTML = '<div class="table-scroll"><table><thead><tr><th>Username</th><th>Action</th></tr></thead><tbody>' +
+          data.players.slice(0, 10).map(function(p) {
+            var name = esc(p.arma_username || 'Unknown');
+            return '<tr><td class="player-name">' + name + '</td><td>' +
+              '<form method="POST" action="/outfits/{{outfit.id}}/invite" style="display:inline;">' +
+              '<input type="hidden" name="_csrf" value="{{csrfToken}}">' +
+              '<input type="hidden" name="search_username" value="' + name + '">' +
+              '<button type="submit" class="btn btn-admin btn-small" style="background:#5865F2;color:#fff;">Invite</button>' +
+              '</form></td></tr>';
+          }).join('') + '</tbody></table></div>';
+      }).catch(function() {
+        resultsDiv.innerHTML = '<p style="color:var(--danger);font-size:0.85rem;">Search failed.</p>';
+      });
+    }
+    searchBtn.addEventListener('click', doSearch);
+    searchInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } });
+  })();
+  </script>
+
+  {{#if (eq myMember 'don')}}
+  <div class="admin-form-card" id="declare-war-card" style="margin-bottom:2rem;border-left:3px solid #ef4444;">
+    <h3 style="margin:0 0 0.5rem;">⚔️ Declare War</h3>
+    <p style="color:var(--text-secondary);font-size:0.85rem;margin:0 0 1rem;">
+      Pick a rival crew. Cost auto-deducts from your treasury (currently <strong style="color:#fde047;">💀 {{formatNumber outfit.treasury}}</strong>).
+      Wars run a fixed <strong>48 hours</strong>. Highest war-target kill score wins the pot.
+    </p>
+    {{#if warTargets.length}}
+      <div style="margin-bottom:1rem;">
+        <label for="war-target-select" style="display:block;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);margin-bottom:0.35rem;">Pick a target</label>
+        <select id="war-target-select" class="filter-input" style="width:100%;padding:0.6rem 0.75rem;font-size:0.95rem;">
+          <option value="">— Select an outfit —</option>
+          {{#each warTargets}}
+            <option
+              value="{{this.id}}"
+              data-tag="{{this.tag}}"
+              data-name="{{this.name}}"
+              data-color="{{this.color}}"
+              data-members="{{this.members}}"
+              data-h2h="{{this.h2h}}"
+              data-cost="{{this.warCost}}"
+              data-cost-fmt="{{formatNumber this.warCost}}"
+              data-affordable="{{this.affordable}}">
+              [{{this.tag}}] {{this.name}} — 💀 {{formatNumber this.warCost}}{{#unless this.affordable}} (can't afford){{/unless}}
+            </option>
+          {{/each}}
+        </select>
+      </div>
+
+      <div id="war-target-preview" style="display:none;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.30);border-radius:6px;padding:1rem 1.1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;">
+          <div>
+            <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Target</div>
+            <div style="font-size:1.05rem;font-weight:700;margin-top:0.15rem;"><span id="war-target-tag" style="font-family:'Orbitron',monospace;"></span> <span id="war-target-name"></span></div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">War Cost</div>
+            <div style="font-size:1.4rem;font-weight:900;color:#fde047;margin-top:0.15rem;">💀 <span id="war-target-cost"></span></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:1.25rem;flex-wrap:wrap;font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.85rem;">
+          <span><strong style="color:#fff;">Members:</strong> <span id="war-target-members"></span></span>
+          <span><strong style="color:#fff;">H2H Record:</strong> <span id="war-target-h2h"></span></span>
+        </div>
+        <form method="POST" action="/outfits/{{outfit.id}}/declare-war" id="war-declare-form" onsubmit="return confirm('Initiate attack on this crew? Cost will be deducted from your treasury immediately and the 48-hour war timer starts now.');">
+          <input type="hidden" name="_csrf" value="{{csrfToken}}">
+          <input type="hidden" name="target_outfit_id" id="war-target-id" value="">
+          <button type="submit" id="war-declare-btn" class="btn btn-admin" style="background:#ef4444;color:#fff;font-weight:700;font-size:1rem;padding:0.7rem 1.5rem;width:100%;">⚔️ Initiate Attack</button>
+        </form>
+        <p id="war-unaffordable" style="display:none;margin:0.6rem 0 0;color:#ef4444;font-size:0.8rem;text-align:center;">Your treasury can't cover this cost. Top up via <code>/outfit deposit</code>.</p>
+      </div>
+    {{else}}
+      <p style="margin:0;color:var(--text-secondary);font-size:0.9rem;">No other outfits to fight yet.</p>
+    {{/if}}
+  </div>
+
+  <script nonce="{{cspNonce}}">
+  (function() {
+    var sel = document.getElementById('war-target-select');
+    var preview = document.getElementById('war-target-preview');
+    if (!sel || !preview) return;
+    sel.addEventListener('change', function() {
+      var opt = sel.options[sel.selectedIndex];
+      if (!opt.value) { preview.style.display = 'none'; return; }
+      var color = opt.dataset.color || '#fff';
+      document.getElementById('war-target-tag').textContent = '[' + opt.dataset.tag + ']';
+      document.getElementById('war-target-tag').style.color = color;
+      document.getElementById('war-target-name').textContent = opt.dataset.name;
+      document.getElementById('war-target-cost').textContent = opt.dataset.costFmt;
+      document.getElementById('war-target-members').textContent = opt.dataset.members;
+      document.getElementById('war-target-h2h').textContent = opt.dataset.h2h;
+      document.getElementById('war-target-id').value = opt.value;
+      var btn = document.getElementById('war-declare-btn');
+      var warning = document.getElementById('war-unaffordable');
+      if (opt.dataset.affordable === 'true') {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+        warning.style.display = 'none';
+      } else {
+        btn.disabled = true;
+        btn.style.opacity = '0.45';
+        btn.style.cursor = 'not-allowed';
+        warning.style.display = 'block';
+      }
+      preview.style.display = 'block';
+    });
+  })();
+  </script>
+  {{/if}}
+
+  <div class="admin-form-card" style="margin-bottom:2rem;">
+    <h3 style="margin:0 0 0.75rem;">📨 Pending Invites ({{pendingInvites.length}})</h3>
+    {{#if pendingInvites.length}}
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Invitee</th>
+              <th>Invited By</th>
+              <th>Sent</th>
+              <th>Expires</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each pendingInvites}}
+              <tr>
+                <td class="player-name">{{#if this.target_arma_username}}{{this.target_arma_username}}{{else if this.target_username}}{{this.target_username}}{{else}}<span class="guid">{{this.target_discord_id}}</span>{{/if}}</td>
+                <td>{{#if this.invited_by_username}}{{this.invited_by_username}}{{else}}<span class="guid">{{this.invited_by}}</span>{{/if}}</td>
+                <td><span class="history-ts" data-ts="{{this.created_at}}">{{formatDate this.created_at}}</span></td>
+                <td><span class="history-ts" data-ts="{{this.expires_at}}">{{formatDate this.expires_at}}</span></td>
+                <td style="text-align:right;">
+                  <form method="POST" action="/outfits/{{@root.outfit.id}}/invites/{{this.token}}/cancel" style="display:inline;" onsubmit="return confirm('Cancel this invite?');">
+                    <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                    <button type="submit" class="btn btn-admin btn-small" style="background:#ef4444;color:#fff;font-size:0.7rem;padding:0.25rem 0.6rem;">Cancel</button>
+                  </form>
+                </td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+      <p style="margin:0.6rem 0 0;font-size:0.78rem;color:var(--text-muted);">Uncancelled invites auto-expire after 72h.</p>
+    {{else}}
+      <p style="margin:0;color:var(--text-secondary);font-size:0.9rem;">No pending invites. Use the search above to invite players.</p>
+    {{/if}}
+  </div>
+  {{/if}}
+
+  {{#if wars.length}}
+  <div class="admin-form-card">
+    <h3>War History</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>#</th><th>Matchup</th><th>Score</th><th>Wager</th><th>Status</th><th>Date</th></tr></thead>
+        <tbody>
+          {{#each wars}}
+            <tr>
+              <td class="guid">{{this.id}}</td>
+              <td>[{{this.challenger.tag}}] vs [{{this.defender.tag}}]</td>
+              <td>{{#if this.challenger_score}}{{this.challenger_score}}–{{this.defender_score}}{{else}}—{{/if}}</td>
+              <td>{{#if this.wager}}💀 {{formatNumber this.wager}}{{else}}Honor{{/if}}</td>
+              <td>
+                {{#if (eq this.status 'settled')}}
+                  {{#if this.winner_outfit_id}}
+                    {{#if (eq this.winner_outfit_id @root.outfit.id)}}<span style="color:#22c55e;font-weight:600;">WIN</span>{{else}}<span style="color:#ef4444;font-weight:600;">LOSS</span>{{/if}}
+                  {{else}}<span style="color:var(--text-secondary);">TIE</span>{{/if}}
+                {{else}}
+                  <span>{{this.status}}</span>
+                {{/if}}
+              </td>
+              <td>{{formatDate this.declared_at}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {{/if}}
+</section>

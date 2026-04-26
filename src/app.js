@@ -206,13 +206,27 @@ app.engine(
     helpers: {
       eq: (a, b) => a === b,
       or: (a, b) => a || b,
+      includes: (arr, val) => Array.isArray(arr) && arr.includes(val),
       gt: (a, b) => a > b,
       lt: (a, b) => a < b,
+      gte: (a, b) => a >= b,
+      lte: (a, b) => a <= b,
       add: (a, b) => a + b,
       subtract: (a, b) => a - b,
+      divideBy: (a, b) => (b ? (a / b).toFixed(2) : "0.00"),
+      multiply: (a, b) => (Number(a) * Number(b)).toLocaleString(),
       formatNumber: (val) => {
         if (val === undefined || val === null) return "0";
         return Number(val).toLocaleString();
+      },
+      json: (val) => JSON.stringify(val ?? null).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026"),
+      formatBytes: (bytes) => {
+        const n = Number(bytes || 0);
+        if (n < 1024) return n + " B";
+        if (n < 1024 ** 2) return (n / 1024).toFixed(1) + " KB";
+        if (n < 1024 ** 3) return (n / (1024 ** 2)).toFixed(1) + " MB";
+        if (n < 1024 ** 4) return (n / (1024 ** 3)).toFixed(2) + " GB";
+        return (n / (1024 ** 4)).toFixed(2) + " TB";
       },
       fallback: (val, def) => (val !== undefined && val !== null ? val : def),
       math: (a, b) => a + b,
@@ -312,6 +326,7 @@ app.use((req, res, next) => {
     }
     res.locals.csrfToken = req.session.csrfToken;
   }
+  res.locals.outfitsEnabled = require("./feature-flags").isEnabled("outfits");
   next();
 });
 
@@ -412,6 +427,8 @@ bm.init();
 metricsHistory.init();
 adminUsers.init();
 store.init();
+require("./profile-customizations").init();
+require("./wasted-coins").init();
 auditLog.init();
 skinDraw.init();
 tasks.init();
@@ -480,6 +497,219 @@ cron.schedule("*/15 * * * *", async () => {
 const rcon = require("./rcon");
 rcon.init();
 
+// Lottery + Skin Lottery + Kill Wagers
+const lottery = require("./lottery");
+lottery.init();
+const skinLottery = require("./skin-lottery");
+skinLottery.init();
+const killWagers = require("./kill-wagers");
+killWagers.init();
+const trailGame = require("./trail-game");
+trailGame.init();
+const armsDealer = require("./arms-dealer");
+armsDealer.init();
+const polls = require("./poll");
+polls.init();
+const rulesAck = require("./rules-ack");
+rulesAck.init();
+const featureFlags = require("./feature-flags");
+featureFlags.load();
+const outfitsModule = require("./outfits");
+outfitsModule.init();
+
+// Twice daily at 13:00 and 01:00 UTC (~9am/9pm EST): post/edit the active outfit-wars Discord embed
+cron.schedule("0 1,13 * * *", async () => {
+  try {
+    await require("./wars-broadcaster").broadcast();
+  } catch (err) {
+    console.error("wars-broadcaster cron failed:", err.message);
+  }
+});
+
+// Daily at 12:00 UTC (7am EST): post lottery countdown to public channel
+cron.schedule("0 12 * * *", () => {
+  try {
+    const { sendPublicWebhook } = require("./webhook");
+    const lot = require("./lottery");
+    const sl = require("./skin-lottery");
+    const coinPot = lot.getCurrentPot();
+    const skinPot = sl.getCurrentPot();
+    const next = lot.nextDrawDate();
+    const now = new Date();
+    const daysLeft = Math.ceil((next.getTime() - now.getTime()) / 86400000);
+    if (daysLeft <= 0) return; // draw day or past — the draw cron handles it
+    const dayWord = daysLeft === 1 ? "day" : "days";
+    const drawTs = Math.floor(next.getTime() / 1000);
+    const lines = [
+      `**Drawing in ${daysLeft} ${dayWord}** — <t:${drawTs}:F>`,
+      ``,
+      `**Coin Lottery:** ${coinPot.tickets} tickets from ${coinPot.players} players — pot: **${coinPot.pot.toLocaleString()} 💀**`,
+      `**Skin Lottery:** ${skinPot.tickets} tickets from ${skinPot.players} players`,
+      ``,
+      `Buy in with \`/lottery buy\` (100 💀/ticket) or \`/skin-lottery buy\` (250 💀/ticket) — max 10/day.`,
+      `Earn coins free with \`/daily\`.`,
+    ];
+    sendPublicWebhook({
+      title: "🎰 Weekly Lottery Update",
+      description: lines.join("\n"),
+      color: 0xa855f7,
+    });
+  } catch (err) {
+    console.error("Lottery countdown cron error:", err.message);
+  }
+});
+
+// Hourly: settle finished kill wagers + run weekly lottery draw
+cron.schedule("5 * * * *", async () => {
+  try {
+    const wc = require("./wasted-coins");
+    const events = await killWagers.tick(wc);
+    for (const ev of events) {
+      try {
+        const { sendPublicWebhook } = require("./webhook");
+        if (ev.kind === "expired") {
+          sendPublicWebhook({
+            title: "💀 Kill Wager Expired",
+            description: `<@${ev.wager.challenger_discord_id}>'s **${ev.wager.amount.toLocaleString()} 💀** challenge to <@${ev.wager.target_discord_id}> expired with no answer. Refunded.`,
+            color: 0x6b7280,
+          });
+        } else if (ev.kind === "settled") {
+          const r = ev.result;
+          if (r.isTie) {
+            sendPublicWebhook({
+              title: "💀 Kill Wager — Tie",
+              description: `<@${r.challenger}> and <@${r.target}> both gained ${r.challengerDelta} kills. Antes refunded.`,
+              color: 0x6b7280,
+            });
+          } else {
+            const loser = r.winner === r.challenger ? r.target : r.challenger;
+            sendPublicWebhook({
+              title: "💀 Kill Wager Settled",
+              description: `<@${r.winner}> beat <@${loser}> ${r.winner === r.challenger ? r.challengerDelta : r.targetDelta}–${r.winner === r.challenger ? r.targetDelta : r.challengerDelta} kills and won **${r.payout.toLocaleString()} 💀** (pot ${r.pot.toLocaleString()}, ${r.houseRake} rake).`,
+              color: 0x22c55e,
+            });
+          }
+        }
+      } catch (e) { console.error("Wager webhook error:", e.message); }
+    }
+  } catch (err) {
+    console.error("Kill wager cron error:", err.message);
+  }
+
+  try {
+    const wc = require("./wasted-coins");
+    const drawn = lottery.checkAndDraw(wc);
+    if (drawn && drawn.status === "completed") {
+      const { sendPublicWebhook } = require("./webhook");
+      sendPublicWebhook({
+        title: "💀 Weekly Lottery Winner",
+        description: `<@${drawn.winner.discord_id}> won the **${drawn.payout.toLocaleString()} 💀** pot for the week of ${drawn.weekId}!\n\n${drawn.total_tickets} tickets in play, ${drawn.house_rake.toLocaleString()} 💀 house rake.\n\nNext draw is next Friday — buy tickets with \`/lottery buy\`.`,
+        color: 0xfbbf24,
+      });
+    } else if (drawn && drawn.status === "no_tickets") {
+      const { sendPublicWebhook } = require("./webhook");
+      sendPublicWebhook({
+        title: "💀 Lottery — No Winner",
+        description: `No tickets were sold for the week of ${drawn.weekId}. Buy in next week with \`/lottery buy\`.`,
+        color: 0x6b7280,
+      });
+    }
+  } catch (err) {
+    console.error("Lottery cron error:", err.message);
+  }
+
+  // Outfit wars — settle finished, expire stale
+  try {
+    const wc = require("./wasted-coins");
+    const outfitEvents = await outfitsModule.tick(wc);
+    for (const ev of outfitEvents) {
+      try {
+        const { sendPublicWebhook } = require("./webhook");
+        if (ev.kind === "expired") {
+          sendPublicWebhook({
+            title: "⚔️ War Expired",
+            description: `War #${ev.war.id} expired without being accepted. Wager refunded.`,
+            color: 0x6b7280,
+          });
+        } else if (ev.kind === "settled") {
+          const r = ev.result;
+          const winTag = r.winnerId ? (r.winnerId === r.challenger.id ? r.challenger.tag : r.defender.tag) : null;
+          sendPublicWebhook({
+            title: r.isTie ? "⚔️ War Ended — Tie" : `⚔️ War Won by [${winTag}]`,
+            description: `**[${r.challenger.tag}]** ${r.challengerScore} — ${r.defenderScore} **[${r.defender.tag}]**${r.payout ? `\n💀 ${r.payout.toLocaleString()} to [${winTag}] treasury` : ""}`,
+            color: r.isTie ? 0x6b7280 : 0x22c55e,
+          });
+        }
+      } catch (e) { console.error("Outfit war webhook error:", e.message); }
+    }
+  } catch (err) {
+    console.error("Outfit war cron error:", err.message);
+  }
+
+  // Auto-close expired polls
+  try {
+    const polls = require("./poll");
+    const expired = polls.getExpiredOpenPolls();
+    for (const p of expired) {
+      try {
+        polls.adminClosePoll(p.id);
+        // Edit the original poll message to show closed state
+        if (p.message_id && p.channel_id) {
+          try {
+            const bot = require("./discord-bot").getClient();
+            if (bot?.isReady()) {
+              const channel = await bot.channels.fetch(p.channel_id).catch(() => null);
+              const msg = channel ? await channel.messages.fetch(p.message_id).catch(() => null) : null;
+              if (msg) {
+                await msg.edit({
+                  embeds: [{
+                    color: 0x6b7280,
+                    title: `📊 Poll #${p.id} — Closed`,
+                    description: `**${p.question}**\n\n_This poll is now closed._`,
+                    footer: { text: "Closed (auto-expired)" },
+                  }],
+                  components: [],
+                });
+              }
+            }
+          } catch (e) { console.warn(`Poll #${p.id} edit failed:`, e.message); }
+        }
+        console.log(`Polls: auto-closed expired poll #${p.id}`);
+      } catch (e) { console.error(`Poll #${p.id} auto-close error:`, e.message); }
+    }
+  } catch (err) {
+    console.error("Poll expiry cron error:", err.message);
+  }
+
+  // Skin lottery — same Friday cadence
+  try {
+    const skinDrawn = await skinLottery.checkAndDraw();
+    if (skinDrawn && skinDrawn.status === "completed" && skinDrawn.skin) {
+      const { sendPublicWebhook, sendWebhookError } = require("./webhook");
+      const grantNote = skinDrawn.grant_status === "failed"
+        ? `\n\n⚠️ Auto-grant failed: \`${skinDrawn.grant_error}\`. An admin has been notified to grant manually.`
+        : `\n\nThe skin has been added to their in-game inventory.`;
+      sendPublicWebhook({
+        title: "💀🎨 Weekly Skin Lottery Winner",
+        description: `<@${skinDrawn.winner.discord_id}> won **${skinDrawn.skin.name}** (${skinDrawn.skin.rarity}) for the week of ${skinDrawn.weekId}!\n\n${skinDrawn.total_tickets} tickets in play.${grantNote}\n\nNext drawing is next Friday — buy tickets with \`/skin-lottery buy\`.`,
+        color: 0x8B5CF6,
+      });
+      if (skinDrawn.grant_status === "failed") {
+        sendWebhookError("Skin Lottery Grant Failed", `Winner: ${skinDrawn.winner.discord_id}, Skin: ${skinDrawn.skin.name}, Error: ${skinDrawn.grant_error}`);
+      }
+    } else if (skinDrawn && skinDrawn.status === "no_tickets") {
+      const { sendPublicWebhook } = require("./webhook");
+      sendPublicWebhook({
+        title: "💀🎨 Skin Lottery — No Winner",
+        description: `No skin-lottery tickets sold for the week of ${skinDrawn.weekId}. Buy in next week with \`/skin-lottery buy\`.`,
+        color: 0x6b7280,
+      });
+    }
+  } catch (err) {
+    console.error("Skin lottery cron error:", err.message);
+  }
+});
+
 require("./discord-bot").init();
 
 app.use(analytics.middleware);
@@ -489,6 +719,23 @@ const adminLimiter = rateLimit({ windowMs: 60000, max: 60, standardHeaders: true
 app.use("/admin", adminLimiter, require("./routes/admin"));
 app.use("/api", apiLimiter, require("./routes/api"));
 app.use("/blog", require("./routes/blog"));
+app.use("/profile", require("./routes/profile"));
+app.use("/outfits", require("./routes/outfits"));
+
+// /outfit (singular) — personal shortcut: takes the logged-in user to their own outfit, like /profile
+app.get("/outfit", async (req, res) => {
+  const user = req.session.user;
+  if (!user) return res.redirect("/auth/discord?returnTo=/outfit");
+  try {
+    const outfits = require("./outfits");
+    const mine = await outfits.getMemberOutfit(user.discord_id);
+    if (mine?.outfit_id) return res.redirect(`/outfits/${mine.outfit_id}`);
+    return res.redirect("/outfits/create");
+  } catch (err) {
+    console.error("/outfit redirect failed:", err.message);
+    return res.redirect("/outfits");
+  }
+});
 
 async function fetchHomeData(req) {
   const tab = req.query.tab === "alltime" ? "alltime" : "season";
@@ -496,6 +743,7 @@ async function fetchHomeData(req) {
 
   let leaderboard = [];
   let leaderboardError = false;
+  let playtimeLeaderboard = { players: [], error: null };
 
   // Fetch leaderboard (retry once on timeout)
   try {
@@ -520,11 +768,32 @@ async function fetchHomeData(req) {
         throw firstErr;
       }
     }
-    leaderboard = response.data;
+    const raw = Array.isArray(response.data) ? response.data : [];
+    const slugify = require("./profile-slug").slugify;
+    leaderboard = raw.map(p => ({ ...p, slug: slugify(p.arma_username) }));
   } catch (error) {
     console.error("Leaderboard error:", error.message);
     sendWebhookError("Leaderboard Fetch", error.message);
     leaderboardError = true;
+  }
+
+  // Playtime leaderboard — top 10 by total time on server
+  try {
+    const ptRes = await apiClient.get("/user/getTopPlayersByPlaytime", {
+      params: { limit: 10, token: config.apiToken },
+      timeout: 15000,
+    });
+    const raw = ptRes.data?.players || [];
+    const slugify = require("./profile-slug").slugify;
+    playtimeLeaderboard.players = raw.map(p => {
+      const mins = Number(p.arma_time_played || 0);
+      const hrs = Math.floor(mins / 60);
+      const m = mins % 60;
+      return { ...p, slug: slugify(p.arma_username), hoursLabel: hrs > 0 ? `${hrs.toLocaleString()}h ${m}m` : `${m}m` };
+    });
+  } catch (err) {
+    playtimeLeaderboard.error = err.response?.status === 404 ? "Endpoint not implemented on game server" : err.message;
+    console.error("Playtime leaderboard error:", err.message);
   }
 
   // Build avatar URL for nav
@@ -649,7 +918,7 @@ app.get("/profile", async (req, res) => {
       };
     });
   } catch (err) {
-    console.error("Profile items fetch error:", err.message);
+    if (err.response?.status !== 404) console.error("Profile items fetch error:", err.message);
   }
 
   // Determine active subscription tier from purchases
@@ -783,13 +1052,9 @@ app.get("/profile", async (req, res) => {
   const tierBtnText = TIER_BUTTON_CTAS[tierBtnIndex];
 
   const effectiveSpent = totalSpent;
-  console.log(`[PROFILE] discord_id=${user.discord_id} totalSpent=${totalSpent} effectiveSpent=${effectiveSpent}`);
-  console.log(`[PROFILE] purchases=${purchases.length} skinCount=${ownedSkins.length}`);
 
   const donorTier = TIERS.slice().reverse().find(t => effectiveSpent >= t.threshold)?.key || null;
-  console.log(`[PROFILE] donorTier=${donorTier}`);
 
-  // Build awards — all tiers with unlocked status + progress to next
   const awards = TIERS.map(t => ({
     ...t,
     unlocked: effectiveSpent >= t.threshold,
@@ -797,14 +1062,50 @@ app.get("/profile", async (req, res) => {
     thresholdDollars: (t.threshold / 100).toFixed(0),
   }));
 
-  awards.forEach(a => console.log(`[PROFILE] award: ${a.key} unlocked=${a.unlocked} isCurrent=${a.isCurrent}`));
-
   const currentTierIndex = TIERS.findIndex(t => t.key === donorTier);
   const nextTier = currentTierIndex >= 0 && currentTierIndex < TIERS.length - 1 ? TIERS[currentTierIndex + 1] : null;
   const spentDollars = (effectiveSpent / 100);
   const nextTierProgress = nextTier ? Math.min(100, Math.round(((effectiveSpent - TIERS[currentTierIndex].threshold) / (nextTier.threshold - TIERS[currentTierIndex].threshold)) * 100)) : 100;
 
-  console.log(`[PROFILE] nextTier=${nextTier?.key || 'none'} progress=${nextTierProgress}% memberRoles=${memberRoles.length}`);
+  // Equipped profile customizations
+  let equipped = { background: null, name_color: null, badges: [] };
+  try {
+    equipped = require("./profile-customizations").getEquipped(user.discord_id);
+  } catch (e) {
+    console.warn("[PROFILE] equipped lookup failed:", e.message);
+  }
+
+  // Wasted Coins balance
+  let wastedCoinsBalance = 0;
+  let wastedCoinsEmoji = "💀";
+  try {
+    const wc = require("./wasted-coins");
+    wastedCoinsBalance = wc.getBalance(user.discord_id);
+    wastedCoinsEmoji = wc.EMOJI;
+  } catch (e) {
+    console.warn("[PROFILE] wasted coins lookup failed:", e.message);
+  }
+
+  // Outfit membership
+  let userOutfit = null;
+  try {
+    userOutfit = await require("./outfits").getMemberOutfit(user.discord_id);
+  } catch (e) {
+    console.warn("[PROFILE] outfit lookup failed:", e.message);
+  }
+
+  // Public profile slug — let the user find/share their public URL
+  let publicProfileSlug = null;
+  if (stats?.arma_username && stats?.arma_id) {
+    try {
+      const idsRes = await apiClient({ method: "GET", url: "/user/getPlayerIDsByName", data: { arma_username: stats.arma_username, token: config.apiToken } });
+      const ids = Array.isArray(idsRes.data) ? idsRes.data : (idsRes.data?.data || []);
+      const armaIds = ids.map(x => typeof x === "string" ? x : x?.arma_id).filter(Boolean);
+      publicProfileSlug = require("./profile-slug").buildSlug(stats.arma_username, stats.arma_id, armaIds);
+    } catch (e) {
+      console.warn("[PROFILE] public-slug build failed:", e.message);
+    }
+  }
 
   res.render("profile", {
     page: "profile",
@@ -812,6 +1113,8 @@ app.get("/profile", async (req, res) => {
     pageDescription: "Your personal Arma Wasteland player profile.",
     noIndex: true,
     user,
+    profileOwner: user,
+    publicProfileSlug,
     stats,
     statsTab,
     statsNotLinked,
@@ -819,6 +1122,11 @@ app.get("/profile", async (req, res) => {
     miscStats,
     atmBalance,
     atmLimit,
+    effectiveAtmLimit: Math.max(atmLimit || 0, activeTier?.bankLimit || 0) || null,
+    equipped,
+    wastedCoinsBalance,
+    wastedCoinsEmoji,
+    userOutfit,
     steamId,
     recentKills,
     leaderboardRank,
@@ -859,6 +1167,343 @@ app.get("/profile", async (req, res) => {
   });
 });
 
+// ── Public Player Search (anyone) ──
+// Resolves a Discord ID to { arma_username, arma_id } or null via the bundled endpoint
+// (zero kills/items overhead — params: recent_kills_limit=0 minimizes payload).
+async function resolveArmaProfileFromDiscordId(discordId) {
+  try {
+    const r = await apiClient.get("/user/getPublicProfile", {
+      params: { token: config.apiToken, discord_id: discordId, recent_kills_limit: 0 },
+    });
+    const p = r.data?.player;
+    if (!p?.arma_id || !p?.arma_username) return null;
+    return { arma_id: p.arma_id, arma_username: p.arma_username };
+  } catch (err) {
+    if (err.response?.status !== 404) console.warn(`resolveArmaProfileFromDiscordId(${discordId}) failed:`, err.message);
+    return null;
+  }
+}
+
+app.get("/players", async (req, res) => {
+  const sessionUser = req.session.user || null;
+  if (sessionUser) {
+    if (sessionUser.avatar && sessionUser.discord_id) {
+      sessionUser.avatarUrl = `https://cdn.discordapp.com/avatars/${sessionUser.discord_id}/${sessionUser.avatar}.png?size=128`;
+    } else if (sessionUser.discord_id) {
+      const defaultIndex = Number(BigInt(sessionUser.discord_id) >> 22n) % 6;
+      sessionUser.avatarUrl = `https://cdn.discordapp.com/embed/avatars/${defaultIndex}.png`;
+    }
+  }
+  const q = (req.query.q || "").trim();
+  const slugify = require("./profile-slug").slugify;
+  let players = [];
+  let searchError = null;
+  const seen = new Set(); // arma_id → dedupe across sources
+  function pushPlayer(p, matchedVia) {
+    if (!p.arma_username || !p.arma_id) return;
+    if (seen.has(p.arma_id)) return;
+    seen.add(p.arma_id);
+    players.push({ arma_username: p.arma_username, arma_id: p.arma_id, slug: slugify(p.arma_username), matchedVia });
+  }
+
+  if (q.length >= 2) {
+    const isDiscordId = /^\d{17,20}$/.test(q);
+    try {
+      if (isDiscordId) {
+        const resolved = await resolveArmaProfileFromDiscordId(q);
+        if (resolved) pushPlayer(resolved, "discord_id");
+      } else {
+        // Search Arma usernames + Discord guild members in parallel
+        const [armaRes, discordMembers] = await Promise.allSettled([
+          apiClient({ method: "GET", url: "/user/searchUsersByUsername/", data: { search: q, token: config.apiToken } }),
+          (async () => {
+            const { getClient } = require("./discord-bot");
+            const bot = getClient();
+            if (!bot?.isReady()) return [];
+            const guild = bot.guilds.cache.get(config.discordGuildId);
+            if (!guild) return [];
+            try {
+              const fetched = await guild.members.search({ query: q, limit: 10 });
+              return [...fetched.values()];
+            } catch { return []; }
+          })(),
+        ]);
+
+        if (armaRes.status === "fulfilled") {
+          const raw = armaRes.value.data?.users || armaRes.value.data?.data || armaRes.value.data || [];
+          if (Array.isArray(raw)) {
+            raw.slice(0, 50).forEach(p => pushPlayer({ arma_username: p.arma_username, arma_id: p.arma_id }, "arma_username"));
+          }
+        }
+
+        if (discordMembers.status === "fulfilled" && discordMembers.value.length) {
+          const armaLookups = await Promise.allSettled(
+            discordMembers.value.map(m => resolveArmaProfileFromDiscordId(m.id))
+          );
+          armaLookups.forEach(r => {
+            if (r.status === "fulfilled" && r.value) pushPlayer(r.value, "discord_username");
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Player search error:", err.message);
+      searchError = "Search failed. Try again.";
+    }
+  }
+  res.render("players-search", {
+    page: "players",
+    pageTitle: "Search Players",
+    pageDescription: "Look up any Arma Wasteland player's public profile.",
+    user: sessionUser,
+    q,
+    players,
+    searchError,
+    queryTooShort: q.length > 0 && q.length < 2,
+  });
+});
+
+// ── Public Player Profile (anyone can view) ──
+// Slug format: lowercase-username[-letter] e.g. /profile/twisted, /profile/twisted--a
+const profileSlug = require("./profile-slug");
+
+// Single-trip bundle fetch via /user/getPublicProfile.
+// Slug resolution flow:
+//   1. Try arma_username=<base> (case-insensitive exact match) — covers slugs like "fl1ck", "twisted"
+//   2. On 404, fall back to substring search + slugify-filter — covers names with spaces/emojis
+//   3. If slug has --a/--b suffix and the resolved bundle has name_collisions, re-call with the right arma_id
+async function loadPublicProfile(slug, statsTab, recentKillsLimit = 10) {
+  const { base, index } = profileSlug.parseSlug(slug);
+  if (!base) return null;
+  const season = statsTab === "alltime" ? "all" : "current";
+  const baseParams = { token: config.apiToken, season, recent_kills_limit: recentKillsLimit };
+
+  // Try direct arma_username lookup first
+  let bundle = null;
+  try {
+    const res = await apiClient.get("/user/getPublicProfile", { params: { ...baseParams, arma_username: base } });
+    bundle = res.data;
+  } catch (err) {
+    if (err.response?.status !== 404) {
+      console.error("getPublicProfile (by name) failed:", err.response?.status, err.message);
+    }
+  }
+
+  // Fallback: slug doesn't match the exact username (e.g. "twisted-player" from "Twisted Player 🔫")
+  if (!bundle) {
+    try {
+      const searchRes = await apiClient({
+        method: "GET",
+        url: "/user/searchUsersByUsername/",
+        data: { search: base, token: config.apiToken },
+      });
+      const users = searchRes.data?.users || searchRes.data?.data || searchRes.data || [];
+      if (Array.isArray(users)) {
+        const matches = users
+          .filter(u => profileSlug.slugify(u.arma_username) === base)
+          .sort((a, b) => String(a.arma_id || "").localeCompare(String(b.arma_id || "")));
+        if (matches.length && index < matches.length) {
+          const res = await apiClient.get("/user/getPublicProfile", { params: { ...baseParams, arma_id: matches[index].arma_id } });
+          return res.data;
+        }
+      }
+    } catch (err) {
+      console.error("getPublicProfile fallback search failed:", err.message);
+    }
+    return null;
+  }
+
+  // Suffix slug like "twisted--b" — re-fetch with the right collision sibling's arma_id
+  if (index > 0 && Array.isArray(bundle.name_collisions) && index < bundle.name_collisions.length) {
+    try {
+      const res = await apiClient.get("/user/getPublicProfile", { params: { ...baseParams, arma_id: bundle.name_collisions[index].arma_id } });
+      return res.data;
+    } catch (err) {
+      console.error("getPublicProfile collision re-fetch failed:", err.message);
+      return null;
+    }
+  }
+
+  return bundle;
+}
+
+app.get("/profile/:slug", async (req, res) => {
+  const sessionUser = req.session.user || null;
+  if (sessionUser) {
+    if (sessionUser.avatar && sessionUser.discord_id) {
+      sessionUser.avatarUrl = `https://cdn.discordapp.com/avatars/${sessionUser.discord_id}/${sessionUser.avatar}.png?size=128`;
+    } else if (sessionUser.discord_id) {
+      const defaultIndex = Number(BigInt(sessionUser.discord_id) >> 22n) % 6;
+      sessionUser.avatarUrl = `https://cdn.discordapp.com/embed/avatars/${defaultIndex}.png`;
+    }
+  }
+
+  const statsTab = req.query.stats === "alltime" ? "alltime" : "season";
+
+  const bundle = await loadPublicProfile(req.params.slug, statsTab, 10);
+  if (!bundle?.player?.arma_id) {
+    return res.status(404).render("profile", {
+      page: "profile",
+      pageTitle: "Player Not Found",
+      pageDescription: "No player matches this profile URL.",
+      noIndex: true,
+      isPublic: true,
+      profileNotFound: true,
+      slug: req.params.slug,
+      user: sessionUser,
+    });
+  }
+
+  const armaId = bundle.player.arma_id;
+  const armaUsername = bundle.player.arma_username;
+  const discordId = bundle.player.discord_id || null;
+
+  const stats = bundle.stats || null;
+  const statsError = null;
+  const miscStats = stats ? MISC_FIELDS
+    .filter(f => stats[f.key] !== undefined && stats[f.key] !== null)
+    .map(f => ({ label: f.label, value: stats[f.key] })) : [];
+  const leaderboardRank = bundle.leaderboard_rank || null;
+
+  // Map recent_kills to the shape the view expects (victim_username derived from the player's role in the incident)
+  const recentKills = (bundle.recent_kills || []).map(k => {
+    const isKiller = k.incident_role === "killer" || k.incident_role === "killer_and_killed";
+    return {
+      victim_username: isKiller ? k.killed_name : k.killer_name,
+      distance: k.distance,
+      weapon: null, // backend schema has no weapon column
+    };
+  });
+
+  // Map owned_items: bundle returns raw misc_data, view wants {name, quantity, skinKey, rarity, date}
+  const ownedSkins = (bundle.owned_items || []).map(i => {
+    let name = String(i.item_name || "")
+      .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{1FA00}-\u{1FA9F}]/gu, "")
+      .replace(/^[\s\u{FE0F}]+/u, "")
+      .trim();
+    if (!name) name = i.item_name;
+    return {
+      name,
+      quantity: i.quantity,
+      skinKey: i.misc_data?.skin || null,
+      rarity: i.misc_data?.rarity || null,
+      date: i.date_added,
+    };
+  });
+
+  // Outfit comes through the bundle (already in the expected shape: outfit_id, outfit_tag, etc.)
+  const userOutfit = bundle.outfit || null;
+
+  // Discord guild member fetch (member-since) — requires a separate call to the bot, can't bundle
+  let memberSince = null, memberDays = null;
+  if (discordId) {
+    try {
+      const { getClient } = require("./discord-bot");
+      const bot = getClient();
+      if (bot?.isReady()) {
+        const guild = bot.guilds.cache.get(config.discordGuildId);
+        if (guild) {
+          const member = await guild.members.fetch(discordId).catch(() => null);
+          if (member) {
+            memberSince = member.joinedAt;
+            memberDays = Math.floor((Date.now() - member.joinedAt.getTime()) / 86400000);
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // ── Local synchronous lookups (cheap — no I/O)
+  const discordStats = require("./discord-stats");
+  const memberRoles = discordId ? discordStats.getMemberRoles(discordId).map(r => {
+    const hex = (r.color || "#000000").replace("#", "");
+    const brightness = (parseInt(hex.slice(0, 2), 16) * 299 + parseInt(hex.slice(2, 4), 16) * 587 + parseInt(hex.slice(4, 6), 16) * 114) / 1000;
+    return { ...r, color: brightness < 50 ? "#9ca3af" : r.color };
+  }) : [];
+
+  const totalSpent = discordId ? store.getTotalSpentByDiscordId(discordId) : 0;
+  const BASE_TIERS = [
+    { key: "bronze",    label: "Bronze",    threshold: 500,   icon: "&#9679;" },
+    { key: "silver",    label: "Silver",    threshold: 2500,  icon: "&#9826;" },
+    { key: "gold",      label: "Gold",      threshold: 5000,  icon: "&#9829;" },
+    { key: "platinum",  label: "Platinum",  threshold: 10000, icon: "&#9827;" },
+    { key: "diamond",   label: "Diamond",   threshold: 25000, icon: "&#9830;" },
+    { key: "legendary", label: "Legendary", threshold: 50000, icon: "&#9733;" },
+  ];
+  const PRESTIGE_TIERS = [
+    { key: "warlord",  label: "Warlord",  threshold: 100000, icon: "&#x2694;&#xFE0F;" },
+    { key: "overlord", label: "Overlord", threshold: 200000, icon: "&#x1F480;" },
+    { key: "immortal", label: "Immortal", threshold: 300000, icon: "&#x1F451;" },
+  ];
+  const prestige = discordId ? store.getPrestige(discordId) : null;
+  const isPrestiged = prestige && prestige.prestige_level > 0;
+  const TIERS = isPrestiged ? [...BASE_TIERS, ...PRESTIGE_TIERS] : BASE_TIERS;
+  const donorTier = TIERS.slice().reverse().find(t => totalSpent >= t.threshold)?.key || null;
+  const currentTierIcon = TIERS.find(t => t.key === donorTier)?.icon || null;
+  const tierWatermarks = donorTier ? Array(6).fill(currentTierIcon || "&#9679;") : [];
+
+  let wastedCoinsBalance = 0;
+  let wastedCoinsEmoji = "💀";
+  if (discordId) {
+    try {
+      const wc = require("./wasted-coins");
+      wastedCoinsBalance = wc.getBalance(discordId);
+      wastedCoinsEmoji = wc.EMOJI;
+    } catch {}
+  }
+
+  let equipped = { background: null, name_color: null, badges: [] };
+  if (discordId) {
+    try { equipped = require("./profile-customizations").getEquipped(discordId); } catch {}
+  }
+
+  // Derive a displayable avatar for the player being viewed
+  let ownerAvatarUrl = "https://cdn.discordapp.com/embed/avatars/0.png";
+  if (discordId) {
+    const defaultIndex = Number(BigInt(discordId) >> 22n) % 6;
+    ownerAvatarUrl = `https://cdn.discordapp.com/embed/avatars/${defaultIndex}.png`;
+  }
+  const profileOwner = { username: armaUsername, avatarUrl: ownerAvatarUrl, discord_id: discordId };
+
+  res.render("profile", {
+    page: "profile",
+    pageTitle: `${armaUsername} — Profile`,
+    pageDescription: `Public Arma Wasteland player profile for ${armaUsername}.`,
+    isPublic: true,
+    profileSlug: req.params.slug,
+    publicArmaUsername: armaUsername,
+    publicArmaId: armaId,
+    publicDiscordId: discordId,
+    profileOwner,
+    user: sessionUser,
+    stats,
+    statsTab,
+    statsError,
+    miscStats,
+    equipped,
+    wastedCoinsBalance,
+    wastedCoinsEmoji,
+    userOutfit,
+    recentKills,
+    leaderboardRank,
+    hasMostKilled: stats?.mostKilled && stats.mostKilled !== "Not Available" && stats.mostKilledCount > 0,
+    hasMostKilledBy: stats?.mostKilledBy && stats.mostKilledBy !== "Not Available" && stats.mostKilledByCount > 0,
+    ownedSkins,
+    skinCount: ownedSkins.length,
+    donorTier,
+    currentTierIcon,
+    tierWatermarks,
+    memberSince: memberSince ? memberSince.toISOString() : null,
+    memberDays,
+    memberRoles,
+    isKing: memberRoles.some(r => r.name.toLowerCase().includes("king of the wasteland")),
+    isGoat: memberRoles.some(r => r.name.toLowerCase().includes("goat")),
+    roleCount: memberRoles.length,
+    roleTier: memberRoles.length >= 20 ? "legendary" : memberRoles.length >= 15 ? "elite" : memberRoles.length >= 10 ? "veteran" : memberRoles.length >= 5 ? "regular" : memberRoles.length >= 1 ? "newcomer" : null,
+    isPrestiged,
+    prestigeLevel: prestige?.prestige_level || 0,
+  });
+});
+
 app.get("/", async (req, res) => {
   const data = await fetchHomeData(req);
   const bmStatus = await bm.getFreshStatus();
@@ -887,6 +1532,14 @@ app.get("/", async (req, res) => {
     console.error("Cash rollup fetch error:", err.message);
   }
 
+  // Active outfit wars (homepage spotlight)
+  let activeWars = [];
+  try {
+    activeWars = await require("./outfits").getAllActiveWars();
+  } catch (err) {
+    console.error("Active wars fetch error:", err.message);
+  }
+
   res.render("dashboard", {
     page: "home",
     pageTitle: "Server Dashboard",
@@ -896,6 +1549,7 @@ app.get("/", async (req, res) => {
     totalPlayers,
     totalMaxPlayers,
     cashRollup,
+    activeWars,
   });
 });
 
@@ -966,6 +1620,86 @@ app.get("/sitemap.xml", (req, res) => {
 
   res.set("Content-Type", "application/xml");
   res.send(xml);
+});
+
+app.get("/wasted-coins/leaderboard", (req, res) => {
+  const user = req.session.user || null;
+  if (user?.avatar && user.discord_id) {
+    user.avatarUrl = "https://cdn.discordapp.com/avatars/" + user.discord_id + "/" + user.avatar + ".png?size=32";
+  } else if (user?.discord_id) {
+    const defaultIndex = Number(BigInt(user.discord_id) >> 22n) % 6;
+    user.avatarUrl = "https://cdn.discordapp.com/embed/avatars/" + defaultIndex + ".png";
+  }
+  const wc = require("./wasted-coins");
+  const top = wc.getAllTimeLeaderboard(100);
+  const myDiscordId = user?.discord_id || null;
+  let myRank = null;
+  if (myDiscordId) {
+    const idx = top.findIndex(t => t.discord_id === myDiscordId);
+    if (idx >= 0) myRank = idx + 1;
+  }
+  res.render("wasted-coins-leaderboard", {
+    page: "wasted-coins",
+    pageTitle: "Wasted Coins Leaderboard — Top Earners",
+    pageDescription: "See who's stacking the most 💀 Wasted Coins on Arma Wasteland. Earn coins daily, participate in lotteries, and climb the all-time leaderboard.",
+    user,
+    top,
+    myDiscordId,
+    myRank,
+    coinEmoji: wc.EMOJI,
+    coinName: wc.NAME,
+  });
+});
+
+app.get("/wasted-coins", (req, res) => {
+  const user = req.session.user || null;
+  if (user?.avatar && user.discord_id) {
+    user.avatarUrl = "https://cdn.discordapp.com/avatars/" + user.discord_id + "/" + user.avatar + ".png?size=32";
+  } else if (user?.discord_id) {
+    const defaultIndex = Number(BigInt(user.discord_id) >> 22n) % 6;
+    user.avatarUrl = "https://cdn.discordapp.com/embed/avatars/" + defaultIndex + ".png";
+  }
+  const wc = require("./wasted-coins");
+  const lottery = require("./lottery");
+  const skinLot = require("./skin-lottery");
+  const wagers = require("./kill-wagers");
+  let myBalance = null;
+  let currentPot = null;
+  let skinPot = null;
+  if (user?.discord_id) {
+    try { myBalance = wc.getBalance(user.discord_id); } catch {}
+  }
+  try { currentPot = lottery.getCurrentPot(); } catch {}
+  try { skinPot = skinLot.getCurrentPot(); } catch {}
+  res.render("wasted-coins", {
+    page: "wasted-coins",
+    pageTitle: "💀 Wasted Coins",
+    pageDescription: "Earn Wasted Coins by playing, claim daily rewards, and spend them on profile customizations, the weekly lottery, kill wagers, or in-game cash.",
+    user,
+    myBalance,
+    currentPot,
+    skinPot,
+    nextDraw: lottery.nextDrawDate().toISOString(),
+    constants: {
+      EMOJI: wc.EMOJI,
+      NAME: wc.NAME,
+      DAILY_BASE: wc.DAILY_BASE,
+      DAILY_TRANSFER_CAP: wc.DAILY_TRANSFER_CAP.toLocaleString(),
+      DAILY_TRANSFER_CAP_SUBSCRIBER: wc.DAILY_TRANSFER_CAP_SUBSCRIBER.toLocaleString(),
+      LOTTERY_TICKET_PRICE: lottery.TICKET_PRICE,
+      LOTTERY_DAILY_CAP: lottery.MAX_TICKETS_PER_DAY,
+      LOTTERY_HOUSE_RAKE_PCT: Math.round(lottery.HOUSE_RAKE * 100),
+      WAGER_MIN: wagers.MIN_WAGER,
+      WAGER_MAX: wagers.MAX_WAGER,
+      WAGER_DAILY_CAP: wagers.MAX_INITIATED_PER_DAY,
+      WAGER_PENDING_CAP: wagers.MAX_PENDING_PER_USER,
+      WAGER_ACCEPT_HOURS: wagers.ACCEPT_WINDOW_HOURS,
+      WAGER_DURATION_HOURS: wagers.WAGER_DURATION_HOURS,
+      WAGER_HOUSE_RAKE_PCT: Math.round(wagers.HOUSE_RAKE * 100),
+      SKIN_LOTTERY_TICKET_PRICE: skinLot.TICKET_PRICE,
+      SKIN_LOTTERY_DAILY_CAP: skinLot.MAX_TICKETS_PER_DAY,
+    },
+  });
 });
 
 app.get("/products", (req, res) => {
@@ -1359,7 +2093,9 @@ app.post("/store/checkout", async (req, res) => {
     const product = store.getProductById(parseInt(item.id));
     if (!product || !product.active) continue;
     const qty = Math.max(1, Math.min(99, parseInt(item.qty) || 1));
-    cartProducts.push({ id: product.id, name: product.name, qty, category: product.category });
+    // Gift recipient (Discord ID) — validated as 17-20 digit numeric string
+    const giftTo = (typeof item.giftTo === "string" && /^\d{17,20}$/.test(item.giftTo.trim())) ? item.giftTo.trim() : null;
+    cartProducts.push({ id: product.id, name: product.name, qty, category: product.category, giftTo });
 
     if (SUBSCRIPTION_CATEGORIES.includes(product.category)) {
       subItems.push({ product, qty });
@@ -1454,6 +2190,37 @@ app.post("/store/webhook", async (req, res) => {
     const session = event.data.object;
     console.log(`Stripe payment completed: ${session.id} — $${(session.amount_total / 100).toFixed(2)}`);
 
+    // ── Profile customization unlock (separate flow from cart) ──
+    if (session.metadata?.profile_item_id) {
+      try {
+        const profileCustomizations = require("./profile-customizations");
+        const itemId = parseInt(session.metadata.profile_item_id, 10);
+        const buyerDiscordId = session.metadata.discord_id;
+        const item = profileCustomizations.getItem(itemId);
+        if (item && buyerDiscordId && buyerDiscordId !== "guest") {
+          profileCustomizations.unlock(buyerDiscordId, itemId, { source: "purchase", stripe_session_id: session.id });
+          store.recordPurchase({
+            stripe_session_id: session.id,
+            product_name: `[Profile] ${item.name}`,
+            quantity: 1,
+            amount: session.amount_total || 0,
+            discord_id: buyerDiscordId,
+            discord_username: session.metadata.username || null,
+          });
+          sendWebhook({
+            title: "Profile Customization Purchased",
+            description: `<@${buyerDiscordId}> unlocked **${item.name}** (${item.type})`,
+            color: 0x8B5CF6,
+          });
+          console.log(`ProfileCustomizations: unlocked item ${itemId} (${item.name}) for ${buyerDiscordId}`);
+        }
+      } catch (err) {
+        console.error("Profile unlock error:", err.message);
+        sendWebhookError("Profile Unlock", err.message);
+      }
+      return res.json({ received: true });
+    }
+
     // Record purchases (no PII stored — only Stripe session ID, product, amount)
     try {
       const discordIdForRecord = session.metadata?.discord_id || null;
@@ -1502,14 +2269,25 @@ app.post("/store/webhook", async (req, res) => {
           }
 
           const gameItemName = product.game_item_name || product.name;
+          const recipientId = cartItem.giftTo || discordId;
+          const isGift = cartItem.giftTo && cartItem.giftTo !== discordId;
           try {
             await axios.post(
               `${apiBaseUrl}/itemsUser/updateDiscordUserItemFromDiscord`,
-              { discord_id: discordId, item_name: gameItemName, request_type: "set", quantity: cartItem.qty },
+              { discord_id: recipientId, item_name: gameItemName, request_type: "set", quantity: cartItem.qty },
               { params: { token: backendToken }, timeout: 15000, headers: { "Content-Type": "application/json" } }
             );
-            fulfilled.push(product.name);
-            console.log(`Stripe fulfillment: granted "${gameItemName}" x${cartItem.qty} to ${discordId}`);
+            fulfilled.push(isGift ? `${product.name} → <@${recipientId}>` : product.name);
+            console.log(`Stripe fulfillment: granted "${gameItemName}" x${cartItem.qty} to ${recipientId}${isGift ? ` (gift from ${discordId})` : ""}`);
+            if (isGift) {
+              try {
+                sendWebhook({
+                  title: "🎁 Skin Gift",
+                  description: `<@${discordId}> gifted **${product.name}** to <@${recipientId}>`,
+                  color: 0xec4899,
+                });
+              } catch {}
+            }
           } catch (itemErr) {
             const msg = itemErr.response?.data?.message || itemErr.message;
             fulfillErrors.push(`${product.name}: ${msg}`);
@@ -1535,6 +2313,23 @@ app.post("/store/webhook", async (req, res) => {
         sendWebhookError("Stripe Fulfillment Errors", fulfillErrors.join("\n"));
       }
 
+      // Supporter package: draw random skin per supporter-category item, DM buyer, log
+      if (discordIdForRecord && discordIdForRecord !== "guest" && cartItems.length > 0) {
+        for (const cartItem of cartItems) {
+          const product = store.getProductById(cartItem.id);
+          if (!product || product.category !== "supporter") continue;
+          const qty = cartItem.qty || 1;
+          for (let i = 0; i < qty; i++) {
+            try {
+              await subscriptionPerks.grantSupporterDraw(discordIdForRecord, product.name);
+            } catch (drawErr) {
+              console.error(`Supporter draw failed for ${product.name}:`, drawErr.message);
+              sendWebhookError("Supporter Draw", `${product.name}: ${drawErr.message}`);
+            }
+          }
+        }
+      }
+
       // Assign Donator role to the buyer
       if (discordIdForRecord && discordIdForRecord !== "guest") {
         try {
@@ -1553,6 +2348,7 @@ app.post("/store/webhook", async (req, res) => {
         } catch (roleErr) {
           console.warn(`Failed to assign donator role to ${discordIdForRecord}: ${roleErr.message}`);
         }
+
       }
     } catch (fulfillErr) {
       console.error("Order fulfillment error:", fulfillErr.message);
@@ -1602,14 +2398,17 @@ app.post("/store/webhook", async (req, res) => {
             if (!product) continue;
 
             const revokeItemName = product.game_item_name || product.name;
+            // Revoke from the actual recipient — gifted items go to giftTo, not the buyer
+            const revokeTarget = cartItem.giftTo || discordId;
+            const isGift = cartItem.giftTo && cartItem.giftTo !== discordId;
             try {
               await axios.post(
                 `${config.apiBaseUrl}/itemsUser/updateDiscordUserItemFromDiscord`,
-                { discord_id: discordId, item_name: revokeItemName, request_type: "remove", quantity: cartItem.qty },
+                { discord_id: revokeTarget, item_name: revokeItemName, request_type: "remove", quantity: cartItem.qty },
                 { params: { token: config.backendToken }, timeout: 15000, headers: { "Content-Type": "application/json" } }
               );
-              revoked.push(product.name);
-              console.log(`Stripe ${label}: revoked "${revokeItemName}" from ${discordId}`);
+              revoked.push(isGift ? `${product.name} (gift to ${revokeTarget})` : product.name);
+              console.log(`Stripe ${label}: revoked "${revokeItemName}" from ${revokeTarget}${isGift ? ` (gift from ${discordId})` : ""}`);
             } catch (revokeErr) {
               console.error(`Stripe ${label}: failed to revoke "${product.name}":`, revokeErr.response?.data?.message || revokeErr.message);
             }

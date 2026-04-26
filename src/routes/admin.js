@@ -75,6 +75,9 @@ router.get("/bans", async (req, res) => {
   const user = req.session.user;
   const search = (req.query.search || "").trim();
   const field = req.query.field || "all";
+  const dateRange = req.query.range || "all"; // 24h | 7d | 30d | 90d | custom | all
+  const dateFrom = (req.query.from || "").trim(); // YYYY-MM-DD
+  const dateTo = (req.query.to || "").trim();     // YYYY-MM-DD
   buildAvatarUrl(user);
 
   let bans = [];
@@ -120,6 +123,37 @@ router.get("/bans", async (req, res) => {
     });
   }
 
+  // Apply date filter — uses ban.time_stamp (ISO date)
+  if (bans.length && dateRange !== "all") {
+    const now = Date.now();
+    let fromMs = null;
+    let toMs = null;
+    if (dateRange === "24h") fromMs = now - 86400000;
+    else if (dateRange === "7d") fromMs = now - 7 * 86400000;
+    else if (dateRange === "30d") fromMs = now - 30 * 86400000;
+    else if (dateRange === "90d") fromMs = now - 90 * 86400000;
+    else if (dateRange === "custom") {
+      if (dateFrom) {
+        const f = new Date(dateFrom + "T00:00:00Z");
+        if (!isNaN(f)) fromMs = f.getTime();
+      }
+      if (dateTo) {
+        const t = new Date(dateTo + "T23:59:59Z");
+        if (!isNaN(t)) toMs = t.getTime();
+      }
+    }
+    if (fromMs !== null || toMs !== null) {
+      bans = bans.filter((ban) => {
+        if (!ban.time_stamp) return false;
+        const ts = new Date(ban.time_stamp).getTime();
+        if (isNaN(ts)) return false;
+        if (fromMs !== null && ts < fromMs) return false;
+        if (toMs !== null && ts > toMs) return false;
+        return true;
+      });
+    }
+  }
+
   res.render("admin-bans", {
     page: "admin",
     pageTitle: "Ban List",
@@ -131,6 +165,9 @@ router.get("/bans", async (req, res) => {
     banCount: bans.length,
     search,
     field,
+    dateRange,
+    dateFrom,
+    dateTo,
     successMessage: req.query.success || null,
     errorMessage: req.query.error || null,
   });
@@ -291,10 +328,24 @@ router.post("/bans", async (req, res) => {
       },
     });
 
+    // Reconnect RCON first (connections drop silently), then kick if online
+    let kickNote = "";
+    try {
+      const rcon = require("../rcon");
+      try { await rcon.reconnect(); } catch (e) { console.warn("RCON reconnect before kick failed:", e.message); }
+      const kickResults = await rcon.kickPlayer(arma_id);
+      const kicked = kickResults?.filter(r => r.result && !/not online|not found/i.test(r.result)) || [];
+      if (kicked.length > 0) {
+        kickNote = `\n**Kicked from:** ${kicked.map(r => r.server).join(", ")}`;
+      }
+    } catch (kickErr) {
+      console.warn("Ban kick error:", kickErr.message);
+    }
+
     auditLog.log("moderation", "Player Banned", `Arma ID: ${arma_id}, Reason: ${reason}, Duration: ${hours === -1 ? "Permanent" : hours + "h"}`, user);
     sendWebhook({
       title: "Player Banned",
-      description: `<@${user.discord_id}> banned \`${String(arma_id).replace(/[`*_~|]/g, "")}\`\n**Reason:** ${String(reason).replace(/[`*_~|]/g, "")}\n**Duration:** ${hours === -1 ? "Permanent" : hours + "h"}`,
+      description: `<@${user.discord_id}> banned \`${String(arma_id).replace(/[`*_~|]/g, "")}\`\n**Reason:** ${String(reason).replace(/[`*_~|]/g, "")}\n**Duration:** ${hours === -1 ? "Permanent" : hours + "h"}${kickNote}`,
       color: 0xff3e3e,
     });
 
@@ -305,6 +356,100 @@ router.post("/bans", async (req, res) => {
     sendWebhookError("Ban Player", apiMsg);
     res.redirect("/admin/bans?error=" + encodeURIComponent("Failed to ban player. Please try again."));
   }
+});
+
+// POST /admin/bans/ban-progress — streaming version that emits per-step NDJSON
+// Lets the UI show a live log so admins don't rage-click while RCON reconnects.
+router.post("/bans/ban-progress", requireWriteAdmin, async (req, res) => {
+  const user = req.session.user;
+  const { arma_id, reason, duration_hours } = req.body;
+
+  res.writeHead(200, {
+    "Content-Type": "application/x-ndjson; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no", // disable nginx buffering if behind proxy
+  });
+
+  const startedAt = Date.now();
+  const send = (step, status, msg, extra = {}) => {
+    res.write(JSON.stringify({ step, status, msg, ts: Date.now() - startedAt, ...extra }) + "\n");
+  };
+
+  if (!arma_id || !reason) {
+    send("validate", "error", "Arma ID and reason are required.");
+    return res.end();
+  }
+  const hours = parseInt(duration_hours);
+  if (isNaN(hours)) {
+    send("validate", "error", "Invalid duration.");
+    return res.end();
+  }
+  send("validate", "ok", "Inputs validated.");
+
+  // Step 1: ban via game-server API
+  send("ban_api", "start", "Calling game server ban endpoint…");
+  try {
+    const t = Date.now();
+    await apiClient({
+      method: "POST",
+      url: "/user/banByArmaID/",
+      data: { token: config.backendToken, arma_id, reason, duration_hours: hours, admin_name: user.username },
+    });
+    send("ban_api", "ok", `Ban recorded on game server (${Date.now() - t}ms).`);
+  } catch (error) {
+    const apiMsg = error.response?.data?.message || error.message;
+    send("ban_api", "error", `Failed: ${apiMsg}`);
+    sendWebhookError("Ban Player", apiMsg);
+    return res.end();
+  }
+
+  // Step 2: RCON kick (try first, reconnect only if needed)
+  let kickedFromServers = [];
+  send("rcon_kick", "start", "Sending RCON kick…");
+  try {
+    const rcon = require("../rcon");
+    const t = Date.now();
+    let kicks = await rcon.kickPlayer(arma_id);
+    let healthy = (kicks || []).filter(r => r.result && !/error|disconnect|timeout/i.test(r.result));
+    if (healthy.length === 0 && kicks?.length > 0) {
+      // All kicks failed — try reconnect once
+      send("rcon_kick", "info", "Kick failed, reconnecting RCON sockets…");
+      try { await rcon.reconnect(); } catch {}
+      kicks = await rcon.kickPlayer(arma_id);
+    }
+    const landed = (kicks || []).filter(r => r.result && !/not online|not found|error|disconnect|timeout/i.test(r.result));
+    kickedFromServers = landed.map(r => r.server);
+    if (landed.length > 0) {
+      send("rcon_kick", "ok", `Kicked from: ${kickedFromServers.join(", ")} (${Date.now() - t}ms).`);
+    } else {
+      send("rcon_kick", "skip", `Player not online on any server (${Date.now() - t}ms).`);
+    }
+  } catch (kickErr) {
+    send("rcon_kick", "warn", `Kick error (ban still applied): ${kickErr.message}`);
+  }
+
+  // Step 3: audit log
+  send("audit", "start", "Writing audit log…");
+  auditLog.log("moderation", "Player Banned", `Arma ID: ${arma_id}, Reason: ${reason}, Duration: ${hours === -1 ? "Permanent" : hours + "h"}`, user);
+  send("audit", "ok", "Audit logged.");
+
+  // Step 4: Discord webhook
+  send("webhook", "start", "Posting to Discord webhook…");
+  try {
+    const kickNote = kickedFromServers.length > 0 ? `\n**Kicked from:** ${kickedFromServers.join(", ")}` : "";
+    sendWebhook({
+      title: "Player Banned",
+      description: `<@${user.discord_id}> banned \`${String(arma_id).replace(/[`*_~|]/g, "")}\`\n**Reason:** ${String(reason).replace(/[`*_~|]/g, "")}\n**Duration:** ${hours === -1 ? "Permanent" : hours + "h"}${kickNote}`,
+      color: 0xff3e3e,
+    });
+    send("webhook", "ok", "Discord notified.");
+  } catch (webhookErr) {
+    send("webhook", "warn", `Webhook failed: ${webhookErr.message}`);
+  }
+
+  send("complete", "ok", `Ban complete in ${Date.now() - startedAt}ms.`, { redirect: `/admin/bans?success=${encodeURIComponent("Player " + arma_id + " has been banned.")}` });
+  res.end();
 });
 
 // POST /admin/bans/unban — unban a player
@@ -381,23 +526,215 @@ function requireWriteAdmin(req, res, next) {
   next();
 }
 
+function requireOwner(req, res, next) {
+  if (!req.session.user?.isOwner) {
+    console.warn(`Unauthorized owner-only access by ${req.session.user?.username} (${req.session.user?.discord_id})`);
+    sendWebhookError("Unauthorized Owner-Only Access", `**${req.session.user?.username}** (${req.session.user?.discord_id}) tried to access ${req.originalUrl}`);
+    return res.redirect("/admin/analytics");
+  }
+  next();
+}
+
+// ── Feature Flags Toggle ──
+router.post("/feature-flags/toggle", requireWriteAdmin, (req, res) => {
+  const { flag, enabled } = req.body;
+  try {
+    const ff = require("../feature-flags");
+    ff.setEnabled(flag, enabled === "true" || enabled === "1" || enabled === true);
+    auditLog.log("feature-flags", `${flag} ${ff.isEnabled(flag) ? "enabled" : "disabled"}`, `Toggled by ${req.session.user.username}`, req.session.user);
+    const tab = ["wasted_coins", "lottery", "skin_lottery", "kill_wagers"].includes(flag) ? "coins" : "outfits";
+    res.redirect(`/admin/analytics?tab=${tab}&success=` + encodeURIComponent(`${flag} is now ${ff.isEnabled(flag) ? "ON" : "OFF"}.`));
+  } catch (err) {
+    res.redirect("/admin/analytics?tab=outfits&error=" + encodeURIComponent(err.message));
+  }
+});
+
+// ── Poll Admin ──
+router.post("/polls/:id/close", requireWriteAdmin, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  try {
+    const polls = require("../poll");
+    polls.adminClosePoll(id);
+    auditLog.log("polls", `Poll #${id} closed`, `Closed by ${req.session.user.username}`, req.session.user);
+    res.redirect("/admin/analytics?tab=polls&success=" + encodeURIComponent(`Poll #${id} closed.`));
+  } catch (err) {
+    res.redirect("/admin/analytics?tab=polls&error=" + encodeURIComponent(err.message));
+  }
+});
+
+// ── Outfit Admin ──
+router.post("/outfits/:id/logo", requireWriteAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { logo_url } = req.body;
+  try {
+    const outfits = require("../outfits");
+    await outfits.updateOutfit(id, { logo_url: (logo_url || "").trim() || null });
+    auditLog.log("outfit-logo", `Outfit #${id} logo updated`, `Set by ${req.session.user.username}: ${logo_url || "(removed)"}`, req.session.user);
+    res.redirect("/admin/analytics?tab=outfits&success=" + encodeURIComponent("Outfit logo updated."));
+  } catch (err) {
+    res.redirect("/admin/analytics?tab=outfits&error=" + encodeURIComponent(err.message));
+  }
+});
+
+// ── Wasted Coins Admin ──
+const wastedCoins = require("../wasted-coins");
+
+router.get("/coins", requireWriteAdmin, (req, res) => {
+  const user = req.session.user;
+  buildAvatarUrl(user);
+  const top = wastedCoins.getLeaderboard(50);
+  const recent = wastedCoins.getRecentTransactions(null, 50).map(t => {
+    let metaParsed = null;
+    try { metaParsed = t.meta ? JSON.parse(t.meta) : null; } catch {}
+    return { ...t, metaParsed };
+  });
+  res.render("admin-coins", {
+    page: "admin",
+    pageTitle: "Wasted Coins",
+    pageDescription: "Manage the Wasted Coins economy.",
+    activeTab: "coins",
+    user,
+    top,
+    recent,
+    coinEmoji: wastedCoins.EMOJI,
+    coinName: wastedCoins.NAME,
+    constants: {
+      DAILY_BASE: wastedCoins.DAILY_BASE,
+      DAILY_TRANSFER_CAP: wastedCoins.DAILY_TRANSFER_CAP.toLocaleString(),
+      DAILY_TRANSFER_CAP_SUBSCRIBER: wastedCoins.DAILY_TRANSFER_CAP_SUBSCRIBER.toLocaleString(),
+    },
+    successMessage: req.query.success || null,
+    errorMessage: req.query.error || null,
+  });
+});
+
+// Add coins from money page (by arma_id — resolves to discord_id via getPlayer)
+router.post("/money/coins", requireWriteAdmin, async (req, res) => {
+  const { arma_id, amount } = req.body;
+  const n = parseInt(amount, 10);
+  if (!arma_id || !Number.isFinite(n) || n === 0) {
+    return res.redirect("/admin/money?error=" + encodeURIComponent("Arma ID and non-zero amount required."));
+  }
+  try {
+    const apiClient = axios.create({ baseURL: config.apiBaseUrl, timeout: 15000, headers: { "Content-Type": "application/json" } });
+    const lookup = await apiClient.get("/user/getPlayer", { params: { arma_id, token: config.apiToken } });
+    const discordId = lookup.data?.discord_id;
+    const username = lookup.data?.arma_username || arma_id;
+    if (!discordId) {
+      return res.redirect("/admin/money?error=" + encodeURIComponent(`Player "${username}" doesn't have a linked Discord account. They need to /verify in-game first.`));
+    }
+    const newBal = wastedCoins.adminAdjust(discordId, n, req.session.user.username);
+    auditLog.log("coins", "Coin Adjust (via money page)", `${n > 0 ? "+" : ""}${n} for ${discordId} (${username}) → ${newBal}`, req.session.user);
+    res.redirect("/admin/money?success=" + encodeURIComponent(`${n > 0 ? "Added" : "Removed"} ${Math.abs(n)} coins ${n > 0 ? "to" : "from"} ${username}. Balance: ${newBal}`));
+  } catch (err) {
+    const msg = err.response?.status === 404 ? "Player not found." : err.message;
+    res.redirect("/admin/money?error=" + encodeURIComponent(msg));
+  }
+});
+
+router.post("/coins/adjust", requireWriteAdmin, (req, res) => {
+  const { discord_id, delta } = req.body;
+  const n = parseInt(delta, 10);
+  if (!discord_id || !Number.isFinite(n) || n === 0) {
+    return res.redirect("/admin/coins?error=" + encodeURIComponent("discord_id and non-zero delta required."));
+  }
+  try {
+    const newBal = wastedCoins.adminAdjust(discord_id, n, req.session.user.username);
+    auditLog.log("coins", "Coin Adjust", `${n > 0 ? "+" : ""}${n} for ${discord_id} → ${newBal}`, req.session.user);
+    res.redirect("/admin/coins?success=" + encodeURIComponent(`Adjusted ${discord_id} by ${n}. New balance: ${newBal}`));
+  } catch (err) {
+    res.redirect("/admin/coins?error=" + encodeURIComponent(err.message));
+  }
+});
+
+// ── Profile Customizations Admin ──
+const profileCustomizations = require("../profile-customizations");
+
+router.get("/profile-items", requireWriteAdmin, (req, res) => {
+  const user = req.session.user;
+  buildAvatarUrl(user);
+  const items = profileCustomizations.getAllItems();
+  res.render("admin-profile-items", {
+    page: "admin",
+    pageTitle: "Profile Items",
+    pageDescription: "Manage profile customization catalog.",
+    activeTab: "profile-items",
+    user,
+    items,
+    types: profileCustomizations.TYPES,
+    successMessage: req.query.success || null,
+    errorMessage: req.query.error || null,
+  });
+});
+
+router.post("/profile-items", requireWriteAdmin, (req, res) => {
+  const { type, name, description, price, image, css_value, rarity, sort_order } = req.body;
+  if (!type || !name || !price) {
+    return res.redirect("/admin/profile-items?error=" + encodeURIComponent("type, name, and price are required."));
+  }
+  try {
+    profileCustomizations.createItem({
+      type, name, description, image, css_value, rarity,
+      price: Math.round(Number(price) * 100),
+      sort_order: parseInt(sort_order || "0", 10),
+    });
+    auditLog.log("profile-items", "Item Created", `${type}: ${name}`, req.session.user);
+    res.redirect("/admin/profile-items?success=" + encodeURIComponent("Item created."));
+  } catch (err) {
+    res.redirect("/admin/profile-items?error=" + encodeURIComponent(err.message));
+  }
+});
+
+router.post("/profile-items/:id/update", requireWriteAdmin, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { type, name, description, price, image, css_value, rarity, active, sort_order } = req.body;
+  try {
+    profileCustomizations.updateItem(id, {
+      type, name, description, image, css_value, rarity,
+      price: Math.round(Number(price) * 100),
+      active: active ? 1 : 0,
+      sort_order: parseInt(sort_order || "0", 10),
+    });
+    auditLog.log("profile-items", "Item Updated", `#${id} ${name}`, req.session.user);
+    res.redirect("/admin/profile-items?success=" + encodeURIComponent("Item updated."));
+  } catch (err) {
+    res.redirect("/admin/profile-items?error=" + encodeURIComponent(err.message));
+  }
+});
+
+router.post("/profile-items/:id/delete", requireWriteAdmin, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  try {
+    profileCustomizations.deleteItem(id);
+    auditLog.log("profile-items", "Item Deleted", `#${id}`, req.session.user);
+    res.redirect("/admin/profile-items?success=" + encodeURIComponent("Item deleted."));
+  } catch (err) {
+    res.redirect("/admin/profile-items?error=" + encodeURIComponent(err.message));
+  }
+});
+
 // GET /admin/money
 router.get("/money", requireWriteAdmin, async (req, res) => {
   const user = req.session.user;
   buildAvatarUrl(user);
 
   const search = (req.query.search || "").trim();
+  const searchPage = parseInt(req.query.p) || 1;
   let players = [];
+  let totalResults = 0;
+  let hasMore = false;
 
   if (search) {
     try {
       const response = await apiClient({
         method: "GET",
         url: "/user/searchUsersByUsername/",
-        data: { search, token: config.apiToken },
+        data: { search, page: searchPage, token: config.apiToken },
       });
       const data = response.data?.users || response.data?.data || response.data;
       players = Array.isArray(data) ? data : [];
+      totalResults = response.data?.total || response.data?.totalCount || players.length;
+      hasMore = players.length >= 20; // assume 20 per page
     } catch (error) {
       console.error("Player search error:", error.message);
       if (error.response) {
@@ -415,6 +752,9 @@ router.get("/money", requireWriteAdmin, async (req, res) => {
     user,
     search,
     players,
+    searchPage,
+    hasMore,
+    hasPrev: searchPage > 1,
     selectedArmaId: req.query.arma_id || "",
     selectedUsername: req.query.username || "",
     successMessage: req.query.success || null,
@@ -427,11 +767,13 @@ router.get("/money/balance", requireWriteAdmin, async (req, res) => {
   const armaId = (req.query.arma_id || "").trim();
   if (!armaId) return res.json({ balance: null });
   try {
-    const cashRes = await apiClient.get("/user/getUserCash/", {
-      params: { arma_id: armaId, token: config.apiToken },
+    const cashRes = await apiClient({
+      method: "GET",
+      url: "/user/getUserCash/",
+      data: { arma_id: armaId, token: config.apiToken },
     });
     console.log("[Money Balance]", armaId, JSON.stringify(cashRes.data));
-    let balance = cashRes.data?.cash ?? cashRes.data?.data?.cash ?? cashRes.data?.amount ?? null;
+    let balance = cashRes.data?.arma_cash_balance ?? cashRes.data?.cash ?? cashRes.data?.data?.cash ?? cashRes.data?.amount ?? null;
     if (balance === null && cashRes.data?.data !== undefined) {
       balance = cashRes.data.data;
     }
@@ -494,6 +836,7 @@ router.post("/money/atm-limit", requireWriteAdmin, async (req, res) => {
   }
 
   try {
+    console.log(`[ATM Limit] Setting limit for ${arma_id} to ${atm_limit}`);
     await adminApiClient.post("/admin/atm-limit", {
       token: config.adminApiToken,
       arma_id,
@@ -509,7 +852,7 @@ router.post("/money/atm-limit", requireWriteAdmin, async (req, res) => {
 
     res.redirect(`/admin/money?success=ATM limit set to $${Number(atm_limit).toLocaleString()} for ${arma_id}&arma_id=${encodeURIComponent(arma_id)}`);
   } catch (error) {
-    console.error("Set ATM limit error:", error.message);
+    console.error("Set ATM limit error:", error.response?.status, error.response?.data || error.message);
     sendWebhookError("Set ATM Limit", error.response?.data?.message || error.message);
     res.redirect("/admin/money?error=Failed to set ATM limit. Please try again.");
   }
@@ -524,6 +867,262 @@ router.get("/money/atm-limit", requireWriteAdmin, async (req, res) => {
     res.json({ atm_limit: limRes.data?.atm_limit ?? limRes.data?.data?.atm_limit ?? null });
   } catch {
     res.json({ atm_limit: null });
+  }
+});
+
+// GET /admin/search — search players by name, arma ID, or discord ID
+router.get("/search", async (req, res) => {
+  const user = req.session.user;
+  buildAvatarUrl(user);
+
+  const query = (req.query.q || "").trim();
+  const searchType = req.query.type || "name";
+  const page = parseInt(req.query.p) || 1;
+  let results = [];
+  let hasMore = false;
+  let error = null;
+
+  if (query) {
+    try {
+      if (searchType === "discord") {
+        // Search by Discord ID via getPlayer (returns full record with arma_id)
+        const playerRes = await apiClient.get("/user/getPlayer", { params: { discord_id: query, token: config.apiToken } });
+        if (playerRes.data?.arma_id) {
+          results = [{
+            arma_id: playerRes.data.arma_id,
+            arma_username: playerRes.data.arma_username || "Unknown",
+            discord_id: playerRes.data.discord_id || query,
+          }];
+        }
+      } else if (searchType === "arma_id") {
+        // Search by Arma ID via getPlayer (returns full record)
+        const playerRes = await apiClient.get("/user/getPlayer", { params: { arma_id: query, token: config.apiToken } });
+        if (playerRes.data?.arma_id) {
+          results = [{
+            arma_id: playerRes.data.arma_id,
+            arma_username: playerRes.data.arma_username || "Unknown",
+            discord_id: playerRes.data.discord_id || null,
+          }];
+        }
+      } else {
+        // Search by name — paginate at 10 per page
+        const PAGE_SIZE = 10;
+        const searchRes = await apiClient({ method: "GET", url: "/user/searchUsersByUsername/", data: { search: query, page, token: config.apiToken } });
+        const data = searchRes.data?.users || searchRes.data?.data || searchRes.data;
+        const allResults = Array.isArray(data) ? data : [];
+        // If the API returns everything in one response, slice it client-side
+        if (allResults.length > PAGE_SIZE) {
+          const startIdx = (page - 1) * PAGE_SIZE;
+          results = allResults.slice(startIdx, startIdx + PAGE_SIZE);
+          hasMore = allResults.length > startIdx + PAGE_SIZE;
+        } else {
+          // API handled pagination — results are already the current page
+          results = allResults;
+          hasMore = allResults.length >= PAGE_SIZE;
+        }
+      }
+    } catch (err) {
+      if (err.response?.status === 404) {
+        results = [];
+      } else {
+        error = err.response?.data?.message || err.message;
+      }
+    }
+  }
+
+  // Enrich results with Steam ID and watchlist status
+  for (const player of results.slice(0, 10)) {
+    try {
+      const wlRes = await adminApiClient.get("/admin/watchlist", { params: { token: config.adminApiToken, arma_id: player.arma_id } });
+      player.isWatchlisted = !!wlRes.data?.is_watchlisted;
+    } catch { player.isWatchlisted = false; }
+    try {
+      const steamRes = await adminApiClient.get("/admin/steam-id", { params: { token: config.adminApiToken, arma_id: player.arma_id } });
+      player.steamId = steamRes.data?.steam_ids?.[0]?.steam64_id || null;
+    } catch { player.steamId = null; }
+  }
+
+  res.render("admin-search", {
+    page: "admin",
+    pageTitle: "Search Players",
+    pageDescription: "Search for players by name, Arma ID, or Discord ID.",
+    activeTab: "search",
+    user,
+    query,
+    searchType,
+    searchPage: page,
+    results,
+    hasMore,
+    hasPrev: page > 1,
+    errorMessage: error || req.query.error || null,
+  });
+});
+
+// GET /admin/rcon-players — list online players via RCON
+router.get("/rcon-players", async (req, res) => {
+  const user = req.session.user;
+  buildAvatarUrl(user);
+
+  const rcon = require("../rcon");
+  let players = [];
+  let rconStatus = [];
+  let error = null;
+
+  try {
+    rconStatus = rcon.getStatus();
+    players = await rcon.getPlayers();
+  } catch (err) {
+    error = err.message;
+  }
+
+  // Check watchlist status for all players
+  const watchlisted = new Set();
+  const adminApiClient = axios.create({ baseURL: config.apiBaseUrl, timeout: 10000, headers: { "Content-Type": "application/json" } });
+  await Promise.all(players.map(async (p) => {
+    if (!p.guid) return;
+    try {
+      const res = await adminApiClient.get("/admin/watchlist", { params: { token: config.adminApiToken, arma_id: p.guid } });
+      if (res.data?.is_watchlisted) watchlisted.add(p.guid);
+    } catch {}
+  }));
+  players.forEach(p => { p.watchlisted = watchlisted.has(p.guid); });
+
+  // Group by server
+  const byServer = {};
+  players.forEach(p => {
+    if (!byServer[p.server]) byServer[p.server] = [];
+    byServer[p.server].push(p);
+  });
+
+  res.render("admin-rcon-players", {
+    page: "admin",
+    pageTitle: "Online Players",
+    pageDescription: "Live player list from game servers via RCON.",
+    activeTab: "rcon-players",
+    user,
+    servers: Object.entries(byServer).map(([name, list]) => ({ name, players: list, count: list.length })),
+    totalPlayers: players.length,
+    rconStatus,
+    errorMessage: error || req.query.error || null,
+    successMessage: req.query.success || null,
+  });
+});
+
+// POST /admin/rcon-players/kick — kick a player via RCON
+router.post("/rcon-players/kick", requireWriteAdmin, async (req, res) => {
+  const { guid, player_name } = req.body;
+  const user = req.session.user;
+  if (!guid) return res.redirect("/admin/rcon-players?error=GUID required.");
+
+  const rcon = require("../rcon");
+  try {
+    const results = await rcon.kickPlayer(guid);
+    const msg = results.map(r => `${r.server}: ${r.result}`).join(", ");
+    auditLog.log("moderation", "Player Kicked (RCON)", `${player_name || guid} kicked by ${user.username}: ${msg}`, user);
+    sendWebhook({
+      title: "Player Kicked (RCON)",
+      description: `<@${user.discord_id}> kicked **${player_name || guid}** (\`${guid}\`)\n${msg}`,
+      color: 0xf59e0b,
+    });
+    res.redirect(`/admin/rcon-players?success=${encodeURIComponent(`Kicked ${player_name || guid}: ${msg}`)}`);
+  } catch (err) {
+    res.redirect(`/admin/rcon-players?error=${encodeURIComponent("Kick failed: " + err.message)}`);
+  }
+});
+
+// POST /admin/rcon-players/reconnect — reconnect RCON
+router.post("/rcon-players/reconnect", requireWriteAdmin, async (req, res) => {
+  const rcon = require("../rcon");
+  try {
+    const results = await rcon.reconnect();
+    const msg = results.map(r => `${r.name}: ${r.status}`).join(", ");
+    res.redirect(`/admin/rcon-players?success=${encodeURIComponent("RCON reconnect: " + msg)}`);
+  } catch (err) {
+    res.redirect(`/admin/rcon-players?error=${encodeURIComponent("Reconnect failed: " + err.message)}`);
+  }
+});
+
+// ── Builder Role Management ──
+const BUILDER_ROLE_ID = "1485801785082773525";
+
+// GET /admin/builder-role — search guild members + show their builder-role status
+router.get("/builder-role", requireWriteAdmin, async (req, res) => {
+  const user = req.session.user;
+  buildAvatarUrl(user);
+  const search = (req.query.search || "").trim();
+  let members = [];
+  let searchError = null;
+
+  if (search) {
+    try {
+      const { getClient } = require("../discord-bot");
+      const bot = getClient();
+      if (!bot?.isReady()) {
+        searchError = "Discord bot not connected.";
+      } else {
+        const guild = bot.guilds.cache.get(config.discordGuildId);
+        if (!guild) {
+          searchError = "Discord guild not found.";
+        } else {
+          const fetched = await guild.members.search({ query: search, limit: 25 });
+          members = fetched.map(m => ({
+            discord_id: m.id,
+            username: m.user.username,
+            displayName: m.displayName || m.user.globalName || m.user.username,
+            avatar: m.user.displayAvatarURL({ size: 64 }),
+            hasBuilderRole: m.roles.cache.has(BUILDER_ROLE_ID),
+          }));
+        }
+      }
+    } catch (err) {
+      console.error("Builder role search error:", err.message);
+      searchError = `Search failed: ${err.message}`;
+    }
+  }
+
+  res.render("admin-builder-role", {
+    page: "admin",
+    pageTitle: "Builder Role",
+    pageDescription: "Assign or remove the in-game Builder role for Discord members.",
+    activeTab: "builder-role",
+    user,
+    search,
+    members,
+    searchError,
+    successMessage: req.query.success || null,
+    errorMessage: req.query.error || null,
+  });
+});
+
+// POST /admin/builder-role — assign or remove the role
+router.post("/builder-role", requireWriteAdmin, async (req, res) => {
+  const { discord_id, action } = req.body;
+  const user = req.session.user;
+  if (!discord_id || !["assign", "remove"].includes(action)) {
+    return res.redirect("/admin/builder-role?error=" + encodeURIComponent("Invalid request."));
+  }
+  try {
+    const { getClient } = require("../discord-bot");
+    const bot = getClient();
+    if (!bot?.isReady()) throw new Error("Discord bot not connected.");
+    const guild = bot.guilds.cache.get(config.discordGuildId);
+    if (!guild) throw new Error("Guild not found.");
+    const member = await guild.members.fetch(discord_id).catch(() => null);
+    if (!member) throw new Error("Member not in the guild.");
+
+    if (action === "assign") {
+      await member.roles.add(BUILDER_ROLE_ID, `Assigned by ${user.username} via admin panel`);
+      auditLog.log("roles", "Builder Role Assigned", `${member.user.username} (${discord_id}) by ${user.username}`, user);
+    } else {
+      await member.roles.remove(BUILDER_ROLE_ID, `Removed by ${user.username} via admin panel`);
+      auditLog.log("roles", "Builder Role Removed", `${member.user.username} (${discord_id}) by ${user.username}`, user);
+    }
+
+    const search = (req.body.search || req.query.search || member.user.username || "").trim();
+    res.redirect(`/admin/builder-role?search=${encodeURIComponent(search)}&success=` + encodeURIComponent(`Builder role ${action === "assign" ? "assigned to" : "removed from"} ${member.user.username}.`));
+  } catch (err) {
+    console.error("Builder role assign error:", err.message);
+    res.redirect("/admin/builder-role?error=" + encodeURIComponent(err.message));
   }
 });
 
@@ -769,13 +1368,26 @@ router.get("/watchlist", async (req, res) => {
 
   if (search) {
     try {
-      const searchRes = await apiClient({
-        method: "GET",
-        url: "/user/searchUsersByUsername/",
-        data: { search, token: config.apiToken },
-      });
-      const data = searchRes.data?.users || searchRes.data?.data || searchRes.data;
-      const matchList = Array.isArray(data) ? data : [];
+      let matchList = [];
+      // Detect Steam64 ID (17-digit number starting with 7656) and do reverse lookup
+      if (/^7656\d{13}$/.test(search)) {
+        try {
+          const res = await adminApiClient.get("/admin/steam-id", { params: { token: config.adminApiToken, steam64_id: search } });
+          if (res.data?.arma_id) {
+            matchList = [{ arma_id: res.data.arma_id, arma_username: res.data.arma_username || "Unknown" }];
+          }
+        } catch (e) {
+          if (e.response?.status !== 404) console.error("Steam64 lookup error:", e.message);
+        }
+      } else {
+        const searchRes = await apiClient({
+          method: "GET",
+          url: "/user/searchUsersByUsername/",
+          data: { search, token: config.apiToken },
+        });
+        const data = searchRes.data?.users || searchRes.data?.data || searchRes.data;
+        matchList = Array.isArray(data) ? data : [];
+      }
 
       // Check watchlist status and Steam ID for each matched player
       const checks = matchList.slice(0, 20).map(async (p) => {
@@ -844,7 +1456,7 @@ router.get("/watchlist", async (req, res) => {
 });
 
 // POST /admin/watchlist — toggle watchlist status
-router.post("/watchlist", async (req, res) => {
+router.post("/watchlist", requireWriteAdmin, async (req, res) => {
   const { arma_id, action, search, from } = req.body;
   const user = req.session.user;
   const searchParam = search ? "&search=" + encodeURIComponent(search) : "";
@@ -937,22 +1549,29 @@ router.get("/player/:arma_id", async (req, res) => {
   buildAvatarUrl(user);
   const armaId = req.params.arma_id;
 
-  const profile = { arma_id: armaId, arma_username: null, stats: null, miscStats: [], watchlist: false, webNotes: "", steamId: null, atmLimit: null, vacInfo: null, bans: [], cashBalance: null };
+  const profile = { arma_id: armaId, arma_username: null, stats: null, allTimeStats: null, miscStats: [], watchlist: false, webNotes: "", steamId: null, atmLimit: null, vacInfo: null, bans: [], cashBalance: null, wastedCoinsBalance: null, lastLogin: null, accountCreated: null, discordId: null, timePlayed: null, serverHistory: [], previousNames: [], ownedSkins: [] };
 
   // Fetch all data in parallel
-  const [statsRes, miscRes, wlRes, notesRes, steamRes, atmRes, cashRes] = await Promise.allSettled([
+  const [statsRes, allTimeStatsRes, miscRes, wlRes, notesRes, steamRes, atmRes, cashRes, playerRes, historyRes] = await Promise.allSettled([
     apiClient({ method: "GET", url: "/user/getPlayerStatsByIDCurrentSeason/", data: { arma_id: armaId, token: config.apiToken } }),
+    apiClient({ method: "GET", url: "/user/getPlayerStatsByID/", data: { arma_id: armaId, token: config.apiToken } }),
     apiClient({ method: "GET", url: "/user/getUserMiscStats/", data: { arma_id: armaId, token: config.apiToken } }),
     adminApiClient.get("/admin/watchlist", { params: { token: config.adminApiToken, arma_id: armaId } }),
     adminApiClient.get("/admin/bans/webNotes", { params: { token: config.adminApiToken, arma_id: armaId } }),
     adminApiClient.get("/admin/steam-id", { params: { token: config.adminApiToken, arma_id: armaId } }),
     adminApiClient.get("/admin/atm-limit", { params: { token: config.adminApiToken, arma_id: armaId } }),
     apiClient({ method: "GET", url: "/user/getUserCash/", data: { arma_id: armaId, token: config.apiToken } }),
+    adminApiClient.get("/user/getPlayer", { params: { arma_id: armaId, token: config.adminApiToken } }),
+    apiClient.get("/user/getPlayerServerHistory", { params: { arma_id: armaId, token: config.apiToken } }),
   ]);
 
   if (statsRes.status === "fulfilled" && statsRes.value.data) {
     profile.stats = statsRes.value.data;
     profile.arma_username = statsRes.value.data.arma_username || null;
+  }
+  if (allTimeStatsRes.status === "fulfilled" && allTimeStatsRes.value.data) {
+    profile.allTimeStats = allTimeStatsRes.value.data;
+    profile.arma_username = profile.arma_username || allTimeStatsRes.value.data.arma_username || null;
   }
 
   if (miscRes.status === "fulfilled" && miscRes.value.data) {
@@ -982,7 +1601,27 @@ router.get("/player/:arma_id", async (req, res) => {
     profile.arma_username = profile.arma_username || atmRes.value.data.arma_username || null;
   }
   if (cashRes.status === "fulfilled" && cashRes.value.data) {
-    profile.cashBalance = cashRes.value.data.cash || cashRes.value.data.amount || null;
+    profile.cashBalance = cashRes.value.data.arma_cash_balance ?? cashRes.value.data.cash ?? cashRes.value.data.amount ?? null;
+  }
+  if (playerRes.status === "fulfilled" && playerRes.value.data) {
+    const p = playerRes.value.data;
+    profile.lastLogin = p.time_stamp_last_arma_login || null;
+    profile.accountCreated = p.time_stamp_created || null;
+    profile.discordId = p.discord_id || profile.discordId;
+    profile.timePlayed = p.arma_time_played || null;
+    profile.arma_username = profile.arma_username || p.arma_username || null;
+    // Previous names — backend may return as comma-separated string or array
+    if (p.previous_names) {
+      const raw = Array.isArray(p.previous_names) ? p.previous_names : String(p.previous_names).split(",");
+      profile.previousNames = raw
+        .map(n => String(n || "").trim())
+        .filter(n => n && n.toLowerCase() !== String(profile.arma_username || "").toLowerCase());
+    }
+  }
+  if (historyRes.status === "fulfilled" && historyRes.value.data?.servers) {
+    profile.serverHistory = historyRes.value.data.servers
+      .slice()
+      .sort((a, b) => new Date(b.last_seen || 0) - new Date(a.last_seen || 0));
   }
 
   // Check VAC status from local DB — try steam_id first, then arma_id
@@ -1006,6 +1645,55 @@ router.get("/player/:arma_id", async (req, res) => {
     }
   } catch {}
 
+  // Wasted Coins balance — only resolvable if we have a linked Discord ID
+  if (profile.discordId) {
+    profile.wastedCoinsBalance = wastedCoins.getBalance(profile.discordId);
+  }
+
+  // Owned skins/items — only resolvable if we have a linked Discord ID
+  if (profile.discordId) {
+    try {
+      const itemsRes = await apiClient.get("/itemsUser/getUserItemsByDiscordId", {
+        params: { discord_id: profile.discordId, token: config.apiToken },
+        timeout: 10000,
+      });
+      const items = itemsRes.data?.items || [];
+      profile.ownedSkins = items.map(i => {
+        let name = String(i.item_name || "")
+          .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{1FA00}-\u{1FA9F}]/gu, "")
+          .replace(/^[\s\u{FE0F}]+/u, "")
+          .trim();
+        if (!name) name = i.item_name;
+        return {
+          name,
+          quantity: i.quantity || 1,
+          rarity: i.misc_data?.rarity || null,
+          date: i.date_added || null,
+        };
+      }).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    } catch (err) {
+      console.error("admin-player: owned-skins fetch failed:", err.message);
+    }
+  }
+
+  // Daily kills/deaths — server-side bucketed via /user/getPlayerKillsByDay
+  profile.dailyStatsSeason = [];
+  profile.dailyStatsAllTime = [];
+  const [seasonRes, allTimeRes] = await Promise.allSettled([
+    apiClient.get("/user/getPlayerKillsByDay", { params: { arma_id: armaId, season: "current", token: config.apiToken }, timeout: 10000 }),
+    apiClient.get("/user/getPlayerKillsByDay", { params: { arma_id: armaId, season: "all", token: config.apiToken }, timeout: 10000 }),
+  ]);
+  if (seasonRes.status === "fulfilled" && Array.isArray(seasonRes.value.data?.days)) {
+    profile.dailyStatsSeason = seasonRes.value.data.days;
+  } else if (seasonRes.status === "rejected") {
+    console.error("admin-player: getPlayerKillsByDay (season) failed:", seasonRes.reason?.message);
+  }
+  if (allTimeRes.status === "fulfilled" && Array.isArray(allTimeRes.value.data?.days)) {
+    profile.dailyStatsAllTime = allTimeRes.value.data.days;
+  } else if (allTimeRes.status === "rejected") {
+    console.error("admin-player: getPlayerKillsByDay (all) failed:", allTimeRes.reason?.message);
+  }
+
   const playerNotes = auditLog.getPlayerNotes(armaId);
 
   res.render("admin-player", {
@@ -1022,7 +1710,38 @@ router.get("/player/:arma_id", async (req, res) => {
 });
 
 // POST /admin/player/:arma_id/note — add a note
-router.post("/player/:arma_id/note", (req, res) => {
+// POST /admin/player/:arma_id/link-discord — Owner-only manual Discord link
+router.post("/player/:arma_id/link-discord", requireOwner, async (req, res) => {
+  const armaId = req.params.arma_id;
+  const discord_id = (req.body.discord_id || "").trim();
+  const action = req.body.action || "set"; // "set" or "unlink"
+
+  if (action === "set" && !/^\d{17,20}$/.test(discord_id)) {
+    return res.redirect(`/admin/player/${armaId}?error=Invalid Discord ID (expected 17-20 digits).`);
+  }
+
+  try {
+    const finalDiscordId = action === "unlink" ? null : discord_id;
+    await adminApiClient.post("/admin/link-discord", {
+      token: config.adminApiToken,
+      arma_id: armaId,
+      discord_id: finalDiscordId,
+    });
+    auditLog.log("player-link", action === "unlink" ? "Discord Unlinked" : "Discord Linked",
+      `arma:${armaId} ↔ discord:${finalDiscordId || "(cleared)"} by ${req.session.user.username}`,
+      req.session.user);
+    res.redirect(`/admin/player/${armaId}?success=` + encodeURIComponent(action === "unlink" ? "Discord link removed." : `Discord ${discord_id} linked.`));
+  } catch (err) {
+    const apiMsg = err.response?.data?.message || err.message;
+    const conflict = err.response?.status === 409 && err.response?.data?.linked_to;
+    const msg = conflict
+      ? `That Discord is already linked to arma_id ${err.response.data.linked_to}.`
+      : apiMsg;
+    res.redirect(`/admin/player/${armaId}?error=` + encodeURIComponent(msg));
+  }
+});
+
+router.post("/player/:arma_id/note", requireWriteAdmin, (req, res) => {
   const { note } = req.body;
   const armaId = req.params.arma_id;
   if (!note || !note.trim()) {
@@ -1033,10 +1752,146 @@ router.post("/player/:arma_id/note", (req, res) => {
   res.redirect(`/admin/player/${armaId}`);
 });
 
-// POST /admin/player/:arma_id/note/:id/delete — delete a note
-router.post("/player/:arma_id/note/:id/delete", (req, res) => {
+// POST /admin/player/:arma_id/note/:id/delete — delete a note (and its attachments)
+router.post("/player/:arma_id/note/:id/delete", requireWriteAdmin, (req, res) => {
+  const note = auditLog.getPlayerNote(req.params.id);
+  if (note?.attachmentsArr?.length) {
+    // Also remove attachment files from disk
+    const dir = path.join(__dirname, "..", "..", "uploads", "notes", note.arma_id);
+    for (const att of note.attachmentsArr) {
+      try { fs.unlinkSync(path.join(dir, att.filename)); } catch {}
+    }
+  }
   auditLog.deletePlayerNote(req.params.id);
   res.redirect(`/admin/player/${req.params.arma_id}`);
+});
+
+// ── Note Attachment Uploads ──
+const NOTE_UPLOAD_DIR = path.join(__dirname, "..", "..", "uploads", "notes");
+const MAX_IMAGE_MB = 5;
+const MAX_VIDEO_MB = 500; // raised — ffmpeg compresses videos ~5–10x on save
+const IMAGE_EXT = /\.(jpg|jpeg|png|webp|gif)$/i;
+const VIDEO_EXT = /\.(mp4|webm|mov|avi|mkv)$/i;
+const videoCompress = require("../video-compress");
+
+const noteUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const armaId = req.params.arma_id;
+      if (!/^[a-f0-9-]{8,}$/i.test(armaId)) return cb(new Error("Invalid arma_id"));
+      const dir = path.join(NOTE_UPLOAD_DIR, armaId);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+      const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_").toLowerCase().slice(-80);
+      cb(null, Date.now() + "-" + safe);
+    },
+  }),
+  limits: { fileSize: MAX_VIDEO_MB * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (IMAGE_EXT.test(file.originalname) || VIDEO_EXT.test(file.originalname)) cb(null, true);
+    else cb(new Error("Only images (jpg, png, webp, gif) and videos (mp4, webm, mov, avi, mkv) are allowed."));
+  },
+});
+
+// POST /admin/player/:arma_id/note/:id/attach — upload file to a note
+router.post("/player/:arma_id/note/:id/attach", requireWriteAdmin, (req, res) => {
+  noteUpload.single("file")(req, res, async (err) => {
+    const armaId = req.params.arma_id;
+    const noteId = parseInt(req.params.id, 10);
+    if (err) return res.redirect(`/admin/player/${armaId}?error=${encodeURIComponent(err.message)}`);
+    if (!req.file) return res.redirect(`/admin/player/${armaId}?error=No file uploaded.`);
+
+    const isImage = IMAGE_EXT.test(req.file.originalname);
+    const isVideo = VIDEO_EXT.test(req.file.originalname);
+    const sizeMB = req.file.size / (1024 * 1024);
+
+    if (isImage && sizeMB > MAX_IMAGE_MB) {
+      try { fs.unlinkSync(req.file.path); } catch {}
+      return res.redirect(`/admin/player/${armaId}?error=Image too large (max ${MAX_IMAGE_MB} MB).`);
+    }
+
+    try {
+      const originalSize = req.file.size;
+      let compressionNote = "";
+      let finalFilename = path.basename(req.file.path);
+
+      // Compress images via Sharp (except GIFs)
+      if (isImage && !/\.gif$/i.test(req.file.originalname)) {
+        const compressed = path.join(path.dirname(req.file.path), "c-" + path.basename(req.file.path));
+        await sharp(req.file.path).resize(1920, 1920, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toFile(compressed);
+        fs.unlinkSync(req.file.path);
+        fs.renameSync(compressed, req.file.path);
+      }
+
+      // Compress videos via ffmpeg (if available — otherwise keep original)
+      if (isVideo && videoCompress.hasFfmpeg()) {
+        const origPath = req.file.path;
+        // Force output to .mp4 so browsers can play all uploads consistently
+        const baseNoExt = path.basename(origPath).replace(/\.[^.]+$/, "");
+        const compressedPath = path.join(path.dirname(origPath), baseNoExt + ".compressed.mp4");
+        try {
+          const res2 = await videoCompress.compressVideo(origPath, compressedPath);
+          // Replace original with compressed version (.mp4 extension for browser compatibility)
+          const finalPath = path.join(path.dirname(origPath), baseNoExt + ".mp4");
+          fs.unlinkSync(origPath);
+          fs.renameSync(compressedPath, finalPath);
+          finalFilename = path.basename(finalPath);
+          const savedMB = ((res2.originalSize - res2.compressedSize) / (1024 * 1024)).toFixed(1);
+          const ratio = (res2.originalSize / Math.max(1, res2.compressedSize)).toFixed(1);
+          compressionNote = ` (compressed ${ratio}x — saved ${savedMB} MB in ${Math.round(res2.durationMs / 1000)}s)`;
+          console.log(`Video compressed: ${req.file.originalname} ${(res2.originalSize / 1024 / 1024).toFixed(1)} MB → ${(res2.compressedSize / 1024 / 1024).toFixed(1)} MB (${ratio}x)`);
+        } catch (compressErr) {
+          console.warn(`Video compression failed, keeping original: ${compressErr.message}`);
+          // Keep original file — already at req.file.path
+        }
+      }
+
+      const finalPath = path.join(path.dirname(req.file.path), finalFilename);
+      auditLog.addAttachment(noteId, {
+        type: isImage ? "image" : "video",
+        filename: finalFilename,
+        original_name: req.file.originalname,
+        size: fs.statSync(finalPath).size,
+        original_size: originalSize,
+        uploaded_at: new Date().toISOString(),
+        uploaded_by: req.session.user.username,
+      });
+      auditLog.log("player-notes", `Attachment added`, `${req.file.originalname} → note #${noteId} (player ${armaId})${compressionNote}`, req.session.user);
+      res.redirect(`/admin/player/${armaId}?success=${encodeURIComponent("Attachment uploaded" + compressionNote + ".")}`);
+    } catch (e) {
+      console.error("Attachment save error:", e.message);
+      try { fs.unlinkSync(req.file.path); } catch {}
+      res.redirect(`/admin/player/${armaId}?error=Upload failed: ${encodeURIComponent(e.message)}`);
+    }
+  });
+});
+
+// GET /admin/uploads/note/:arma_id/:filename — serve attachment (admin-only)
+router.get("/uploads/note/:arma_id/:filename", (req, res) => {
+  const { arma_id, filename } = req.params;
+  if (!/^[a-f0-9-]{8,}$/i.test(arma_id)) return res.status(400).send("Invalid id");
+  if (!/^[a-zA-Z0-9._-]+$/.test(filename)) return res.status(400).send("Invalid filename");
+  const filepath = path.join(NOTE_UPLOAD_DIR, arma_id, filename);
+  if (!filepath.startsWith(NOTE_UPLOAD_DIR)) return res.status(403).send("Forbidden");
+  if (!fs.existsSync(filepath)) return res.status(404).send("Not found");
+  res.sendFile(filepath);
+});
+
+// POST /admin/player/:arma_id/note/:id/attach/:filename/delete — remove a single attachment
+router.post("/player/:arma_id/note/:id/attach/:filename/delete", requireWriteAdmin, (req, res) => {
+  const { arma_id, id, filename } = req.params;
+  if (!/^[a-zA-Z0-9._-]+$/.test(filename)) return res.redirect(`/admin/player/${arma_id}?error=Invalid filename`);
+  try {
+    auditLog.removeAttachment(parseInt(id, 10), filename);
+    const filepath = path.join(NOTE_UPLOAD_DIR, arma_id, filename);
+    if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
+    auditLog.log("player-notes", `Attachment removed`, `${filename} from note #${id}`, req.session.user);
+    res.redirect(`/admin/player/${arma_id}?success=Attachment removed.`);
+  } catch (err) {
+    res.redirect(`/admin/player/${arma_id}?error=${encodeURIComponent(err.message)}`);
+  }
 });
 
 // GET /admin/kd-report — renders page immediately with spinner, data loaded via AJAX
@@ -1231,7 +2086,11 @@ router.get("/kills", async (req, res) => {
       totalIncidents = allIncidents.length;
       totalPages = Math.max(1, Math.ceil(totalIncidents / perPage));
       const offset = (killPage - 1) * perPage;
-      recentKills = allIncidents.slice(offset, offset + perPage);
+      recentKills = allIncidents.slice(offset, offset + perPage).map((inc) => ({
+        ...inc,
+        killer_arma_id: inc.killer_arma_id || inc.arma_id_killer || inc.killer_id || null,
+        killed_arma_id: inc.killed_arma_id || inc.arma_id_death || inc.arma_id_killed || inc.killed_id || null,
+      }));
     } catch (error) {
       console.error("[RecentKills] Error:", error.message);
       recentKillsError = true;
@@ -1315,10 +2174,102 @@ router.get("/analytics", async (req, res) => {
     ipBlockStats: user.isAdmin ? ipBlock.getStats() : { total: 0, today: 0 },
     ctaStats: user.isAdmin ? analytics.getCtaStats() : [],
     ctaRecent: user.isAdmin ? analytics.getCtaRecent(20) : [],
+    visitors: user.isAdmin ? analytics.getVisitors({ limit: 200, since: Date.now() - 30 * 86400000 }) : [],
+    countryStats: user.isAdmin ? analytics.getCountryStats({ since: Date.now() - 30 * 86400000 }) : [],
+    flaggedVisitorCount: user.isAdmin ? analytics.getFlaggedVisitorCount({ since: Date.now() - 30 * 86400000 }) : 0,
+    flaggedCountries: analytics.FLAGGED_COUNTRIES,
     economyStats: user.isAdmin ? economyTracker.getStats(atmDays) : null,
     economyHistoryJson: JSON.stringify(user.isAdmin && economyTracker.getStats(atmDays) ? economyTracker.getStats(atmDays).dailyHistory : []),
     atmDays,
     cashRollup: user.isAdmin ? await fetchCashRollup() : null,
+    featureFlags: user.isAdmin ? require("../feature-flags").getAll() : null,
+    outfitStats: user.isAdmin ? await (async () => {
+      try {
+        const o = require("../outfits");
+        const raw = await o.getAllOutfits();
+        const all = Array.isArray(raw) ? raw : (Array.isArray(raw?.outfits) ? raw.outfits : []);
+        const lbRaw = await o.getOutfitLeaderboard(10);
+        const leaderboard = Array.isArray(lbRaw) ? lbRaw : (Array.isArray(lbRaw?.outfits) ? lbRaw.outfits : []);
+        return { total: all.length, totalMembers: all.reduce((s, x) => s + (x.member_count || 0), 0), leaderboard };
+      } catch (e) { console.error("outfitStats error:", e.message); return { total: 0, totalMembers: 0, leaderboard: [], apiError: e.message }; }
+    })() : null,
+    playtimeLeaderboard: user.isAdmin ? await (async () => {
+      try {
+        const res = await apiClient.get("/user/getTopPlayersByPlaytime", { params: { limit: 50, token: config.apiToken } });
+        const raw = res.data?.players || [];
+        const players = raw.map(p => {
+          const mins = Number(p.arma_time_played || 0);
+          const hrs = Math.floor(mins / 60);
+          const m = mins % 60;
+          return { ...p, hoursLabel: hrs > 0 ? `${hrs.toLocaleString()}h ${m}m` : `${m}m` };
+        });
+        const top = players[0];
+        return {
+          players,
+          topUsername: top?.arma_username || "—",
+          topHours: top ? Math.floor((top.arma_time_played || 0) / 60).toLocaleString() : 0,
+        };
+      } catch (e) {
+        const msg = e.response?.status === 404 ? "Endpoint not implemented on game server" : e.message;
+        return { players: [], error: msg };
+      }
+    })() : null,
+    rulesStats: user.isAdmin ? (() => {
+      try {
+        const rulesAck = require("../rules-ack");
+        return rulesAck.getStats();
+      } catch (e) { console.error("rulesStats error:", e.message); return { totalPosts: 0, totalYes: 0, totalNo: 0, uniqueAckers: 0 }; }
+    })() : null,
+    rulesAcks: user.isAdmin ? (() => {
+      try {
+        const rulesAck = require("../rules-ack");
+        return rulesAck.getAllAcks();
+      } catch (e) { console.error("rulesAcks error:", e.message); return []; }
+    })() : null,
+    pollStats: user.isAdmin ? (() => {
+      try {
+        const polls = require("../poll");
+        return polls.getStats();
+      } catch (e) { console.error("pollStats error:", e.message); return { open: 0, closed: 0, totalVotes: 0 }; }
+    })() : null,
+    polls: user.isAdmin ? await (async () => {
+      try {
+        const polls = require("../poll");
+        const { getGuildJoinDates } = require("../discord-bot");
+        const recent = polls.getRecentPolls(20);
+
+        // Collect all unique voter discord_ids across polls
+        const allIds = new Set();
+        const pollData = recent.map(p => {
+          const votes = polls.getVotes(p.id);
+          votes.forEach(v => allIds.add(v.discord_id));
+          return { ...p, tally: polls.getTally(p.id), votes };
+        });
+
+        // Fetch guild join dates once for all voters
+        let joinMap = new Map();
+        try { joinMap = await getGuildJoinDates([...allIds]); } catch (e) { console.warn("getGuildJoinDates failed:", e.message); }
+
+        // Attach to each vote
+        for (const p of pollData) {
+          p.votes = p.votes.map(v => ({ ...v, guild_joined_at: joinMap.get(v.discord_id) || null }));
+        }
+        return pollData;
+      } catch (e) { console.error("polls error:", e.message); return []; }
+    })() : null,
+    coinStats: user.isAdmin ? (() => {
+      try {
+        const circ = wastedCoins.getCirculation();
+        const flow24 = wastedCoins.getFlow(24 * 3600 * 1000);
+        const flow7d = wastedCoins.getFlow(7 * 24 * 3600 * 1000);
+        const top10 = wastedCoins.getLeaderboard(10);
+        const recent = wastedCoins.getRecentTransactions(null, 25).map(t => {
+          try { t.metaParsed = t.meta ? JSON.parse(t.meta) : null; } catch { t.metaParsed = null; }
+          return t;
+        });
+        return { circ, flow24, flow7d, top10, recent };
+      } catch (e) { console.error("coinStats error:", e.message); return null; }
+    })() : null,
   });
 });
 
@@ -1645,12 +2596,71 @@ router.post("/servers/restart/:instanceId", requireWriteAdmin, async (req, res) 
   }
 });
 
+// Recursively calculate directory size + per-player breakdown, split into images/videos
+function getAttachmentStorage() {
+  const out = { totalBytes: 0, imageBytes: 0, videoBytes: 0, fileCount: 0, imageCount: 0, videoCount: 0, players: [], topPlayers: [] };
+  if (!fs.existsSync(NOTE_UPLOAD_DIR)) return out;
+
+  const playerDirs = fs.readdirSync(NOTE_UPLOAD_DIR);
+  for (const armaId of playerDirs) {
+    const playerDir = path.join(NOTE_UPLOAD_DIR, armaId);
+    if (!fs.statSync(playerDir).isDirectory()) continue;
+    let playerBytes = 0;
+    let playerImageBytes = 0;
+    let playerVideoBytes = 0;
+    let playerFileCount = 0;
+    for (const file of fs.readdirSync(playerDir)) {
+      const fp = path.join(playerDir, file);
+      try {
+        const st = fs.statSync(fp);
+        if (!st.isFile()) continue;
+        const sz = st.size;
+        playerBytes += sz;
+        playerFileCount++;
+        out.totalBytes += sz;
+        out.fileCount++;
+        if (VIDEO_EXT.test(file)) {
+          playerVideoBytes += sz;
+          out.videoBytes += sz;
+          out.videoCount++;
+        } else if (IMAGE_EXT.test(file)) {
+          playerImageBytes += sz;
+          out.imageBytes += sz;
+          out.imageCount++;
+        }
+      } catch {}
+    }
+    if (playerBytes > 0) {
+      out.players.push({ arma_id: armaId, bytes: playerBytes, imageBytes: playerImageBytes, videoBytes: playerVideoBytes, fileCount: playerFileCount });
+    }
+  }
+  out.topPlayers = out.players.slice().sort((a, b) => b.bytes - a.bytes).slice(0, 5);
+  return out;
+}
+
 // GET /admin/system — VPS health dashboard
 router.get("/system", (req, res) => {
   const user = req.session.user;
   buildAvatarUrl(user);
 
   const stats = systemStats.getStats();
+  const attachments = getAttachmentStorage();
+
+  // Warning thresholds
+  const WARN_VIDEO_GB = 50;   // warn if video storage crosses 50 GB
+  const CRIT_VIDEO_GB = 200;  // critical at 200 GB
+  const WARN_DISK_PCT = 75;   // warn if overall disk usage > 75%
+  const CRIT_DISK_PCT = 90;   // critical at 90%
+
+  const videoGB = attachments.videoBytes / (1024 ** 3);
+  const diskPct = stats.disk?.usagePercent || 0;
+  const diskWarning = (
+    diskPct >= CRIT_DISK_PCT ? { level: "critical", msg: `Disk usage at ${diskPct}% — free up space immediately.` } :
+    diskPct >= WARN_DISK_PCT ? { level: "warning", msg: `Disk usage at ${diskPct}% — consider cleanup.` } :
+    videoGB >= CRIT_VIDEO_GB ? { level: "critical", msg: `Video evidence storage at ${videoGB.toFixed(1)} GB. Review old clips.` } :
+    videoGB >= WARN_VIDEO_GB ? { level: "warning", msg: `Video evidence storage at ${videoGB.toFixed(1)} GB — monitor growth.` } :
+    null
+  );
 
   res.render("admin-system", {
     page: "admin",
@@ -1659,6 +2669,8 @@ router.get("/system", (req, res) => {
     activeTab: "system",
     user,
     ...stats,
+    attachments,
+    diskWarning,
     successMessage: req.query.success || null,
     errorMessage: req.query.error || null,
   });
@@ -1775,6 +2787,11 @@ router.get("/store", requireWriteAdmin, (req, res) => {
     salePriceDisplay: p.sale_price ? (p.sale_price / 100).toFixed(2) : "",
   }));
   const categories = store.getAllCategories();
+  const profileItems = profileCustomizations.getAllItems().map(i => ({
+    ...i,
+    priceDisplay: (i.price / 100).toFixed(2),
+    syncedToStripe: !!i.stripe_price_id,
+  }));
 
   res.render("admin-store", {
     page: "admin",
@@ -1784,6 +2801,8 @@ router.get("/store", requireWriteAdmin, (req, res) => {
     user,
     products,
     categories,
+    profileItems,
+    profileItemTypes: profileCustomizations.TYPES,
     successMessage: req.query.success || null,
     errorMessage: req.query.error || null,
   });
@@ -1919,15 +2938,22 @@ router.post("/store/category/delete/:id", requireWriteAdmin, (req, res) => {
   res.redirect("/admin/store?success=" + encodeURIComponent(`Category "${cat.label}" deleted.`));
 });
 
-// POST /admin/store/sync-stripe — sync all products to Stripe
+// POST /admin/store/sync-stripe — sync all products + profile items to Stripe
 router.post("/store/sync-stripe", requireWriteAdmin, async (req, res) => {
   try {
-    const result = await store.syncToStripe();
-    auditLog.log("store", "Stripe Sync", `Synced ${result.synced}/${result.total} products${result.errors.length ? ", " + result.errors.length + " errors" : ""}`, req.session.user);
-    if (result.errors.length) {
-      res.redirect("/admin/store?error=" + encodeURIComponent(`Synced ${result.synced}/${result.total}. Errors: ${result.errors.map(e => e.product).join(", ")}`));
+    const storeResult = await store.syncToStripe();
+    const profileResult = await profileCustomizations.syncToStripe();
+    const totalSynced = (storeResult.synced || 0) + (profileResult.synced || 0);
+    const totalCount = (storeResult.total || 0) + (profileResult.total || 0);
+    const allErrors = [
+      ...(storeResult.errors || []).map(e => e.product || e),
+      ...(profileResult.errors || []).map(e => e.item || e),
+    ];
+    auditLog.log("store", "Stripe Sync", `Synced ${totalSynced}/${totalCount} (store + profile items)${allErrors.length ? ", " + allErrors.length + " errors" : ""}`, req.session.user);
+    if (allErrors.length) {
+      res.redirect("/admin/store?error=" + encodeURIComponent(`Synced ${totalSynced}/${totalCount}. Errors: ${allErrors.join(", ")}`));
     } else {
-      res.redirect("/admin/store?success=" + encodeURIComponent(`All ${result.synced} products synced to Stripe.`));
+      res.redirect("/admin/store?success=" + encodeURIComponent(`All ${totalSynced} items synced to Stripe (${storeResult.synced} products, ${profileResult.synced} profile items).`));
     }
   } catch (err) {
     console.error("Stripe sync error:", err.message);

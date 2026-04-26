@@ -3120,3 +3120,174 @@ footer a:hover { text-shadow: 0 0 10px var(--accent-dim); }
   text-decoration: none;
 }
 .verify-steps a:hover { text-decoration: underline; }
+
+/* ═══════════════════════════════════════════════════════════ */
+/*            MOBILE OPTIMIZATION — 2026-04                     */
+/* ═══════════════════════════════════════════════════════════ */
+
+/* Global image overflow safety */
+img { max-width: 100%; height: auto; }
+
+/* Prevent horizontal scroll leakage from fixed/absolute elements */
+body { overflow-x: hidden; }
+
+/* ── Main Nav Hamburger (hidden on desktop, shown on mobile) ── */
+.main-nav-hamburger {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  width: 44px;
+  height: 44px;
+  cursor: pointer;
+  padding: 0;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+}
+.main-nav-hamburger span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--text-primary);
+  border-radius: 1px;
+  transition: transform 0.2s, opacity 0.2s;
+}
+.main-nav-hamburger.open span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.main-nav-hamburger.open span:nth-child(2) { opacity: 0; }
+.main-nav-hamburger.open span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+/* Tablet breakpoint — 601-900px */
+@media (max-width: 900px) {
+  .tier-awards-grid { grid-template-columns: repeat(3, 1fr) !important; }
+  .profile-upsell-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .customize-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important; }
+}
+
+/* Primary mobile breakpoint — phones */
+@media (max-width: 768px) {
+  /* ── Main nav hamburger visible on mobile ── */
+  .main-nav-hamburger { display: flex; }
+  .header-content {
+    padding: 0.5rem 0.75rem;
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .site-title { order: 1; flex: 1; min-width: 0; }
+  .main-nav-hamburger { order: 2; }
+  #auth-section { order: 3; flex-basis: auto; }
+  .nav-links {
+    order: 4;
+    flex-basis: 100%;
+    display: none !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.25rem;
+    padding: 0.5rem 0;
+    background: var(--bg-secondary, rgba(0,0,0,0.3));
+    border-radius: 8px;
+  }
+  .nav-links.open {
+    display: flex !important;
+  }
+  .nav-link, .nav-dropdown-toggle {
+    padding: 0.65rem 0.9rem !important;
+    font-size: 0.85rem !important;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  /* Nav dropdowns open as full-width panels instead of floating popups */
+  .nav-dropdown-menu {
+    position: static !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  .nav-dropdown-item { padding: 0.8rem 1rem !important; min-height: 44px; }
+
+  /* ── Hero: min-height not fixed ── */
+  .hero { height: auto !important; min-height: 200px; }
+
+  /* ── Small buttons hit 44px min ── */
+  .btn-small { min-height: 44px; padding: 0.5rem 0.75rem !important; }
+
+  /* ── Admin analytics tab strip: horizontal scroll ── */
+  .tab-bar,
+  #admin-section > div:first-child > div:first-child {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    flex-wrap: nowrap !important;
+  }
+  .tab-bar::-webkit-scrollbar { height: 4px; }
+  .tab-bar::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; }
+  .analytics-tab, .tab {
+    flex-shrink: 0;
+    min-height: 44px;
+  }
+
+  /* ── Outfit create form: single column ── */
+  form[action="/outfits/create"] > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ── Unwrapped tables — force scroll ── */
+  .wc-lb-table, .wc-cmd-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+
+  /* ── Profile customize page ── */
+  .customize-grid { grid-template-columns: 1fr !important; }
+  .dual-buy {
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+  }
+  .dual-buy > * { flex: 1 1 45% !important; min-width: 130px; }
+  .customize-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+  .customize-header > * { margin-left: 0 !important; }
+
+  /* ── Profile hero-right: column stack ── */
+  .profile-hero-right {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+  }
+  .profile-username { overflow-wrap: anywhere; word-break: break-word; }
+
+  /* ── Modal: tighter padding on phones ── */
+  .modal-overlay { padding: 0.5rem !important; }
+  .modal-content { max-height: 90vh !important; padding: 1rem !important; }
+
+  /* ── Combat stats toggle on admin player page ── */
+  .stats-tabs { flex-shrink: 0; }
+
+  /* ── Footer social icons hit 44px ── */
+  .footer-socials a, footer a[href*="discord"], footer a[href*="youtube"] {
+    min-width: 44px; min-height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+}
+
+/* Small phones — extra defensive rules */
+@media (max-width: 480px) {
+  .tier-awards-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .profile-upsell-grid { grid-template-columns: 1fr !important; }
+  .dual-buy > * { flex: 1 1 100% !important; }
+  .analytics-cards { grid-template-columns: 1fr !important; }
+  h1, .hero-title { font-size: 1.3rem !important; }
+  .nav-links { gap: 0.15rem; }
+}

@@ -1,0 +1,43 @@
+<section style="max-width:600px;margin:3rem auto;padding:0 1rem;">
+  {{#if error}}
+    <div class="error" style="margin-bottom:1rem;">{{error}}</div>
+  {{/if}}
+  {{#if success}}
+    <div class="notice success-notice" style="margin-bottom:1rem;"><strong>Success</strong><p>{{success}}</p></div>
+  {{/if}}
+
+  {{#unless invite}}
+    <div class="admin-form-card" style="text-align:center;padding:3rem 1.5rem;">
+      <h2>Invite Not Found</h2>
+      <p style="color:var(--text-secondary);">This link is invalid or has expired.</p>
+      <a href="/outfits" class="btn btn-admin" style="text-decoration:none;margin-top:1rem;">Browse Outfits</a>
+    </div>
+  {{else}}
+    <div class="admin-form-card" style="text-align:center;padding:2rem 1.5rem;">
+      <h2 style="margin-bottom:0.5rem;">You've been invited to join</h2>
+      <div style="font-family:'Orbitron',monospace;font-size:2rem;font-weight:700;color:var(--accent);margin:1rem 0;">[{{invite.outfit_tag}}] {{invite.outfit_name}}</div>
+
+      {{#if expired}}
+        <p style="color:var(--danger);font-weight:600;">This invite has expired or already been used.</p>
+        <a href="/outfits" class="btn btn-admin" style="text-decoration:none;margin-top:1rem;">Browse Outfits</a>
+      {{else if wrongUser}}
+        <p style="color:var(--danger);">This invite was sent to a different Discord account. Make sure you're logged in with the right one.</p>
+        <a href="/auth/discord" class="btn btn-admin" style="text-decoration:none;margin-top:1rem;">Switch Account</a>
+      {{else if alreadyInOutfit}}
+        <p style="color:var(--text-secondary);">You're already in an outfit. You'll need to <code>/outfit leave</code> in Discord before you can accept a new invite.</p>
+      {{else}}
+        <p style="color:var(--text-secondary);margin-bottom:1.5rem;">Join as a member and start fighting alongside your new squad.</p>
+        <div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap;">
+          <form method="POST" action="/outfits/invite/{{invite.token}}/accept" style="margin:0;">
+            <input type="hidden" name="_csrf" value="{{csrfToken}}">
+            <button type="submit" class="btn btn-admin" style="background:#22c55e;color:#fff;font-size:1.1rem;padding:0.75rem 2rem;">Accept Invite</button>
+          </form>
+          <form method="POST" action="/outfits/invite/{{invite.token}}/decline" style="margin:0;">
+            <input type="hidden" name="_csrf" value="{{csrfToken}}">
+            <button type="submit" class="btn btn-admin" style="background:var(--bg-card);">Decline</button>
+          </form>
+        </div>
+      {{/if}}
+    </div>
+  {{/unless}}
+</section>

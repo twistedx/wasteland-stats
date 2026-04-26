@@ -25,18 +25,7 @@ function getTierForProduct(productName) {
 async function resolveArmaId(discordId) {
   try {
     const res = await apiClient({ method: "GET", url: "/user/getAllPlayerStatsByDiscordID", data: { discord_id: discordId, token: config.apiToken } });
-    if (res.data?.arma_id) return res.data.arma_id;
-    // Some responses don't have arma_id but have arma_username — try to get arma_id from username
-    if (res.data?.arma_username) {
-      const idRes = await apiClient({ method: "GET", url: "/user/getPlayerIDsByName", data: { arma_username: res.data.arma_username, token: config.apiToken } });
-      // API returns plain array: ["uuid"] or { data: ["uuid"] }
-      const ids = Array.isArray(idRes.data) ? idRes.data : idRes.data?.data;
-      if (Array.isArray(ids) && ids.length > 0) {
-        const id = typeof ids[0] === "string" ? ids[0] : ids[0]?.arma_id;
-        if (id) return id;
-      }
-    }
-    return null;
+    return res.data?.arma_id || null;
   } catch (err) {
     console.error("SubscriptionPerks: failed to resolve arma_id for", discordId, err.message);
     return null;
@@ -184,4 +173,56 @@ async function revokePerks(discordId) {
   }
 }
 
-module.exports = { applyPerks, revokePerks, grantSkins, getTierForProduct, resolveArmaId, SUBSCRIPTION_TIERS, DEFAULT_BANK_LIMIT };
+// One-time supporter package: draw 1 random skin, grant it, DM the buyer the result, log to channel.
+async function grantSupporterDraw(discordId, productName) {
+  if (!discordId || discordId === "guest") return null;
+  const results = await grantSkins(discordId, 1);
+  const successSkins = results.filter(s => s.success);
+  if (!successSkins.length) {
+    sendWebhook({
+      title: "Supporter Draw Failed",
+      description: `<@${discordId}> bought **${productName}** but the random draw failed: ${results.map(r => r.error || "no skins").join(", ") || "pool empty"}`,
+      color: 0xf04747,
+    });
+    return results;
+  }
+
+  // DM the buyer with the drawn skin(s)
+  let dmSent = false;
+  try {
+    const { getClient } = require("./discord-bot");
+    const bot = getClient();
+    if (bot?.isReady()) {
+      const user = await bot.users.fetch(discordId);
+      if (user) {
+        const skinList = successSkins.map(s => `**${s.name}** (${s.rarity})`).join("\n");
+        await user.send({
+          embeds: [{
+            color: 0xfde047,
+            title: `🎁 Your ${productName} reward`,
+            description:
+              `Thanks for supporting Arma Wasteland!\n\n` +
+              `Your random draw rolled:\n${skinList}\n\n` +
+              `It's been added to your inventory — drop in and rock it on the wasteland.`,
+          }],
+        });
+        dmSent = true;
+        console.log(`SupporterDraw: DM sent to ${discordId} for ${productName}`);
+      }
+    }
+  } catch (dmErr) {
+    console.warn(`SupporterDraw: could not DM ${discordId}: ${dmErr.message}`);
+  }
+
+  // Log to the channel
+  const skinSummary = successSkins.map(s => `${s.name} (${s.rarity})`).join(", ");
+  sendWebhook({
+    title: "Supporter Package Drawn",
+    description: `<@${discordId}> bought **${productName}** → drew **${skinSummary}**${dmSent ? " · ✅ DM sent" : " · ⚠️ DM failed (DMs closed?)"}`,
+    color: dmSent ? 0x22c55e : 0xf59e0b,
+  });
+
+  return results;
+}
+
+module.exports = { applyPerks, revokePerks, grantSkins, grantSupporterDraw, getTierForProduct, resolveArmaId, SUBSCRIPTION_TIERS, DEFAULT_BANK_LIMIT };

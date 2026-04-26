@@ -441,6 +441,26 @@
     }));
   }
 
+  // Trim long product names so they fit in the chart label gutter without overflowing
+  function shortName(name, maxLen) {
+    if (!name) return "";
+    maxLen = maxLen || 28;
+    // Strip leading emoji/symbols and "Wasteland Loadout Drop —" prefix
+    var clean = String(name)
+      .replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2700}-\u{27BF}\s]+/u, "")
+      .replace(/Wasteland Loadout Drop\s*[—\-]\s*/i, "")
+      .replace(/\(One time Payment\)/gi, "(OTP)")
+      .replace(/\s+\*\*[^*]*\*\*\s*/g, " ")
+      .trim();
+    // If multiple products bundled with commas, take the first + "+N more"
+    if (clean.indexOf(",") !== -1) {
+      var parts = clean.split(",").map(function (p) { return p.trim(); }).filter(Boolean);
+      if (parts.length > 1) clean = parts[0] + " +" + (parts.length - 1) + " more";
+    }
+    if (clean.length > maxLen) clean = clean.slice(0, maxLen - 1).trim() + "…";
+    return clean;
+  }
+
   // Store — Top Products by Revenue (horizontal bar)
   function renderStoreProductsChart(topProducts) {
     var el = document.getElementById("chart-store-products");
@@ -450,9 +470,16 @@
 
     var sorted = topProducts.slice(0, 8).reverse();
     chart.setOption(Object.assign({}, baseTheme, {
-      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, backgroundColor: BG, borderColor: GRID, textStyle: { color: "#e8e8e8" } },
+      grid: { left: 200, right: 60, top: 10, bottom: 30, containLabel: false },
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, backgroundColor: BG, borderColor: GRID, textStyle: { color: "#e8e8e8" },
+        formatter: function (params) {
+          var p = params[0];
+          var fullName = sorted[p.dataIndex].product_name;
+          return '<div style="max-width:340px;white-space:normal;"><b>' + fullName + '</b><br/>$' + p.value + '</div>';
+        }
+      },
       xAxis: { type: "value", axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: ACCENT, formatter: "${value}" }, splitLine: { lineStyle: { color: GRID } } },
-      yAxis: { type: "category", data: sorted.map(function (p) { return p.product_name; }), axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: "#e8e8e8", fontSize: 11, fontWeight: 600 } },
+      yAxis: { type: "category", data: sorted.map(function (p) { return shortName(p.product_name, 26); }), axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: "#e8e8e8", fontSize: 11, fontWeight: 600, width: 190, overflow: "truncate" } },
       series: [{
         type: "bar",
         data: sorted.map(function (p) { return parseFloat(p.revenue); }),
@@ -472,9 +499,16 @@
 
     var sorted = topProducts.slice(0, 8).reverse();
     chart.setOption(Object.assign({}, baseTheme, {
-      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, backgroundColor: BG, borderColor: GRID, textStyle: { color: "#e8e8e8" } },
+      grid: { left: 200, right: 60, top: 10, bottom: 30, containLabel: false },
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, backgroundColor: BG, borderColor: GRID, textStyle: { color: "#e8e8e8" },
+        formatter: function (params) {
+          var p = params[0];
+          var fullName = sorted[p.dataIndex].product_name;
+          return '<div style="max-width:340px;white-space:normal;"><b>' + fullName + '</b><br/>' + p.value + ' sold</div>';
+        }
+      },
       xAxis: { type: "value", minInterval: 1, axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: ACCENT }, splitLine: { lineStyle: { color: GRID } } },
-      yAxis: { type: "category", data: sorted.map(function (p) { return p.product_name; }), axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: "#e8e8e8", fontSize: 11, fontWeight: 600 } },
+      yAxis: { type: "category", data: sorted.map(function (p) { return shortName(p.product_name, 26); }), axisLine: { lineStyle: { color: GRID } }, axisLabel: { color: "#e8e8e8", fontSize: 11, fontWeight: 600, width: 190, overflow: "truncate" } },
       series: [{
         type: "bar",
         data: sorted.map(function (p) { return p.sold; }),

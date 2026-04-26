@@ -87,11 +87,12 @@ function getHistory(hours) {
     ORDER BY ts ASC
   `).all(since);
 
-  // Group by instance
-  const result = {};
+  // Group by server name (dedup instance IDs that share the same name)
+  const byName = {};
   for (const row of rows) {
-    if (!result[row.instance_id]) {
-      result[row.instance_id] = {
+    const key = row.instance_name || row.instance_id;
+    if (!byName[key]) {
+      byName[key] = {
         name: row.instance_name,
         times: [],
         players: [],
@@ -99,14 +100,14 @@ function getHistory(hours) {
         memory: [],
       };
     }
-    const entry = result[row.instance_id];
+    const entry = byName[key];
     entry.times.push(row.ts);
     entry.players.push(row.players);
     entry.cpu.push(Math.round(row.cpu * 10) / 10);
     entry.memory.push(row.memory_max > 0 ? Math.round((row.memory / row.memory_max) * 100) : 0);
   }
 
-  return result;
+  return byName;
 }
 
 module.exports = { init, record, getHistory };

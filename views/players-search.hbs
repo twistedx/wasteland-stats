@@ -1,0 +1,40 @@
+<section style="max-width:760px;margin:2rem auto 4rem;padding:0 1rem;">
+  <h1 style="font-family:'Orbitron',sans-serif;font-size:1.4rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.25rem;">Find a Player</h1>
+  <p style="color:var(--text-secondary);margin:0 0 1.25rem;font-size:0.9rem;">Search by Arma username, Discord username, or Discord ID (17–20 digit snowflake).</p>
+
+  <form method="GET" action="/players" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+    <input type="text" name="q" value="{{q}}" placeholder="Arma name, Discord name, or Discord ID..." minlength="2" required class="filter-input" style="flex:1;min-width:240px;font-size:1rem;padding:0.65rem 0.85rem;" autofocus>
+    <button type="submit" class="btn btn-admin" style="padding:0.65rem 1.25rem;font-weight:700;">Search</button>
+  </form>
+
+  {{#if searchError}}
+    <div class="error">{{searchError}}</div>
+  {{else if queryTooShort}}
+    <div class="empty-state">Type at least 2 characters.</div>
+  {{else if q}}
+    {{#if players.length}}
+      <p style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:0.75rem;">{{players.length}} match{{#unless (eq players.length 1)}}es{{/unless}} for "<strong style="color:var(--text-primary);">{{q}}</strong>"</p>
+      <div class="player-search-results" style="display:flex;flex-direction:column;gap:0.4rem;">
+        {{#each players}}
+          <a href="/profile/{{this.slug}}" class="player-search-row" style="display:flex;justify-content:space-between;align-items:center;padding:0.7rem 1rem;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;text-decoration:none;color:var(--text-primary);transition:border-color 0.15s,background 0.15s;">
+            <span style="display:inline-flex;align-items:center;gap:0.5rem;font-weight:600;">
+              {{this.arma_username}}
+              {{#if (eq this.matchedVia 'discord_id')}}<span style="font-size:0.65rem;color:#5865F2;background:rgba(88,101,242,0.15);padding:0.1rem 0.4rem;border-radius:999px;text-transform:uppercase;letter-spacing:0.04em;">via Discord ID</span>
+              {{else if (eq this.matchedVia 'discord_username')}}<span style="font-size:0.65rem;color:#5865F2;background:rgba(88,101,242,0.15);padding:0.1rem 0.4rem;border-radius:999px;text-transform:uppercase;letter-spacing:0.04em;">via Discord</span>
+              {{/if}}
+            </span>
+            <span style="color:var(--accent);font-size:0.85rem;">View Profile &rsaquo;</span>
+          </a>
+        {{/each}}
+      </div>
+    {{else}}
+      <div class="empty-state">No players matching "<strong style="color:var(--text-primary);">{{q}}</strong>".</div>
+    {{/if}}
+  {{else}}
+    <div class="empty-state">Search for a player above to get started.</div>
+  {{/if}}
+</section>
+
+<style>
+  .player-search-row:hover { border-color: var(--accent); background: var(--bg-primary); }
+</style>

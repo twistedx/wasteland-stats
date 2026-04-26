@@ -37,6 +37,10 @@ function init() {
       vid TEXT NOT NULL
     )
   `);
+  // Add country column for geo tracking (ISO 3166-1 alpha-2 from Cloudflare CF-IPCountry header)
+  try { db.exec("ALTER TABLE visits ADD COLUMN country TEXT"); } catch (e) { /* exists */ }
+  try { db.exec("ALTER TABLE visits ADD COLUMN ip TEXT"); } catch (e) { /* exists */ }
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_visits_country ON visits (country)"); } catch (e) { /* exists */ }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS meta (
@@ -50,7 +54,7 @@ function init() {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_visits_path ON visits (path)`);
 
   insertStmt = db.prepare(
-    "INSERT INTO visits (ts, path, logged_in, username, vid) VALUES (?, ?, ?, ?, ?)"
+    "INSERT INTO visits (ts, path, logged_in, username, vid, country, ip) VALUES (?, ?, ?, ?, ?, ?, ?)"
   );
 
   db.exec(`
@@ -127,8 +131,12 @@ function middleware(req, res, next) {
     .digest("hex")
     .substring(0, 12);
 
+  // Cloudflare passes ISO country code via CF-IPCountry header
+  const country = (req.headers["cf-ipcountry"] || "").toUpperCase().slice(0, 2) || null;
+  const ip = req.headers["cf-connecting-ip"] || req.ip || null;
+
   try {
-    insertStmt.run(Date.now(), p, user ? 1 : 0, user?.username || null, vid);
+    insertStmt.run(Date.now(), p, user ? 1 : 0, user?.username || null, vid, country, ip);
   } catch (err) {
     console.error("Analytics: insert error", err.message);
   }
@@ -257,4 +265,76 @@ function getCtaRecent(limit = 30) {
   return db.prepare("SELECT ts, discord_id, username, cta_index, cta_text FROM profile_cta_clicks ORDER BY ts DESC LIMIT ?").all(limit);
 }
 
-module.exports = { init, middleware, getStats, recordDeposit, getTotalDeposited, recordCtaClick, getCtaStats, getCtaRecent };
+// Flagged country list — countries we want to highlight on the visitors page.
+const FLAGGED_COUNTRIES = ["CZ"]; // Czech Republic
+
+// Aggregate unique visitors with country, page count, last seen, etc.
+function getVisitors({ limit = 200, country = null, flaggedOnly = false, since = null } = {}) {
+  if (!db) return [];
+  const conditions = [];
+  const params = [];
+  if (since) { conditions.push("ts >= ?"); params.push(since); }
+  if (country) { conditions.push("country = ?"); params.push(country.toUpperCase()); }
+  if (flaggedOnly) {
+    conditions.push(`country IN (${FLAGGED_COUNTRIES.map(() => "?").join(",")})`);
+    params.push(...FLAGGED_COUNTRIES);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const sql = `
+    SELECT
+      vid,
+      MAX(country) as country,
+      MAX(ip) as ip,
+      MAX(username) as username,
+      MAX(logged_in) as logged_in,
+      COUNT(*) as visits,
+      MIN(ts) as first_seen,
+      MAX(ts) as last_seen,
+      GROUP_CONCAT(DISTINCT path) as paths_csv
+    FROM visits
+    ${where}
+    GROUP BY vid
+    ORDER BY last_seen DESC
+    LIMIT ?
+  `;
+  const rows = db.prepare(sql).all(...params, limit);
+  return rows.map(r => ({
+    ...r,
+    flagged: !!(r.country && FLAGGED_COUNTRIES.includes(r.country)),
+    paths: (r.paths_csv || "").split(",").filter(Boolean).slice(0, 8),
+  }));
+}
+
+// Country breakdown for stats card
+function getCountryStats({ since = null } = {}) {
+  if (!db) return [];
+  const where = since ? "WHERE ts >= ?" : "";
+  const params = since ? [since] : [];
+  return db.prepare(`
+    SELECT country, COUNT(DISTINCT vid) as unique_visitors, COUNT(*) as total_visits
+    FROM visits
+    ${where ? where + " AND " : "WHERE "} country IS NOT NULL
+    GROUP BY country
+    ORDER BY unique_visitors DESC
+    LIMIT 30
+  `).all(...params);
+}
+
+function getFlaggedVisitorCount({ since = null } = {}) {
+  if (!db) return 0;
+  const where = since ? "AND ts >= ?" : "";
+  const params = since ? [since] : [];
+  const placeholders = FLAGGED_COUNTRIES.map(() => "?").join(",");
+  const row = db.prepare(`
+    SELECT COUNT(DISTINCT vid) as n FROM visits
+    WHERE country IN (${placeholders}) ${where}
+  `).get(...FLAGGED_COUNTRIES, ...params);
+  return row?.n || 0;
+}
+
+module.exports = {
+  init, middleware, getStats, recordDeposit, getTotalDeposited,
+  recordCtaClick, getCtaStats, getCtaRecent,
+  getVisitors, getCountryStats, getFlaggedVisitorCount, FLAGGED_COUNTRIES,
+};

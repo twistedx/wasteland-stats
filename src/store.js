@@ -372,6 +372,11 @@ function getStoreStats() {
   const weekOrders = db.prepare("SELECT COUNT(*) as cnt FROM store_purchases WHERE status = 'completed' AND created_at >= ?").get(weekStr).cnt;
   const monthRevenue = db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM store_purchases WHERE status = 'completed' AND created_at >= ?").get(monthStr).total;
   const monthOrders = db.prepare("SELECT COUNT(*) as cnt FROM store_purchases WHERE status = 'completed' AND created_at >= ?").get(monthStr).cnt;
+  // Year-to-date — Jan 1 of current year (UTC) through now
+  const ytdStart = new Date(Date.UTC(new Date().getUTCFullYear(), 0, 1));
+  const ytdStr = ytdStart.toISOString().replace("T", " ").slice(0, 19);
+  const ytdRevenue = db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM store_purchases WHERE status = 'completed' AND created_at >= ?").get(ytdStr).total;
+  const ytdOrders = db.prepare("SELECT COUNT(*) as cnt FROM store_purchases WHERE status = 'completed' AND created_at >= ?").get(ytdStr).cnt;
 
   // Top selling products
   const topProducts = db.prepare(`
@@ -383,6 +388,16 @@ function getStoreStats() {
   // Unique sessions (proxy for unique buyers without PII)
   const uniqueBuyers = db.prepare("SELECT COUNT(DISTINCT stripe_session_id) as cnt FROM store_purchases WHERE status = 'completed' AND stripe_session_id IS NOT NULL").get().cnt;
   const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+
+  // Average daily income — total revenue / days since first sale (rounded up to at least 1)
+  const firstSaleRow = db.prepare("SELECT MIN(created_at) as first_at FROM store_purchases WHERE status = 'completed'").get();
+  let daysActive = 1;
+  if (firstSaleRow?.first_at) {
+    const firstMs = new Date(firstSaleRow.first_at + "Z").getTime();
+    const ms = Date.now() - firstMs;
+    daysActive = Math.max(1, Math.ceil(ms / 86400000));
+  }
+  const avgDailyIncome = totalRevenue > 0 ? Math.round(totalRevenue / daysActive) : 0;
 
   // Daily revenue for last 30 days
   const dailyRevenue = [];
@@ -413,7 +428,9 @@ function getStoreStats() {
     todayRevenue: fmt(todayRevenue), todayOrders,
     weekRevenue: fmt(weekRevenue), weekOrders,
     monthRevenue: fmt(monthRevenue), monthOrders,
+    ytdRevenue: fmt(ytdRevenue), ytdOrders,
     uniqueBuyers, avgOrderValue: fmt(avgOrderValue),
+    avgDailyIncome: fmt(avgDailyIncome), daysActive,
     topProducts: topProducts.map(p => ({ ...p, revenue: fmt(p.revenue) })),
     dailyRevenue: dailyRevenue.map(d => ({ ...d, revenue: d.revenue / 100 })),
     recentPurchases: recentPurchases.map(p => ({ ...p, amount: fmt(p.amount) })),

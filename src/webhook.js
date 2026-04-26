@@ -1,6 +1,10 @@
 const axios = require("axios");
 const config = require("./config");
 
+const ENV_FOOTER = config.environment === "production"
+  ? { text: "🟢 production · armawasteland.com" }
+  : { text: "🔧 development · localhost" };
+
 // Queue-based webhook sender — respects Discord rate limits
 const queue = [];
 let sending = false;
@@ -64,6 +68,7 @@ function sendWebhook(embed) {
       description: embed.description || "",
       color: embed.color || 0x5865F2,
       timestamp: new Date().toISOString(),
+      footer: ENV_FOOTER,
     }],
   });
   processQueue();
@@ -78,6 +83,26 @@ function sendWebhookError(source, errorMessage) {
       description: errorMessage,
       color: 0xef4444,
       timestamp: new Date().toISOString(),
+      footer: ENV_FOOTER,
+    }],
+  });
+  processQueue();
+}
+
+// Public-facing webhook — for community announcements (coin bonuses, redemptions, etc.)
+function sendPublicWebhook(embed) {
+  const url = config.publicWebhookUrl;
+  if (!url) return sendWebhook(embed);
+  console.log(`[Public Webhook] ${embed.title}: ${embed.description?.slice(0, 100) || ""}`);
+  queue.push({
+    _url: url,
+    allowed_mentions: { parse: [] },
+    embeds: [{
+      title: embed.title,
+      description: embed.description || "",
+      color: embed.color || 0x8B5CF6,
+      timestamp: new Date().toISOString(),
+      footer: ENV_FOOTER,
     }],
   });
   processQueue();
@@ -95,9 +120,10 @@ function sendVacWebhook(embed) {
       description: embed.description || "",
       color: embed.color || 0xef4444,
       timestamp: new Date().toISOString(),
+      footer: ENV_FOOTER,
     }],
   });
   processQueue();
 }
 
-module.exports = { sendWebhook, sendWebhookError, sendVacWebhook };
+module.exports = { sendWebhook, sendWebhookError, sendVacWebhook, sendPublicWebhook };

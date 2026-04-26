@@ -1,0 +1,138 @@
+<section id="admin-section">
+  {{> admin-nav}}
+
+  {{#if successMessage}}<div class="notice success-notice"><strong>Success</strong><p>{{successMessage}}</p></div>{{/if}}
+  {{#if errorMessage}}<div class="error">{{errorMessage}}</div>{{/if}}
+
+  <div class="admin-form-card">
+    <h3>Create Profile Item</h3>
+    <form method="POST" action="/admin/profile-items" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.75rem;align-items:end;">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div><label class="form-label">Type</label>
+        <select name="type" class="filter-input" required>
+          {{#each types}}<option value="{{this}}">{{this}}</option>{{/each}}
+        </select>
+      </div>
+      <div><label class="form-label">Name</label><input type="text" name="name" class="filter-input" required></div>
+      <div><label class="form-label">Price (USD)</label><input type="number" name="price" class="filter-input" step="0.01" min="0.5" required></div>
+      <div><label class="form-label">Rarity</label>
+        <select name="rarity" class="filter-input">
+          <option value="common">common</option>
+          <option value="rare">rare</option>
+          <option value="epic">epic</option>
+          <option value="legendary">legendary</option>
+        </select>
+      </div>
+      <div><label class="form-label">Sort Order</label><input type="number" name="sort_order" class="filter-input" value="0"></div>
+      <div style="grid-column:1 / -1;"><label class="form-label">Description</label><input type="text" name="description" class="filter-input"></div>
+      <div style="grid-column:1 / -1;"><label class="form-label">CSS Value</label>
+        <input type="text" name="css_value" class="filter-input" placeholder="e.g. linear-gradient(...) or #ef4444 or &amp;#128081;">
+        <p style="font-size:0.7rem;color:var(--text-secondary);margin:0.25rem 0 0;">For backgrounds: a CSS background value. For name colors: a hex color. For badges: an HTML entity or emoji character.</p>
+      </div>
+      <div><label class="form-label">Image (optional URL)</label><input type="text" name="image" class="filter-input"></div>
+      <div><button type="submit" class="btn btn-admin" style="width:100%;">Create</button></div>
+    </form>
+  </div>
+
+  <div class="admin-form-card">
+    <h3>Catalog ({{items.length}})</h3>
+    {{#if items.length}}
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>ID</th><th>Type</th><th>Name</th><th>Price</th><th>Rarity</th><th>CSS / Value</th><th>Sort</th><th>Active</th><th>Actions</th></tr></thead>
+          <tbody>
+            {{#each items}}
+              <tr>
+                <td class="guid">#{{this.id}}</td>
+                <td><span class="rarity-badge rarity-badge-{{this.rarity}}">{{this.type}}</span></td>
+                <td class="player-name">{{this.name}}</td>
+                <td>${{divideBy this.price 100}}</td>
+                <td>{{this.rarity}}</td>
+                <td><code style="font-size:0.7rem;max-width:240px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;">{{this.css_value}}</code></td>
+                <td>{{this.sort_order}}</td>
+                <td>{{#if this.active}}<span style="color:#22c55e;">Yes</span>{{else}}<span style="color:var(--text-secondary);">No</span>{{/if}}</td>
+                <td style="display:flex;gap:0.4rem;">
+                  <button type="button" class="btn btn-admin btn-small edit-item-btn"
+                    data-id="{{this.id}}"
+                    data-type="{{this.type}}"
+                    data-name="{{this.name}}"
+                    data-description="{{this.description}}"
+                    data-price="{{divideBy this.price 100}}"
+                    data-image="{{this.image}}"
+                    data-css="{{this.css_value}}"
+                    data-rarity="{{this.rarity}}"
+                    data-active="{{this.active}}"
+                    data-sort="{{this.sort_order}}">Edit</button>
+                  <form method="POST" action="/admin/profile-items/{{this.id}}/delete" onsubmit="return confirm('Delete this item?');" style="display:inline;">
+                    <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                    <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Delete</button>
+                  </form>
+                </td>
+              </tr>
+              <tr class="edit-row" data-id="{{this.id}}" style="display:none;background:var(--bg-primary);">
+                <td colspan="9">
+                  <form method="POST" action="/admin/profile-items/{{this.id}}/update" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.5rem;align-items:end;">
+                    <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                    <div><label class="form-label">Type</label>
+                      <select name="type" class="filter-input edit-type">
+                        {{#each @root.types}}<option value="{{this}}">{{this}}</option>{{/each}}
+                      </select>
+                    </div>
+                    <div><label class="form-label">Name</label><input type="text" name="name" class="filter-input edit-name" required></div>
+                    <div><label class="form-label">Price</label><input type="number" name="price" class="filter-input edit-price" step="0.01" min="0.5" required></div>
+                    <div><label class="form-label">Rarity</label>
+                      <select name="rarity" class="filter-input edit-rarity">
+                        <option value="common">common</option><option value="rare">rare</option><option value="epic">epic</option><option value="legendary">legendary</option>
+                      </select>
+                    </div>
+                    <div><label class="form-label">Sort</label><input type="number" name="sort_order" class="filter-input edit-sort"></div>
+                    <div><label class="form-label">Active</label><label style="display:flex;align-items:center;gap:0.5rem;"><input type="checkbox" name="active" value="1" class="edit-active"> Yes</label></div>
+                    <div style="grid-column:1 / -1;"><label class="form-label">Description</label><input type="text" name="description" class="filter-input edit-description"></div>
+                    <div style="grid-column:1 / -1;"><label class="form-label">CSS Value</label><input type="text" name="css_value" class="filter-input edit-css"></div>
+                    <div><label class="form-label">Image</label><input type="text" name="image" class="filter-input edit-image"></div>
+                    <div><button type="submit" class="btn btn-admin" style="width:100%;background:#22c55e;color:#fff;">Save</button></div>
+                  </form>
+                </td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    {{else}}
+      <div class="empty-state">No items yet. Create one above.</div>
+    {{/if}}
+  </div>
+</section>
+
+{{> ban-modal}}
+
+<style>
+.rarity-badge { padding: 0.15rem 0.45rem; border-radius: 3px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.rarity-badge-common { background: rgba(148,163,184,0.15); color: #cbd5e1; }
+.rarity-badge-rare { background: rgba(88,101,242,0.2); color: #818cf8; }
+.rarity-badge-epic { background: rgba(168,85,247,0.2); color: #c084fc; }
+.rarity-badge-legendary { background: rgba(251,191,36,0.2); color: #fde047; }
+</style>
+
+<script nonce="{{cspNonce}}">
+document.querySelectorAll('.edit-item-btn').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var id = btn.dataset.id;
+    var row = document.querySelector('.edit-row[data-id="' + id + '"]');
+    if (!row) return;
+    var visible = row.style.display !== 'none';
+    document.querySelectorAll('.edit-row').forEach(function(r){ r.style.display = 'none'; });
+    if (visible) return;
+    row.querySelector('.edit-type').value = btn.dataset.type;
+    row.querySelector('.edit-name').value = btn.dataset.name;
+    row.querySelector('.edit-description').value = btn.dataset.description || '';
+    row.querySelector('.edit-price').value = btn.dataset.price;
+    row.querySelector('.edit-image').value = btn.dataset.image || '';
+    row.querySelector('.edit-css').value = btn.dataset.css || '';
+    row.querySelector('.edit-rarity').value = btn.dataset.rarity || 'common';
+    row.querySelector('.edit-sort').value = btn.dataset.sort || 0;
+    row.querySelector('.edit-active').checked = btn.dataset.active === '1';
+    row.style.display = '';
+  });
+});
+</script>

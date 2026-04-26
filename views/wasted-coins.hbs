@@ -1,0 +1,169 @@
+<section class="wc-page" style="max-width:1000px;margin:2rem auto 4rem;padding:0 1rem;">
+  <div class="wc-hero">
+    <div class="wc-hero-emoji">{{constants.EMOJI}}</div>
+    <h1 class="wc-hero-title">{{constants.NAME}}</h1>
+    <p class="wc-hero-sub">A free, in-server economy you earn by playing — spend it your way.</p>
+    {{#if user}}
+      <div class="wc-hero-balance">
+        <span style="color:#fde047;">{{constants.EMOJI}} {{myBalance}}</span>
+        <span style="color:var(--text-secondary);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.06em;margin-left:0.5rem;">Your Balance</span>
+      </div>
+      <div style="margin-top:1rem;display:flex;gap:0.6rem;justify-content:center;flex-wrap:wrap;">
+        <a href="/profile/customize" class="btn btn-admin" style="text-decoration:none;background:#5865F2;color:#fff;">Spend at Customize</a>
+        <a href="/profile" class="btn btn-admin" style="text-decoration:none;">My Profile</a>
+        <a href="/wasted-coins/leaderboard" class="btn btn-admin" style="text-decoration:none;">All-Time Leaderboard</a>
+      </div>
+    {{else}}
+      <div style="margin-top:1rem;">
+        <a href="/auth/discord" class="btn btn-admin" style="text-decoration:none;background:#5865F2;color:#fff;">Sign in with Discord to Start Earning</a>
+      </div>
+    {{/if}}
+  </div>
+
+  <div class="wc-section">
+    <h2>What are Wasted Coins?</h2>
+    <p>{{constants.NAME}} are the community currency for ArmaWasteland. They live entirely on this site and our Discord — you can't lose them in-game, can't be looted, and they're never tied to your in-game cash unless you choose to convert them. Think of them as <strong>rewards for engaging with the community</strong>: a free way to unlock cosmetics, participate in lotteries, and flex your dedication.</p>
+  </div>
+
+  <div class="wc-section">
+    <h2>How do I earn them?</h2>
+    <div class="wc-cards">
+      <div class="wc-card">
+        <div class="wc-card-icon">📅</div>
+        <h3>Daily Claim</h3>
+        <p>Run <code>/daily</code> in our Discord every day for around <strong>{{constants.DAILY_BASE}} {{constants.EMOJI}}</strong>. Keep claiming day after day to grow a streak — every consecutive day adds <strong>+50</strong> to your reward, capped at <strong>+500</strong> bonus.</p>
+      </div>
+      <div class="wc-card">
+        <div class="wc-card-icon">🔥</div>
+        <h3>Streak Engagement</h3>
+        <p>Miss less than 48 hours between claims and your streak survives. Show up consistently and the math works out — <strong>~3 days of daily claims unlocks a $5 customization item</strong> for free.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="wc-section">
+    <h2>What can I spend them on?</h2>
+    <div class="wc-cards">
+      <div class="wc-card">
+        <div class="wc-card-icon">🎨</div>
+        <h3>Profile Customizations</h3>
+        <p>Backgrounds, badges, and name colors. Every item on the <a href="/profile/customize" style="color:var(--accent);">Customize page</a> shows both prices — pay in dollars or coins, your call. Once unlocked, it's yours forever.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="wc-section">
+    <h2>🎲 Games of Chance</h2>
+    <p style="margin-bottom:1rem;">High-risk, high-reward coin sinks for the bold. All run entirely through Discord slash commands and pay out in {{constants.EMOJI}} {{constants.NAME}}.</p>
+    <div class="wc-cards">
+      <div class="wc-card" style="border-top:3px solid #a855f7;">
+        <div class="wc-card-icon">🎰</div>
+        <h3>Weekly Lottery</h3>
+        <p>Buy tickets at <strong>{{constants.LOTTERY_TICKET_PRICE}} {{constants.EMOJI}}</strong> each — every ticket is one entry in the weighted draw. <strong>Drawn every Friday at 5pm EST</strong>. House keeps {{constants.LOTTERY_HOUSE_RAKE_PCT}}%; the rest goes to one winner. Max <strong>{{constants.LOTTERY_DAILY_CAP}} tickets per day</strong> per player.</p>
+        {{#if currentPot}}
+          <p style="margin-top:0.5rem;font-size:0.85rem;"><strong style="color:#fde047;">Current pot:</strong> {{constants.EMOJI}} {{currentPot.pot}} ({{currentPot.tickets}} tickets, {{currentPot.players}} players)</p>
+        {{/if}}
+        <p style="margin-top:0.5rem;font-size:0.85rem;color:var(--text-secondary);">Run <code>/lottery buy &lt;count&gt;</code>, <code>/lottery info</code>, or <code>/lottery history</code> in Discord. <a href="/wasted-coins/leaderboard" style="color:var(--accent);">All-time earners →</a></p>
+      </div>
+      <div class="wc-card" style="border-top:3px solid #8B5CF6;">
+        <div class="wc-card-icon">🎨</div>
+        <h3>Weekly Skin Lottery</h3>
+        <p>Buy tickets at <strong>{{constants.SKIN_LOTTERY_TICKET_PRICE}} {{constants.EMOJI}}</strong> each — winner gets a <strong>random in-game skin</strong> from the draw pool, granted directly to their inventory. Same Friday cadence. Max <strong>{{constants.SKIN_LOTTERY_DAILY_CAP}} tickets per day</strong>.</p>
+        {{#if skinPot}}
+          <p style="margin-top:0.5rem;font-size:0.85rem;"><strong style="color:#c084fc;">Current pool:</strong> {{skinPot.tickets}} tickets from {{skinPot.players}} player(s)</p>
+        {{/if}}
+        <p style="margin-top:0.5rem;font-size:0.85rem;color:var(--text-secondary);">Run <code>/skin-lottery buy &lt;count&gt;</code>, <code>/skin-lottery info</code>, or <code>/skin-lottery history</code> in Discord.</p>
+      </div>
+      <div class="wc-card" style="border-top:3px solid #ef4444;">
+        <div class="wc-card-icon">⚔️</div>
+        <h3>Kill Wagers (PvP)</h3>
+        <p>Challenge any other player to a <strong>{{constants.WAGER_DURATION_HOURS}}-hour kill race</strong>. Both ante up <strong>{{constants.WAGER_MIN}}–{{constants.WAGER_MAX}} {{constants.EMOJI}}</strong>; whoever gains more kills in the window wins the pot minus a {{constants.WAGER_HOUSE_RAKE_PCT}}% rake. Ties refund both antes. Stat snapshots come straight from the in-game backend on accept and settle.</p>
+        <p style="margin-top:0.5rem;font-size:0.85rem;color:var(--text-secondary);">Caps: <strong>{{constants.WAGER_DAILY_CAP}} initiated/day</strong>, <strong>{{constants.WAGER_PENDING_CAP}} outstanding</strong>. Challenges expire after {{constants.WAGER_ACCEPT_HOURS}}h if unanswered. Run <code>/wager kill @user &lt;amount&gt;</code> to start.</p>
+      </div>
+      <div class="wc-card" style="border-top:3px solid #D97706;">
+        <div class="wc-card-icon">🤠</div>
+        <h3>Wasteland Trails</h3>
+        <p>Survive the journey west through <strong>10 stages</strong> of bandits, river crossings, disease, and desert. Each stage gives you 3 choices — pick wrong and you're dead. Entry is <strong>500 {{constants.EMOJI}}</strong>, grand prize for reaching Oregon is <strong>5,000 {{constants.EMOJI}}</strong> (10x). Cash out early after stage 2 for partial payouts.</p>
+        <p style="margin-top:0.5rem;font-size:0.85rem;color:var(--text-secondary);"><strong>3 runs per day.</strong> Interactive button UI right in Discord. Run <code>/trail start</code> to begin your journey.</p>
+      </div>
+      <div class="wc-card" style="border-top:3px solid #fbbf24;">
+        <div class="wc-card-icon">🎰</div>
+        <h3>Wasteland Slots</h3>
+        <p>Spin 3 reels of military-themed symbols for <strong>250 {{constants.EMOJI}} per spin</strong>. Match 2 for 2x, match 3 for 8x. Land triple 🏆 for the <strong>50x jackpot (12,500 {{constants.EMOJI}})</strong>. Instant results, no daily cap — spin until you're rich or broke.</p>
+        <p style="margin-top:0.5rem;font-size:0.85rem;color:var(--text-secondary);">Run <code>/slots</code> in Discord. Symbols: 💀 🔫 💣 🪖 🎖️ 💰 🏆 (rarest to most common, reversed).</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="wc-section wc-callout">
+    <h2>Daily Transfer Cap</h2>
+    <p>No wallet cap — stack as many coins as you can! To keep the in-game economy balanced, there's a <strong>{{constants.DAILY_TRANSFER_CAP}} {{constants.EMOJI}} daily limit</strong> on how many coins you can convert to in-game cash via <code>/transfer-cash</code>. The cap resets at UTC midnight.</p>
+    <p style="margin-top:0.75rem;"><strong>Active subscribers get a {{constants.DAILY_TRANSFER_CAP_SUBSCRIBER}} {{constants.EMOJI}} daily transfer cap</strong> — twice the rate. Subscribe to any tier in the <a href="/store" style="color:var(--accent);">store</a> to unlock it automatically.</p>
+  </div>
+
+  <div class="wc-section">
+    <h2>Discord Commands</h2>
+    <div class="table-scroll">
+    <table class="wc-cmd-table">
+      <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>/daily</code></td><td>Claim your daily {{constants.DAILY_BASE}}-ish coin reward (with streak bonus)</td></tr>
+        <tr><td><code>/balance</code></td><td>View your current balance, total earned, total spent, daily streak, and daily transfer cap remaining</td></tr>
+        <tr><td><code>/coins-leaderboard</code></td><td>Top 10 holders</td></tr>
+        <tr><td><code>/lottery buy &lt;count&gt;</code></td><td>Buy weekly lottery tickets ({{constants.LOTTERY_TICKET_PRICE}} {{constants.EMOJI}} each, max {{constants.LOTTERY_DAILY_CAP}}/day)</td></tr>
+        <tr><td><code>/lottery info</code></td><td>Current pot, your tickets, next draw time</td></tr>
+        <tr><td><code>/lottery history</code></td><td>Recent winners</td></tr>
+        <tr><td><code>/skin-lottery buy &lt;count&gt;</code></td><td>Buy weekly skin-lottery tickets ({{constants.SKIN_LOTTERY_TICKET_PRICE}} {{constants.EMOJI}} each, max {{constants.SKIN_LOTTERY_DAILY_CAP}}/day)</td></tr>
+        <tr><td><code>/skin-lottery info</code></td><td>Current skin-lottery pool, your tickets, next draw</td></tr>
+        <tr><td><code>/skin-lottery history</code></td><td>Recent skin winners</td></tr>
+        <tr><td><code>/wager kill @user &lt;amount&gt;</code></td><td>Challenge another player to a {{constants.WAGER_DURATION_HOURS}}h kill race</td></tr>
+        <tr><td><code>/wager accept @user</code></td><td>Accept a pending challenge (or leave blank if you only have one)</td></tr>
+        <tr><td><code>/wager decline @user</code></td><td>Decline a pending challenge (refunds the challenger)</td></tr>
+        <tr><td><code>/wager cancel &lt;id&gt;</code></td><td>Cancel a pending wager you initiated</td></tr>
+        <tr><td><code>/wager status</code></td><td>Your active and recent wagers</td></tr>
+        <tr><td><code>/trail start</code></td><td>Start a Wasteland Trails run (500 💀 entry, 3/day)</td></tr>
+        <tr><td><code>/trail cashout</code></td><td>Cash out your current trail run early</td></tr>
+        <tr><td><code>/trail stats</code></td><td>Your trail run history and stats</td></tr>
+        <tr><td><code>/slots</code></td><td>Spin the Wasteland Slots (250 💀 per spin)</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="wc-section wc-faq">
+    <h2>FAQ</h2>
+    <details><summary>Can I trade coins to other players?</summary><p>No. Wasted Coins are non-transferable to keep the economy honest and prevent farming alts.</p></details>
+    <details><summary>Do they expire?</summary><p>Never. Your balance stays as long as your Discord account is in good standing on the server.</p></details>
+    <details><summary>What happens if I get banned?</summary><p>Bans for cheating reset your coin balance to zero. Don't cheat.</p></details>
+    <details><summary>Why is my daily reward sometimes more or less than {{constants.DAILY_BASE}}?</summary><p>Each daily roll has a small ±100 random variance, plus your streak bonus on top. So a fresh day-1 claim might be 450, while a 10-day streak day might be 950.</p></details>
+    <details><summary>Is there a limit on how many coins I can hold?</summary><p>No. Stack all you want — there's no wallet cap. The only daily limit is how many coins you can convert to in-game cash (<strong>{{constants.DAILY_TRANSFER_CAP}}</strong> per day, <strong>{{constants.DAILY_TRANSFER_CAP_SUBSCRIBER}}</strong> for subscribers).</p></details>
+    <details><summary>When does the transfer cap reset?</summary><p>UTC midnight every day. Partial transfers count toward the cap — so if you transfer 3,000 coins, you have {{constants.DAILY_TRANSFER_CAP}}-3,000 remaining for the rest of the day.</p></details>
+    <details><summary>What if my opponent doesn't play during the wager window?</summary><p>Whoever has more kills at the end of {{constants.WAGER_DURATION_HOURS}} hours wins. If neither of you gets a kill, it's a tie and antes are refunded. If the in-game stat lookup fails for either player at settle time, both antes refund.</p></details>
+  </div>
+</section>
+
+<style>
+.wc-hero { text-align: center; padding: 2.5rem 1rem 2rem; background: linear-gradient(135deg, rgba(168,85,247,0.12), rgba(88,101,242,0.12)); border: 1px solid rgba(168,85,247,0.3); border-radius: 12px; margin-bottom: 2rem; }
+.wc-hero-emoji { font-size: 3.5rem; line-height: 1; }
+.wc-hero-title { margin: 0.5rem 0; font-family: 'Orbitron', sans-serif; font-size: 2rem; }
+.wc-hero-sub { margin: 0; color: var(--text-secondary); font-size: 1rem; }
+.wc-hero-balance { margin-top: 1rem; display: inline-flex; align-items: center; padding: 0.5rem 1.25rem; background: rgba(0,0,0,0.4); border: 1px solid rgba(168,85,247,0.4); border-radius: 999px; font-weight: 700; font-size: 1.2rem; }
+.wc-section { margin: 2.5rem 0; }
+.wc-section h2 { font-family: 'Orbitron', sans-serif; font-size: 1.25rem; color: var(--accent); margin: 0 0 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); letter-spacing: 0.04em; text-transform: uppercase; }
+.wc-section p { line-height: 1.6; color: var(--text-primary); }
+.wc-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+.wc-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
+.wc-card-icon { font-size: 1.6rem; margin-bottom: 0.4rem; }
+.wc-card h3 { margin: 0 0 0.5rem; font-size: 1rem; color: var(--text-primary); }
+.wc-card p { margin: 0; font-size: 0.9rem; color: var(--text-secondary); line-height: 1.55; }
+.wc-callout { background: linear-gradient(135deg, rgba(251,191,36,0.08), transparent); border: 1px solid rgba(251,191,36,0.3); border-radius: 8px; padding: 1.25rem 1.5rem; }
+.wc-callout h2 { border-bottom-color: rgba(251,191,36,0.3); color: #fbbf24; }
+.wc-cmd-table { width: 100%; border-collapse: collapse; }
+.wc-cmd-table th, .wc-cmd-table td { padding: 0.6rem 0.85rem; text-align: left; border-bottom: 1px solid var(--border); }
+.wc-cmd-table th { color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+.wc-cmd-table code { background: rgba(0,0,0,0.3); padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.85rem; color: var(--accent); }
+.wc-faq details { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 0.5rem; }
+.wc-faq summary { cursor: pointer; font-weight: 600; color: var(--text-primary); }
+.wc-faq details[open] summary { color: var(--accent); margin-bottom: 0.5rem; }
+.wc-faq p { margin: 0; color: var(--text-secondary); font-size: 0.9rem; }
+</style>

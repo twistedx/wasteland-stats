@@ -22,12 +22,15 @@
     {{#if user.isWriteAdmin}}
     <!-- Utilities dropdown -->
     <div class="admin-dropdown">
-      <button class="tab admin-dropdown-toggle {{#if (or (or (eq activeTab 'money') (eq activeTab 'skins')) (eq activeTab 'blog'))}}active{{/if}}">
+      <button class="tab admin-dropdown-toggle {{#if (or (or (or (or (or (eq activeTab 'money') (eq activeTab 'skins')) (eq activeTab 'blog')) (eq activeTab 'rcon-players')) (eq activeTab 'search')) (eq activeTab 'builder-role'))}}active{{/if}}">
         Utilities <span class="dropdown-arrow">&#9662;</span>
       </button>
       <div class="admin-dropdown-menu">
         <a href="/admin/money" class="admin-dropdown-item {{#if (eq activeTab 'money')}}active{{/if}}">Add Money</a>
         <a href="/admin/skins" class="admin-dropdown-item {{#if (eq activeTab 'skins')}}active{{/if}}">Skins</a>
+        <a href="/admin/rcon-players" class="admin-dropdown-item {{#if (eq activeTab 'rcon-players')}}active{{/if}}">List Players</a>
+        <a href="/admin/search" class="admin-dropdown-item {{#if (eq activeTab 'search')}}active{{/if}}">Search Players</a>
+        <a href="/admin/builder-role" class="admin-dropdown-item {{#if (eq activeTab 'builder-role')}}active{{/if}}">Builder Role</a>
         {{#if user.isBlogAdmin}}
           <a href="/admin/blog" class="admin-dropdown-item {{#if (eq activeTab 'blog')}}active{{/if}}">Blog</a>
         {{/if}}
@@ -43,7 +46,15 @@
         <a href="/admin/system" class="admin-dropdown-item {{#if (eq activeTab 'system')}}active{{/if}}">Webserver</a>
       </div>
     </div>
-    <a href="/admin/store" class="tab {{#if (eq activeTab 'store')}}active{{/if}}">Store Admin</a>
+    <div class="admin-dropdown">
+      <button class="tab admin-dropdown-toggle {{#if (or (eq activeTab 'store') (eq activeTab 'profile-items'))}}active{{/if}}">
+        Store Admin <span class="dropdown-arrow">&#9662;</span>
+      </button>
+      <div class="admin-dropdown-menu">
+        <a href="/admin/store" class="admin-dropdown-item {{#if (eq activeTab 'store')}}active{{/if}}">Products & Stripe</a>
+        <a href="/admin/profile-items" class="admin-dropdown-item {{#if (eq activeTab 'profile-items')}}active{{/if}}">Profile Items</a>
+      </div>
+    </div>
     <a href="/admin/tasks" class="tab {{#if (eq activeTab 'tasks')}}active{{/if}}">Tasks</a>
   </div>
   <div class="admin-tab-actions">

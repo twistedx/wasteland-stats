@@ -43,7 +43,7 @@
         <div style="display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:1rem;">
           <div style="flex:1;min-width:200px;">
             <label class="form-label" style="font-size:0.75rem;">Search Players</label>
-            <input type="text" id="wl-player-search" class="filter-input" placeholder="Search by username...">
+            <input type="text" id="wl-player-search" class="filter-input" placeholder="Search by username or Steam64 ID (7656...)">
           </div>
           <button type="button" class="btn btn-admin" onclick="searchPlayer()">Search</button>
           <form method="POST" action="/admin/vac/scan" style="margin:0;" onsubmit="showSpinner('Scanning new players...');return true;">

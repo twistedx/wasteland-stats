@@ -9,6 +9,16 @@
     {{/if}}
     {{#if user.isAdmin}}
       <button class="tab analytics-tab" data-tab="tab-atm" type="button">ATM</button>
+      {{#if coinStats}}
+        <button class="tab analytics-tab" data-tab="tab-coins" type="button">Coins</button>
+      {{/if}}
+      {{#if outfitStats}}
+        <button class="tab analytics-tab" data-tab="tab-outfits" type="button">Outfits</button>
+      {{/if}}
+      <button class="tab analytics-tab" data-tab="tab-polls" type="button">Polls</button>
+      <button class="tab analytics-tab" data-tab="tab-rules" type="button">Rules</button>
+      <button class="tab analytics-tab" data-tab="tab-playtime" type="button">Playtime</button>
+      <button class="tab analytics-tab" data-tab="tab-visitors" type="button">Visitors{{#if flaggedVisitorCount}} <span style="color:#ef4444;">⚠</span>{{/if}}</button>
       <button class="tab analytics-tab" data-tab="tab-audit" type="button">Audit Log</button>
       <button class="tab analytics-tab" data-tab="tab-profile" type="button">Profile</button>
       <button class="tab analytics-tab" data-tab="tab-security" type="button">Security</button>
@@ -363,6 +373,11 @@
         <div class="stat-label">This Month</div>
         <div class="stat-compare">{{storeStats.monthOrders}} orders</div>
       </div>
+      <div class="stat-card" style="border-top-color:#a855f7;">
+        <div class="stat-value" style="color:#c084fc;">${{storeStats.ytdRevenue}}</div>
+        <div class="stat-label">Year to Date</div>
+        <div class="stat-compare">{{storeStats.ytdOrders}} orders</div>
+      </div>
       <div class="stat-card primary">
         <div class="stat-value" style="color:#22c55e;">${{storeStats.totalRevenue}}</div>
         <div class="stat-label">All-Time Revenue</div>
@@ -375,6 +390,11 @@
       <div class="stat-card">
         <div class="stat-value">${{storeStats.avgOrderValue}}</div>
         <div class="stat-label">Avg Order Value</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#22c55e;">
+        <div class="stat-value" style="color:#22c55e;">${{storeStats.avgDailyIncome}}</div>
+        <div class="stat-label">Avg Daily Income</div>
+        <div style="font-size:0.65rem;color:var(--text-secondary);margin-top:0.2rem;">over {{storeStats.daysActive}} days</div>
       </div>
     </div>
 
@@ -423,6 +443,303 @@
         </div>
       {{else}}
         <div class="empty-state">No purchases yet.</div>
+      {{/if}}
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- ═══════════════ POLLS TAB (Admin Only) ═══════════════ -->
+  {{#if user.isAdmin}}
+  <div id="tab-polls" style="display:none;">
+    <div class="analytics-cards">
+      <div class="stat-card primary">
+        <div class="stat-value">{{pollStats.open}}</div>
+        <div class="stat-label">Open Polls</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#6b7280;">
+        <div class="stat-value" style="color:#6b7280;">{{pollStats.closed}}</div>
+        <div class="stat-label">Closed Polls</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#22c55e;">
+        <div class="stat-value" style="color:#22c55e;">{{pollStats.totalVotes}}</div>
+        <div class="stat-label">Total Votes Cast</div>
+      </div>
+    </div>
+
+    {{#if polls.length}}
+      {{#each polls}}
+        <div class="admin-form-card" style="margin-bottom:1rem;{{#unless (eq this.status 'open')}}opacity:0.7;{{/unless}}">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.5rem;">
+            <h3 style="margin:0;">📊 Poll #{{this.id}} — {{this.question}}</h3>
+            <span style="padding:0.2rem 0.6rem;border-radius:999px;font-size:0.7rem;font-weight:700;text-transform:uppercase;background:{{#if (eq this.status 'open')}}rgba(88,101,242,0.2);color:#5865F2{{else}}rgba(107,114,128,0.2);color:#9ca3af{{/if}};">{{this.status}}</span>
+          </div>
+          <p style="color:var(--text-secondary);font-size:0.8rem;margin:0 0 0.75rem;">Created by <strong>{{this.created_by_name}}</strong> on {{this.created_at}}{{#if this.closed_at}} • Closed {{this.closed_at}}{{/if}}</p>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.75rem;margin-bottom:0.75rem;">
+            <div style="padding:0.75rem;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:6px;">
+              <div style="font-size:1.8rem;font-weight:800;color:#22c55e;">{{this.tally.yesActive}}</div>
+              <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">✅ Yes (Active)</div>
+            </div>
+            <div style="padding:0.75rem;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:6px;">
+              <div style="font-size:1.8rem;font-weight:800;color:#ef4444;">{{this.tally.noActive}}</div>
+              <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">❌ No (Active)</div>
+            </div>
+            <div style="padding:0.75rem;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:6px;">
+              <div style="font-size:1.8rem;font-weight:800;color:#fbbf24;">{{this.tally.inactiveTotal}}</div>
+              <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Inactive ({{this.tally.yesInactive}}Y / {{this.tally.noInactive}}N)</div>
+            </div>
+            <div style="padding:0.75rem;background:rgba(88,101,242,0.08);border:1px solid rgba(88,101,242,0.25);border-radius:6px;">
+              <div style="font-size:1.8rem;font-weight:800;color:#5865F2;">{{this.tally.grandTotal}}</div>
+              <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Total Responses</div>
+            </div>
+          </div>
+
+          {{#if this.votes.length}}
+            <details>
+              <summary style="cursor:pointer;font-size:0.8rem;color:var(--text-secondary);padding:0.4rem 0;">View all {{this.votes.length}} votes</summary>
+              <div class="table-scroll" style="margin-top:0.5rem;">
+                <table>
+                  <thead><tr><th>Voter</th><th>Vote</th><th>Active</th><th>Guild Member</th><th>Last Login</th><th>Voted At</th></tr></thead>
+                  <tbody>
+                    {{#each this.votes}}
+                      <tr>
+                        <td class="player-name">{{this.username}}</td>
+                        <td><span style="color:{{#if (eq this.vote 'yes')}}#22c55e{{else}}#ef4444{{/if}};font-weight:700;">{{#if (eq this.vote 'yes')}}✅ Yes{{else}}❌ No{{/if}}</span></td>
+                        <td>{{#if this.is_active}}<span style="color:#22c55e;">●</span> Active{{else}}<span style="color:#6b7280;">●</span> Inactive{{/if}}</td>
+                        <td style="font-size:0.75rem;" class="guild-joined" data-joined="{{this.guild_joined_at}}">{{#if this.guild_joined_at}}{{this.guild_joined_at}}{{else}}<span style="color:#ef4444;">Not in guild</span>{{/if}}</td>
+                        <td style="font-size:0.75rem;color:var(--text-secondary);">{{#if this.last_login}}{{this.last_login}}{{else}}—{{/if}}</td>
+                        <td style="font-size:0.75rem;color:var(--text-secondary);">{{this.voted_at}}</td>
+                      </tr>
+                    {{/each}}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          {{/if}}
+
+          {{#if (eq this.status 'open')}}
+            <form method="POST" action="/admin/polls/{{this.id}}/close" style="margin-top:0.75rem;">
+              <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+              <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;" onclick="return confirm('Close Poll #{{this.id}}?');">Close Poll</button>
+            </form>
+          {{/if}}
+        </div>
+      {{/each}}
+    {{else}}
+      <div class="admin-form-card"><div class="empty-state">No polls yet. Run <code>/poll create question:"..."</code> in Discord to start one.</div></div>
+    {{/if}}
+  </div>
+  {{/if}}
+
+  <!-- ═══════════════ RULES TAB (Admin Only) ═══════════════ -->
+  {{#if user.isAdmin}}
+  <div id="tab-rules" style="display:none;">
+    <div class="analytics-cards">
+      <div class="stat-card primary">
+        <div class="stat-value">{{rulesStats.uniqueAckers}}</div>
+        <div class="stat-label">Unique Players Acknowledged</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#22c55e;">
+        <div class="stat-value" style="color:#22c55e;">{{rulesStats.totalYes}}</div>
+        <div class="stat-label">✅ Yes Clicks</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#ef4444;">
+        <div class="stat-value" style="color:#ef4444;">{{rulesStats.totalNo}}</div>
+        <div class="stat-label">❌ No Clicks</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#6b7280;">
+        <div class="stat-value" style="color:#6b7280;">{{rulesStats.totalPosts}}</div>
+        <div class="stat-label">Posts</div>
+      </div>
+    </div>
+
+    <div class="admin-form-card">
+      <h3>📜 Rules Acknowledgments</h3>
+      <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.75rem;">Players who clicked Yes/No on the rules acknowledgment message. Run <code>/rules</code> in Discord to post it.</p>
+      {{#if rulesAcks.length}}
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Discord ID</th>
+                <th>Response</th>
+                <th>Acknowledged At</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each rulesAcks}}
+                <tr>
+                  <td class="player-name">{{this.username}}</td>
+                  <td class="guid">{{this.discord_id}}</td>
+                  <td>
+                    {{#if (eq this.response 'yes')}}
+                      <span style="color:#22c55e;font-weight:700;">✅ Yes</span>
+                    {{else}}
+                      <span style="color:#ef4444;font-weight:700;">❌ No</span>
+                    {{/if}}
+                  </td>
+                  <td style="font-size:0.75rem;color:var(--text-secondary);">{{this.acknowledged_at}}</td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        </div>
+      {{else}}
+        <div class="empty-state">No acknowledgments recorded yet.</div>
+      {{/if}}
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- ═══════════════ PLAYTIME LEADERBOARD TAB (Admin Only) ═══════════════ -->
+  {{#if user.isAdmin}}
+  <div id="tab-playtime" style="display:none;">
+    {{#if playtimeLeaderboard.error}}
+      <div class="admin-form-card">
+        <div class="empty-state">
+          <p><strong>Leaderboard endpoint not available yet.</strong></p>
+          <p style="color:var(--text-secondary);font-size:0.85rem;">The game-server API needs the <code>/user/getTopPlayersByPlaytime</code> endpoint. See <code>api.txt</code> for the spec.</p>
+          <p style="color:var(--text-secondary);font-size:0.75rem;margin-top:0.5rem;">Error: {{playtimeLeaderboard.error}}</p>
+        </div>
+      </div>
+    {{else if playtimeLeaderboard.players.length}}
+      <div class="analytics-cards">
+        <div class="stat-card primary">
+          <div class="stat-value">{{playtimeLeaderboard.players.length}}</div>
+          <div class="stat-label">Players Ranked</div>
+        </div>
+        <div class="stat-card" style="border-top-color:#22c55e;">
+          <div class="stat-value" style="color:#22c55e;">{{playtimeLeaderboard.topUsername}}</div>
+          <div class="stat-label">🏆 Top Player</div>
+        </div>
+        <div class="stat-card" style="border-top-color:#5865F2;">
+          <div class="stat-value" style="color:#5865F2;">{{playtimeLeaderboard.topHours}}h</div>
+          <div class="stat-label">Top Playtime</div>
+        </div>
+      </div>
+
+      <div class="admin-form-card">
+        <h3>🏆 Playtime Leaderboard</h3>
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.75rem;">Players ranked by total time played on the server.</p>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Player</th>
+                <th style="text-align:right;">Time Played</th>
+                <th>First Seen</th>
+                <th>Last Seen</th>
+                <th>Verified</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each playtimeLeaderboard.players}}
+                <tr>
+                  <td style="font-weight:700;color:{{#if (lte @index 2)}}#fbbf24{{else}}var(--text-primary){{/if}};">#{{add @index 1}}</td>
+                  <td class="player-name">
+                    {{#if this.arma_id}}
+                      <a href="/admin/player/{{this.arma_id}}" style="color:var(--accent);text-decoration:none;">{{this.arma_username}}</a>
+                    {{else}}
+                      {{this.arma_username}}
+                    {{/if}}
+                  </td>
+                  <td style="text-align:right;font-weight:700;color:#22c55e;">{{this.hoursLabel}}</td>
+                  <td style="font-size:0.75rem;color:var(--text-secondary);" class="first-seen" data-ts="{{this.time_stamp_created}}">{{#if this.time_stamp_created}}{{this.time_stamp_created}}{{else}}—{{/if}}</td>
+                  <td style="font-size:0.75rem;color:var(--text-secondary);" class="last-seen" data-ts="{{this.last_seen}}">{{#if this.last_seen}}{{this.last_seen}}{{else}}—{{/if}}</td>
+                  <td>{{#if (or this.has_verified this.discord_id)}}<span style="color:#22c55e;" title="{{#if this.has_verified}}has_verified=1{{else}}discord_id linked (has_verified=0){{/if}}">✓</span>{{else}}<span style="color:#6b7280;">—</span>{{/if}}</td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {{else}}
+      <div class="admin-form-card"><div class="empty-state">No playtime data available yet.</div></div>
+    {{/if}}
+  </div>
+  {{/if}}
+
+  <!-- ═══════════════ VISITORS TAB (Admin Only) ═══════════════ -->
+  {{#if user.isAdmin}}
+  <div id="tab-visitors" style="display:none;">
+    <div class="analytics-cards">
+      <div class="stat-card primary">
+        <div class="stat-value">{{visitors.length}}</div>
+        <div class="stat-label">Unique Visitors (30d)</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#ef4444;">
+        <div class="stat-value" style="color:#ef4444;">{{flaggedVisitorCount}}</div>
+        <div class="stat-label">⚠ Flagged ({{#each flaggedCountries}}{{this}}{{#unless @last}}, {{/unless}}{{/each}})</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#5865F2;">
+        <div class="stat-value" style="color:#5865F2;">{{countryStats.length}}</div>
+        <div class="stat-label">Countries</div>
+      </div>
+    </div>
+
+    {{#if countryStats.length}}
+    <div class="admin-form-card" style="margin-bottom:1rem;">
+      <h3>🌍 Country Breakdown (30d)</h3>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Country</th><th style="text-align:right;">Unique Visitors</th><th style="text-align:right;">Total Page Views</th></tr></thead>
+          <tbody>
+            {{#each countryStats}}
+              <tr style="{{#if (includes @root.flaggedCountries this.country)}}background:rgba(239,68,68,0.08);{{/if}}">
+                <td>
+                  {{#if (includes @root.flaggedCountries this.country)}}<span style="color:#ef4444;font-weight:700;">⚠ </span>{{/if}}
+                  <span style="font-family:monospace;font-weight:700;">{{this.country}}</span>
+                </td>
+                <td style="text-align:right;">{{this.unique_visitors}}</td>
+                <td style="text-align:right;color:var(--text-secondary);">{{this.total_visits}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {{/if}}
+
+    <div class="admin-form-card">
+      <h3>👥 Recent Visitors (30d, last 200)</h3>
+      <p style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:0.75rem;">Anonymous = no login. Country detected via Cloudflare. Flagged rows = country in watch list ({{#each flaggedCountries}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}).</p>
+      {{#if visitors.length}}
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Country</th>
+              <th>IP</th>
+              <th>User</th>
+              <th style="text-align:right;">Visits</th>
+              <th>First Seen</th>
+              <th>Last Seen</th>
+              <th>Recent Pages</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each visitors}}
+              <tr style="{{#if this.flagged}}background:rgba(239,68,68,0.08);border-left:3px solid #ef4444;{{/if}}">
+                <td style="font-family:monospace;font-weight:700;{{#if this.flagged}}color:#ef4444;{{/if}}">
+                  {{#if this.flagged}}⚠ {{/if}}{{#if this.country}}{{this.country}}{{else}}—{{/if}}
+                </td>
+                <td style="font-family:monospace;font-size:0.7rem;color:var(--text-secondary);">{{#if this.ip}}{{this.ip}}{{else}}—{{/if}}</td>
+                <td>{{#if this.logged_in}}<a href="#" style="color:var(--accent);text-decoration:none;">{{this.username}}</a>{{else}}<span style="color:var(--text-muted);font-style:italic;">anonymous</span>{{/if}}</td>
+                <td style="text-align:right;font-weight:700;">{{this.visits}}</td>
+                <td style="font-size:0.7rem;color:var(--text-secondary);" class="visitor-ts" data-ts="{{this.first_seen}}">{{this.first_seen}}</td>
+                <td style="font-size:0.7rem;color:var(--text-secondary);" class="visitor-ts" data-ts="{{this.last_seen}}">{{this.last_seen}}</td>
+                <td style="font-size:0.7rem;color:var(--text-secondary);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{this.paths_csv}}">
+                  {{#each this.paths}}<code style="background:var(--bg-primary);padding:0 0.25rem;border-radius:3px;margin-right:0.2rem;">{{this}}</code>{{/each}}
+                </td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+      {{else}}
+        <div class="empty-state">No visitor data yet. Country tracking requires the site to be behind Cloudflare.</div>
       {{/if}}
     </div>
   </div>
@@ -765,13 +1082,211 @@
   </div>
   {{/if}}
 
+  <!-- ═══════════════ OUTFITS TAB (Admin Only) ═══════════════ -->
+  {{#if outfitStats}}
+  <div id="tab-outfits" style="display:none;">
+
+    {{#if featureFlags}}
+    <details class="coin-flags-accordion" style="margin-bottom:1rem;">
+      <summary class="coin-flags-summary">Flags</summary>
+      <div class="coin-flags-body">
+        {{#each featureFlags}}
+          {{#if (eq this.key 'outfits')}}
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0.65rem 1rem;background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;margin-bottom:0.5rem;">
+            <span style="font-weight:600;color:var(--text-primary);">{{this.label}}</span>
+            <form method="POST" action="/admin/feature-flags/toggle" style="margin:0;display:flex;align-items:center;gap:0.5rem;">
+              <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+              <input type="hidden" name="flag" value="{{this.key}}">
+              {{#if this.enabled}}
+                <span style="color:#22c55e;font-weight:700;font-size:0.75rem;text-transform:uppercase;">ON</span>
+                <input type="hidden" name="enabled" value="false">
+                <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Disable</button>
+              {{else}}
+                <span style="color:#ef4444;font-weight:700;font-size:0.75rem;text-transform:uppercase;">OFF</span>
+                <input type="hidden" name="enabled" value="true">
+                <button type="submit" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Enable</button>
+              {{/if}}
+            </form>
+          </div>
+          {{/if}}
+        {{/each}}
+      </div>
+    </details>
+    {{/if}}
+
+    <div class="analytics-cards">
+      <div class="stat-card primary">
+        <div class="stat-value">{{outfitStats.total}}</div>
+        <div class="stat-label">Outfits</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#5865F2;">
+        <div class="stat-value" style="color:#5865F2;">{{outfitStats.totalMembers}}</div>
+        <div class="stat-label">Total Members</div>
+      </div>
+    </div>
+
+    {{#if outfitStats.leaderboard.length}}
+    <div class="admin-form-card" style="margin-bottom:1rem;">
+      <h3>Manage Outfits</h3>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Tag</th><th>Name</th><th>Members</th><th>Wins</th><th>Wars</th><th>Treasury</th><th style="min-width:260px;">Logo / Patch</th></tr></thead>
+          <tbody>
+            {{#each outfitStats.leaderboard}}
+              <tr>
+                <td style="font-family:'Orbitron',monospace;font-weight:700;color:{{this.color}};">[{{this.tag}}]</td>
+                <td class="player-name"><a href="/outfits/{{this.id}}" style="color:var(--accent);text-decoration:none;">{{this.name}}</a></td>
+                <td>{{this.member_count}}</td>
+                <td style="color:#22c55e;font-weight:600;">{{this.wins}}</td>
+                <td>{{this.total_wars}}</td>
+                <td>💀 {{this.treasury}}</td>
+                <td>
+                  <form method="POST" action="/admin/outfits/{{this.id}}/logo" style="display:flex;align-items:center;gap:0.4rem;margin:0;">
+                    <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                    {{#if this.logo_url}}
+                      <img src="{{this.logo_url}}" alt="logo" style="width:28px;height:28px;object-fit:contain;border-radius:4px;background:var(--bg-primary);border:1px solid var(--border);">
+                    {{else}}
+                      <span style="width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;background:var(--bg-primary);border:1px solid var(--border);color:var(--text-muted);font-size:0.7rem;">—</span>
+                    {{/if}}
+                    <input type="text" name="logo_url" value="{{this.logo_url}}" placeholder="https://...logo.png" style="flex:1;min-width:140px;padding:0.3rem 0.5rem;font-size:0.75rem;background:var(--bg-primary);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);">
+                    <button type="submit" class="btn btn-admin btn-small" style="background:#5865F2;color:#fff;padding:0.3rem 0.6rem;font-size:0.7rem;">Save</button>
+                  </form>
+                </td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+      <p style="color:var(--text-muted);font-size:0.72rem;margin-top:0.5rem;">Logo appears as a faded patch watermark on each member's profile page. Use a direct image URL (PNG with transparency works best).</p>
+    </div>
+    {{else}}
+      <div class="admin-form-card" style="margin-bottom:1rem;"><div class="empty-state">No outfits created yet.</div></div>
+    {{/if}}
+
+  </div>
+  {{/if}}
+
+  <!-- ═══════════════ COINS TAB (Admin Only) ═══════════════ -->
+  {{#if coinStats}}
+  <div id="tab-coins" style="display:none;">
+    {{#if featureFlags}}
+    <details class="coin-flags-accordion" style="margin-bottom:1rem;">
+      <summary class="coin-flags-summary">Flags</summary>
+      <div class="coin-flags-body">
+        {{#each featureFlags}}
+          {{#if (or (eq this.key 'wasted_coins') (or (eq this.key 'lottery') (or (eq this.key 'skin_lottery') (eq this.key 'kill_wagers'))))}}
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0.65rem 1rem;background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;margin-bottom:0.5rem;">
+            <span style="font-weight:600;color:var(--text-primary);">{{this.label}}</span>
+            <form method="POST" action="/admin/feature-flags/toggle" style="margin:0;display:flex;align-items:center;gap:0.5rem;">
+              <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+              <input type="hidden" name="flag" value="{{this.key}}">
+              {{#if this.enabled}}
+                <span style="color:#22c55e;font-weight:700;font-size:0.75rem;text-transform:uppercase;">ON</span>
+                <input type="hidden" name="enabled" value="false">
+                <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Disable</button>
+              {{else}}
+                <span style="color:#ef4444;font-weight:700;font-size:0.75rem;text-transform:uppercase;">OFF</span>
+                <input type="hidden" name="enabled" value="true">
+                <button type="submit" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Enable</button>
+              {{/if}}
+            </form>
+          </div>
+          {{/if}}
+        {{/each}}
+      </div>
+    </details>
+    {{/if}}
+    <div class="analytics-cards">
+      <div class="stat-card primary">
+        <div class="stat-value" style="color:#fde047;">{{formatNumber coinStats.circ.total}}</div>
+        <div class="stat-label">In Circulation</div>
+        <div class="stat-compare">{{coinStats.circ.accounts}} accounts</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#22c55e;">
+        <div class="stat-value" style="color:#22c55e;">{{formatNumber coinStats.circ.earned}}</div>
+        <div class="stat-label">Total Minted</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#ef4444;">
+        <div class="stat-value" style="color:#ef4444;">{{formatNumber coinStats.circ.spent}}</div>
+        <div class="stat-label">Total Burned</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+      <div class="admin-form-card">
+        <h3>24-Hour Inflow</h3>
+        {{#if coinStats.flow24.inflow.length}}
+          <table style="width:100%;"><thead><tr><th>Source</th><th class="r">Amount</th><th class="r">Count</th></tr></thead><tbody>
+            {{#each coinStats.flow24.inflow}}<tr><td>{{this.type}}</td><td class="r" style="color:#22c55e;">+{{formatNumber this.total}}</td><td class="r">{{this.cnt}}</td></tr>{{/each}}
+          </tbody></table>
+        {{else}}<div class="empty-state">No inflow in last 24h.</div>{{/if}}
+      </div>
+      <div class="admin-form-card">
+        <h3>24-Hour Outflow</h3>
+        {{#if coinStats.flow24.outflow.length}}
+          <table style="width:100%;"><thead><tr><th>Sink</th><th class="r">Amount</th><th class="r">Count</th></tr></thead><tbody>
+            {{#each coinStats.flow24.outflow}}<tr><td>{{this.type}}</td><td class="r" style="color:#ef4444;">-{{formatNumber this.total}}</td><td class="r">{{this.cnt}}</td></tr>{{/each}}
+          </tbody></table>
+        {{else}}<div class="empty-state">No outflow in last 24h.</div>{{/if}}
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+      <div class="admin-form-card">
+        <h3>7-Day Inflow</h3>
+        {{#if coinStats.flow7d.inflow.length}}
+          <table style="width:100%;"><thead><tr><th>Source</th><th class="r">Amount</th><th class="r">Count</th></tr></thead><tbody>
+            {{#each coinStats.flow7d.inflow}}<tr><td>{{this.type}}</td><td class="r" style="color:#22c55e;">+{{formatNumber this.total}}</td><td class="r">{{this.cnt}}</td></tr>{{/each}}
+          </tbody></table>
+        {{else}}<div class="empty-state">No inflow in last 7 days.</div>{{/if}}
+      </div>
+      <div class="admin-form-card">
+        <h3>7-Day Outflow</h3>
+        {{#if coinStats.flow7d.outflow.length}}
+          <table style="width:100%;"><thead><tr><th>Sink</th><th class="r">Amount</th><th class="r">Count</th></tr></thead><tbody>
+            {{#each coinStats.flow7d.outflow}}<tr><td>{{this.type}}</td><td class="r" style="color:#ef4444;">-{{formatNumber this.total}}</td><td class="r">{{this.cnt}}</td></tr>{{/each}}
+          </tbody></table>
+        {{else}}<div class="empty-state">No outflow in last 7 days.</div>{{/if}}
+      </div>
+    </div>
+
+    <div class="admin-form-card" style="margin-bottom:1rem;">
+      <h3>Top 10 Holders</h3>
+      {{#if coinStats.top10.length}}
+        <table style="width:100%;"><thead><tr><th>#</th><th>User</th><th class="r">Balance</th><th class="r">Earned</th><th class="r">Spent</th></tr></thead><tbody>
+          {{#each coinStats.top10}}<tr><td class="guid">{{add @index 1}}</td><td class="player-name">{{this.username}}</td><td class="r"><strong style="color:#fde047;">{{formatNumber this.balance}}</strong></td><td class="r" style="color:#22c55e;">{{formatNumber this.total_earned}}</td><td class="r">{{formatNumber this.total_spent}}</td></tr>{{/each}}
+        </tbody></table>
+      {{else}}<div class="empty-state">No coin accounts yet.</div>{{/if}}
+    </div>
+
+    <div class="admin-form-card">
+      <h3>Recent Transactions</h3>
+      {{#if coinStats.recent.length}}
+        <div class="table-scroll">
+          <table><thead><tr><th>When</th><th>User</th><th>Type</th><th class="r">Amount</th><th class="r">After</th></tr></thead><tbody>
+            {{#each coinStats.recent}}<tr><td>{{formatDate this.created_at}}</td><td class="player-name">{{this.username}}</td><td>{{this.type}}</td><td class="r" style="color:{{#if (gt this.amount 0)}}#22c55e{{else}}#ef4444{{/if}};font-weight:600;">{{#if (gt this.amount 0)}}+{{/if}}{{this.amount}}</td><td class="r">{{this.balance_after}}</td></tr>{{/each}}
+          </tbody></table>
+        </div>
+      {{else}}<div class="empty-state">No transactions yet.</div>{{/if}}
+    </div>
+  </div>
+  {{/if}}
+
 </section>
 
 {{> ban-modal}}
 
+<style>
+.coin-flags-accordion { border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); }
+.coin-flags-summary { display: flex; align-items: center; padding: 0.75rem 1rem; cursor: pointer; user-select: none; font-weight: 700; font-family: 'Orbitron', sans-serif; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); list-style: none; }
+.coin-flags-summary::-webkit-details-marker { display: none; }
+.coin-flags-summary::after { content: "\25BE"; margin-left: auto; color: var(--text-secondary); transition: transform 0.2s; }
+details[open] .coin-flags-summary::after { transform: rotate(180deg); }
+.coin-flags-body { padding: 0 1rem 1rem; }
+</style>
 <script>window.__dailyViews = {{{dailyViewsJson}}};window.__discord = {{{discordJson}}};window.__onlineHistory = {{{onlineHistoryJson}}};window.__storeStats = {{{storeStatsJson}}};window.__economyHistory = {{{economyHistoryJson}}};</script>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-<script src="/js/admin-charts.js"></script>
+<script src="/js/admin-charts.js?v=2026-04-24"></script>
 
 <script>
 (function() {
@@ -794,6 +1309,18 @@
       if (profileEl) profileEl.style.display = 'none';
       var securityEl = document.getElementById('tab-security');
       if (securityEl) securityEl.style.display = 'none';
+      var coinsEl = document.getElementById('tab-coins');
+      if (coinsEl) coinsEl.style.display = 'none';
+      var outfitsEl = document.getElementById('tab-outfits');
+      if (outfitsEl) outfitsEl.style.display = 'none';
+      var pollsEl = document.getElementById('tab-polls');
+      if (pollsEl) pollsEl.style.display = 'none';
+      var rulesEl = document.getElementById('tab-rules');
+      if (rulesEl) rulesEl.style.display = 'none';
+      var playtimeEl = document.getElementById('tab-playtime');
+      if (playtimeEl) playtimeEl.style.display = 'none';
+      var visitorsEl = document.getElementById('tab-visitors');
+      if (visitorsEl) visitorsEl.style.display = 'none';
       document.getElementById(this.getAttribute('data-tab')).style.display = '';
 
       // Update URL to reflect current tab and strip ATM-specific params
@@ -847,7 +1374,64 @@
     if (targetTab) targetTab.click();
   }
 
+  // Format visitor first_seen/last_seen timestamps (numeric epoch ms)
+  document.querySelectorAll('.visitor-ts').forEach(function(el) {
+    var ts = parseInt(el.dataset.ts, 10);
+    if (!ts || isNaN(ts)) return;
+    var d = new Date(ts);
+    var ms = Date.now() - ts;
+    var mins = Math.floor(ms / 60000);
+    var hrs = Math.floor(ms / 3600000);
+    var days = Math.floor(ms / 86400000);
+    var ago = mins < 60 ? mins + 'm' : hrs < 24 ? hrs + 'h' : days + 'd';
+    el.textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ' (' + ago + ' ago)';
+  });
 
+  // Format "Last Seen" cells as relative time
+  document.querySelectorAll('.last-seen').forEach(function(el) {
+    var iso = el.dataset.ts;
+    if (!iso || iso === 'null' || iso === '') return;
+    var d = new Date(iso);
+    if (isNaN(d)) return;
+    var ms = Date.now() - d.getTime();
+    var mins = Math.floor(ms / 60000);
+    var hrs = Math.floor(ms / 3600000);
+    var days = Math.floor(ms / 86400000);
+    var ago = mins < 60 ? mins + 'm ago' : hrs < 24 ? hrs + 'h ago' : days + 'd ago';
+    el.textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' (' + ago + ')';
+  });
+
+  // Format "First Seen" cells as date + relative duration
+  document.querySelectorAll('.first-seen').forEach(function(el) {
+    var iso = el.dataset.ts;
+    if (!iso || iso === 'null' || iso === '') return;
+    var d = new Date(iso);
+    if (isNaN(d)) return;
+    var days = Math.floor((Date.now() - d.getTime()) / 86400000);
+    var years = Math.floor(days / 365);
+    var months = Math.floor((days % 365) / 30);
+    var ago = years > 0 ? years + 'y ' + months + 'mo' : months > 0 ? months + 'mo' : days + 'd';
+    el.textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' (' + ago + ')';
+  });
+
+  // Format "Guild Joined" cells as relative durations
+  document.querySelectorAll('.guild-joined').forEach(function(el) {
+    var iso = el.dataset.joined;
+    if (!iso) return;
+    var d = new Date(iso);
+    if (isNaN(d)) return;
+    var ms = Date.now() - d.getTime();
+    var days = Math.floor(ms / 86400000);
+    var years = Math.floor(days / 365);
+    var months = Math.floor((days % 365) / 30);
+    var label;
+    if (years > 0) label = years + 'y ' + months + 'mo';
+    else if (months > 0) label = months + 'mo ' + (days % 30) + 'd';
+    else label = days + 'd';
+    var color = days >= 90 ? '#22c55e' : days >= 30 ? '#fbbf24' : '#ef4444';
+    var joinDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    el.innerHTML = '<span style="color:' + color + ';font-weight:700;">' + label + '</span> <span style="color:var(--text-secondary);">(' + joinDate + ')</span>';
+  });
 
 })();
 </script>

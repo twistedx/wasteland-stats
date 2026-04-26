@@ -40,8 +40,8 @@
   </section>
 
   <div class="donate-cta">
-    <h2 class="donate-cta-text">Purchase new threads on the skin store today</h2>
-    <a href="/store" class="btn btn-donate">Skin Store</a>
+    <h2 class="donate-cta-text">Your stats, skins, and coins — all in one place</h2>
+    <a href="/profile" class="btn btn-donate">View My Profile</a>
   </div>
 </div>
 {{/if}}
@@ -104,6 +104,48 @@
 
 
 {{> leaderboard}}
+
+{{#if activeWars.length}}
+<section>
+  <h2 style="display:flex;align-items:center;gap:0.6rem;">⚔️ Active Outfit Wars <span style="font-size:0.65em;color:var(--text-secondary);font-weight:400;">({{activeWars.length}})</span></h2>
+  <div class="war-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:0.75rem;">
+    {{#each activeWars}}
+      <div class="war-card" style="background:var(--bg-card);border:1px solid var(--border);border-left:3px solid {{#if (eq this.status 'pending')}}#fbbf24{{else}}#ef4444{{/if}};border-radius:8px;padding:0.85rem 1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;">
+          {{#if (eq this.status 'pending')}}
+            <span style="color:#fbbf24;font-weight:700;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;">⏳ Pending</span>
+          {{else}}
+            <span style="color:#ef4444;font-weight:700;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;">🔥 Active</span>
+          {{/if}}
+          {{#if this.wager}}<span style="color:#fde047;font-weight:700;font-size:0.85rem;">💀 {{formatNumber this.wager}}</span>{{/if}}
+        </div>
+        <div style="font-size:0.95rem;font-weight:600;line-height:1.3;">
+          <a href="/outfits/{{this.challenger_outfit_id}}" style="color:var(--accent);text-decoration:none;">[{{this.challenger_tag}}] {{this.challenger_name}}</a>
+          <span style="color:var(--text-secondary);"> vs </span>
+          <a href="/outfits/{{this.defender_outfit_id}}" style="color:var(--accent);text-decoration:none;">[{{this.defender_tag}}] {{this.defender_name}}</a>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:0.5rem;font-size:0.78rem;color:var(--text-secondary);">
+          <span>Score: <strong style="color:#fff;">{{#if this.challenger_score}}{{this.challenger_score}}–{{this.defender_score}}{{else}}0–0{{/if}}</strong></span>
+          {{#if this.ends_at}}<span class="war-ends" data-ts="{{this.ends_at}}">Ends {{this.ends_at}}</span>{{/if}}
+        </div>
+      </div>
+    {{/each}}
+  </div>
+</section>
+<script nonce="{{cspNonce}}">
+(function() {
+  document.querySelectorAll('.war-ends').forEach(function(el) {
+    var d = new Date(el.dataset.ts);
+    if (isNaN(d)) return;
+    var diff = d - Date.now();
+    if (diff <= 0) { el.textContent = 'Ended'; return; }
+    var hrs = Math.floor(diff / 3600000);
+    var mins = Math.floor((diff % 3600000) / 60000);
+    el.textContent = hrs > 0 ? 'Ends in ' + hrs + 'h ' + mins + 'm' : 'Ends in ' + mins + 'm';
+  });
+})();
+</script>
+{{/if}}
 
 <section>
   <h2>Ban Activity</h2>

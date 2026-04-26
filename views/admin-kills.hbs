@@ -146,8 +146,16 @@
                     {{else}}<span class="badge badge-both">Both</span>
                     {{/if}}
                   </td>
-                  <td class="player-name">{{fallback this.killer_name "-"}}</td>
-                  <td class="player-name">{{fallback this.killed_name "-"}}</td>
+                  <td class="player-name">
+                    {{#if this.killer_arma_id}}
+                      <a href="/admin/player/{{this.killer_arma_id}}" style="color:var(--accent);text-decoration:none;">{{fallback this.killer_name "-"}}</a>
+                    {{else}}{{fallback this.killer_name "-"}}{{/if}}
+                  </td>
+                  <td class="player-name">
+                    {{#if this.killed_arma_id}}
+                      <a href="/admin/player/{{this.killed_arma_id}}" style="color:var(--accent);text-decoration:none;">{{fallback this.killed_name "-"}}</a>
+                    {{else}}{{fallback this.killed_name "-"}}{{/if}}
+                  </td>
                   <td>{{fallback this.server_info "-"}}</td>
                   <td>{{formatDate this.time_stamp}}</td>
                 </tr>
@@ -175,11 +183,19 @@
               <div class="kill-card-body">
                 <div class="kill-card-row">
                   <span class="kill-card-label">Killer</span>
-                  <span>{{fallback this.killer_name "-"}}</span>
+                  <span>
+                    {{#if this.killer_arma_id}}
+                      <a href="/admin/player/{{this.killer_arma_id}}" style="color:var(--accent);text-decoration:none;">{{fallback this.killer_name "-"}}</a>
+                    {{else}}{{fallback this.killer_name "-"}}{{/if}}
+                  </span>
                 </div>
                 <div class="kill-card-row">
                   <span class="kill-card-label">Killed</span>
-                  <span>{{fallback this.killed_name "-"}}</span>
+                  <span>
+                    {{#if this.killed_arma_id}}
+                      <a href="/admin/player/{{this.killed_arma_id}}" style="color:var(--accent);text-decoration:none;">{{fallback this.killed_name "-"}}</a>
+                    {{else}}{{fallback this.killed_name "-"}}{{/if}}
+                  </span>
                 </div>
                 <div class="kill-card-row">
                   <span class="kill-card-label">Server</span>

@@ -1,0 +1,107 @@
+<style>
+.rcon-spinner-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999;
+  display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 1rem;
+}
+.rcon-spinner {
+  width: 48px; height: 48px; border: 4px solid rgba(255,255,255,0.15);
+  border-top-color: #5865F2; border-radius: 50%; animation: rcon-spin 0.8s linear infinite;
+}
+@keyframes rcon-spin { to { transform: rotate(360deg); } }
+.rcon-spinner-text { color: var(--text-secondary); font-size: 0.85rem; }
+</style>
+<div class="rcon-spinner-overlay" id="rcon-loading">
+  <div class="rcon-spinner"></div>
+  <div class="rcon-spinner-text">Loading players &amp; checking watchlists...</div>
+</div>
+<script>document.addEventListener('DOMContentLoaded', function() { var el = document.getElementById('rcon-loading'); if (el) el.remove(); });</script>
+
+<section id="admin-section">
+  {{> admin-nav}}
+
+  {{#if successMessage}}
+    <div class="notice success-notice"><strong>Success</strong><p>{{successMessage}}</p></div>
+  {{/if}}
+  {{#if errorMessage}}
+    <div class="error">{{errorMessage}}</div>
+  {{/if}}
+
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+    <div>
+      <h3 style="margin:0;">Online Players ({{totalPlayers}})</h3>
+      <p style="margin:0.25rem 0 0;font-size:0.8rem;color:var(--text-secondary);">Live player list from game servers via RCON</p>
+    </div>
+    <div style="display:flex;gap:0.5rem;">
+      <form method="POST" action="/admin/rcon-players/reconnect" style="margin:0;">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <button type="submit" class="btn btn-admin btn-small">Reconnect RCON</button>
+      </form>
+      <a href="/admin/rcon-players" class="btn btn-admin btn-small" style="text-decoration:none;">Refresh</a>
+    </div>
+  </div>
+
+  <!-- RCON Status -->
+  <div class="admin-form-card" style="margin-bottom:1rem;">
+    <h3>RCON Status</h3>
+    {{#if rconStatus.length}}
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+      {{#each rconStatus}}
+      <div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.75rem;background:rgba(255,255,255,0.03);border-radius:6px;border-left:3px solid {{#if this.connected}}#22c55e{{else}}#ef4444{{/if}};">
+        <span style="font-weight:600;font-size:0.85rem;">{{this.name}}</span>
+        <span style="font-size:0.7rem;color:var(--text-secondary);">{{this.address}}</span>
+        <span style="font-size:0.7rem;font-weight:700;color:{{#if this.connected}}#22c55e{{else}}#ef4444{{/if}};">{{#if this.connected}}Connected{{else}}Disconnected{{/if}}</span>
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <div class="empty-state">No RCON servers configured. Add RCON_SERVERS to .env</div>
+    {{/if}}
+  </div>
+
+  <!-- Player Lists -->
+  {{#if servers.length}}
+    {{#each servers}}
+    <div class="admin-form-card" style="margin-bottom:1rem;">
+      <h3>{{this.name}} ({{this.count}} players)</h3>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>GUID</th>
+              <th>Name</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each this.players}}
+            <tr{{#if this.watchlisted}} style="background:rgba(239,68,68,0.08);"{{/if}}>
+              <td>{{this.number}}</td>
+              <td class="guid">{{this.guid}}</td>
+              <td class="player-name">{{this.name}}</td>
+              <td>
+                {{#if this.watchlisted}}
+                  <span style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.15rem 0.5rem;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);border-radius:999px;font-size:0.7rem;font-weight:700;color:#ef4444;text-transform:uppercase;">&#9888; Watchlist</span>
+                {{/if}}
+              </td>
+              <td style="display:flex;gap:0.4rem;">
+                <a href="/admin/player/{{this.guid}}" class="btn btn-admin btn-small" style="text-decoration:none;">Profile</a>
+                <form method="POST" action="/admin/rcon-players/kick" style="margin:0;" onsubmit="return confirm('Kick {{this.name}}?');">
+                  <input type="hidden" name="_csrf" value="{{../../csrfToken}}">
+                  <input type="hidden" name="guid" value="{{this.guid}}">
+                  <input type="hidden" name="player_name" value="{{this.name}}">
+                  <button type="submit" class="btn btn-admin btn-small" style="background:var(--danger);color:#fff;">Kick</button>
+                </form>
+              </td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {{/each}}
+  {{else}}
+    <div class="empty-state" style="padding:2rem;">No players online or RCON not connected.</div>
+  {{/if}}
+</section>

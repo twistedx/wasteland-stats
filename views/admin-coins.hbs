@@ -1,0 +1,79 @@
+<section id="admin-section">
+  {{> admin-nav}}
+
+  {{#if successMessage}}<div class="notice success-notice"><strong>Success</strong><p>{{successMessage}}</p></div>{{/if}}
+  {{#if errorMessage}}<div class="error">{{errorMessage}}</div>{{/if}}
+
+  <div class="admin-form-card">
+    <h3>{{coinEmoji}} {{coinName}} — Economy Constants</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.75rem;font-size:0.85rem;">
+      <div><strong>Daily base reward:</strong> {{constants.DAILY_BASE}}</div>
+      <div><strong>Wallet cap:</strong> Unlimited</div>
+      <div><strong>Daily transfer cap:</strong> {{constants.DAILY_TRANSFER_CAP}} 💀</div>
+      <div><strong>Subscriber daily transfer cap:</strong> {{constants.DAILY_TRANSFER_CAP_SUBSCRIBER}} 💀 (2×)</div>
+    </div>
+  </div>
+
+  <div class="admin-form-card">
+    <h3>Manual Balance Adjust</h3>
+    <p style="color:var(--text-secondary);font-size:0.85rem;">Add positive coins as a reward, negative to deduct (banned cheaters etc.). Adjustments are logged in audit log.</p>
+    <form method="POST" action="/admin/coins/adjust" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:end;">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div style="flex:1;min-width:220px;"><label class="form-label">Discord ID</label><input type="text" name="discord_id" class="filter-input" placeholder="183656687520055297" required></div>
+      <div><label class="form-label">Delta (coins)</label><input type="number" name="delta" class="filter-input" placeholder="+100 or -100" required></div>
+      <div><button type="submit" class="btn btn-admin">Apply</button></div>
+    </form>
+  </div>
+
+  <div class="admin-form-card">
+    <h3>Top Holders ({{top.length}})</h3>
+    {{#if top.length}}
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>#</th><th>User</th><th>Discord ID</th><th>Balance</th><th>Earned</th><th>Spent</th></tr></thead>
+          <tbody>
+            {{#each top}}
+              <tr>
+                <td class="guid">{{add @index 1}}</td>
+                <td class="player-name">{{this.username}}</td>
+                <td><code style="font-size:0.7rem;">{{this.discord_id}}</code></td>
+                <td><strong>{{this.balance}}</strong> {{@root.coinEmoji}}</td>
+                <td>{{this.total_earned}}</td>
+                <td>{{this.total_spent}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    {{else}}
+      <div class="empty-state">No coin accounts yet.</div>
+    {{/if}}
+  </div>
+
+  <div class="admin-form-card">
+    <h3>Recent Transactions</h3>
+    {{#if recent.length}}
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>When</th><th>User</th><th>Type</th><th>Amount</th><th>Balance After</th><th>Details</th></tr></thead>
+          <tbody>
+            {{#each recent}}
+              <tr>
+                <td>{{formatDate this.created_at}}</td>
+                <td class="player-name">{{this.username}}</td>
+                <td>{{this.type}}</td>
+                <td style="color:{{#if (gt this.amount 0)}}#22c55e{{else}}#ef4444{{/if}};font-weight:600;">{{#if (gt this.amount 0)}}+{{/if}}{{this.amount}}</td>
+                <td>{{this.balance_after}}</td>
+                <td><code style="font-size:0.7rem;max-width:300px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{this.meta}}</code></td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    {{else}}
+      <div class="empty-state">No transactions yet.</div>
+    {{/if}}
+  </div>
+</section>
+
+{{> ban-modal}}

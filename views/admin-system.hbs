@@ -12,6 +12,63 @@
     <div class="error">{{errorMessage}}</div>
   {{/if}}
 
+  {{#if diskWarning}}
+    <div class="admin-form-card" style="border-left:4px solid {{#if (eq diskWarning.level 'critical')}}#ef4444{{else}}#fbbf24{{/if}};background:{{#if (eq diskWarning.level 'critical')}}rgba(239,68,68,0.08){{else}}rgba(251,191,36,0.08){{/if}};margin-bottom:1rem;">
+      <div style="display:flex;align-items:center;gap:0.75rem;">
+        <span style="font-size:1.5rem;">{{#if (eq diskWarning.level 'critical')}}🚨{{else}}⚠️{{/if}}</span>
+        <div>
+          <strong style="color:{{#if (eq diskWarning.level 'critical')}}#ef4444{{else}}#fbbf24{{/if}};text-transform:uppercase;font-size:0.8rem;letter-spacing:0.05em;">{{diskWarning.level}}</strong>
+          <div style="font-size:0.9rem;color:var(--text-primary);margin-top:0.2rem;">{{diskWarning.msg}}</div>
+        </div>
+      </div>
+    </div>
+  {{/if}}
+
+  <!-- Evidence Attachment Storage -->
+  <div class="admin-form-card" style="margin-bottom:1rem;">
+    <h3>📎 Evidence Attachment Storage</h3>
+    <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.75rem;">Admin-uploaded images and video clips attached to player notes.</p>
+    <div class="analytics-cards" style="margin-bottom:0;">
+      <div class="stat-card primary">
+        <div class="stat-value" style="font-size:1.5rem;">{{formatBytes attachments.totalBytes}}</div>
+        <div class="stat-label">Total Storage</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#5865F2;">
+        <div class="stat-value" style="color:#5865F2;font-size:1.5rem;">{{formatBytes attachments.imageBytes}}</div>
+        <div class="stat-label">🖼️ Images ({{attachments.imageCount}})</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#ef4444;">
+        <div class="stat-value" style="color:#ef4444;font-size:1.5rem;">{{formatBytes attachments.videoBytes}}</div>
+        <div class="stat-label">🎥 Videos ({{attachments.videoCount}})</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#22c55e;">
+        <div class="stat-value" style="color:#22c55e;font-size:1.5rem;">{{attachments.players.length}}</div>
+        <div class="stat-label">Players with evidence</div>
+      </div>
+    </div>
+    {{#if attachments.topPlayers.length}}
+      <div style="margin-top:0.75rem;">
+        <h4 style="margin:0 0 0.5rem 0;font-size:0.85rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Top storage by player</h4>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Arma ID</th><th style="text-align:right;">Files</th><th style="text-align:right;">Images</th><th style="text-align:right;">Videos</th><th style="text-align:right;">Total</th></tr></thead>
+            <tbody>
+              {{#each attachments.topPlayers}}
+                <tr>
+                  <td><a href="/admin/player/{{this.arma_id}}" style="color:var(--accent);text-decoration:none;font-family:monospace;font-size:0.75rem;">{{this.arma_id}}</a></td>
+                  <td style="text-align:right;">{{this.fileCount}}</td>
+                  <td style="text-align:right;color:#5865F2;">{{formatBytes this.imageBytes}}</td>
+                  <td style="text-align:right;color:#ef4444;">{{formatBytes this.videoBytes}}</td>
+                  <td style="text-align:right;font-weight:700;">{{formatBytes this.bytes}}</td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {{/if}}
+  </div>
+
   <!-- System overview cards -->
   <div class="analytics-cards">
     <div class="stat-card primary">

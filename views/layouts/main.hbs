@@ -32,7 +32,10 @@
   <header>
     <div class="header-content">
       <a href="/" class="site-title"><img src="/img/armatextlogo600x100.png" alt="Arma Wasteland" class="site-logo"></a>
-      <nav class="nav-links" aria-label="Main navigation">
+      <button class="main-nav-hamburger" id="main-nav-hamburger" aria-label="Toggle navigation menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="nav-links" id="main-nav-links" aria-label="Main navigation">
         <a href="/" class="nav-link {{#if (eq page 'home')}}active{{/if}}">Home</a>
         <div class="nav-dropdown">
           <button class="nav-link nav-dropdown-toggle {{#if (or (eq page 'about') (or (eq page 'howto') (eq page 'blog')))}}active{{/if}}" type="button">Resources <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="margin-left:2px;"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
@@ -40,13 +43,27 @@
             <a href="/about" class="nav-dropdown-item {{#if (eq page 'about')}}active{{/if}}">About</a>
             <a href="/how-to" class="nav-dropdown-item {{#if (eq page 'howto')}}active{{/if}}">How To Play</a>
             <a href="/blog" class="nav-dropdown-item {{#if (eq page 'blog')}}active{{/if}}">News</a>
+            <a href="/wasted-coins/leaderboard" class="nav-dropdown-item">Coins Leaderboard</a>
           </div>
         </div>
-        <a href="/products" class="nav-link {{#if (eq page 'products')}}active{{/if}}">Products</a>
+        <div class="nav-dropdown">
+          <button class="nav-link nav-dropdown-toggle {{#if (or (eq page 'products') (eq page 'wasted-coins'))}}active{{/if}}" type="button">Products <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="margin-left:2px;"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
+          <div class="nav-dropdown-menu">
+            <a href="/products" class="nav-dropdown-item {{#if (eq page 'products')}}active{{/if}}">Products</a>
+            <a href="/wasted-coins" class="nav-dropdown-item {{#if (eq page 'wasted-coins')}}active{{/if}}">Wasted Coins</a>
+            {{#if outfitsEnabled}}<a href="/outfits" class="nav-dropdown-item {{#if (eq page 'outfits')}}active{{/if}}">Outfits</a>{{/if}}
+          </div>
+        </div>
         <a href="/store" class="nav-link nav-store {{#if (eq page 'store')}}active{{/if}}">Store</a>
-        {{#if user}}
-          <a href="/profile" class="nav-link nav-profile {{#if (eq page 'profile')}}active{{/if}}" onclick="showSpinner('Loading profile...')">My Profile</a>
-        {{/if}}
+        <div class="nav-dropdown">
+          <button class="nav-link nav-profile nav-dropdown-toggle {{#if (or (eq page 'profile') (eq page 'players'))}}active{{/if}}" type="button">Profile <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="margin-left:2px;"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
+          <div class="nav-dropdown-menu">
+            <a href="/players" class="nav-dropdown-item {{#if (eq page 'players')}}active{{/if}}">Search Players</a>
+            {{#if user}}
+              <a href="/profile" class="nav-dropdown-item {{#if (eq page 'profile')}}active{{/if}}" onclick="showSpinner('Loading profile...')">My Profile</a>
+            {{/if}}
+          </div>
+        </div>
         <a href="https://discord.gg/W8jNyvAnEp" target="_blank" rel="noopener" class="nav-link nav-discord" aria-label="Join our Discord server">Discord</a>
         {{#if user.isAdmin}}
           <a href="/admin/analytics" class="nav-link nav-admin {{#if (eq page 'admin')}}active{{/if}}">Admin</a>
@@ -147,20 +164,45 @@ window.showSpinner = function(msg) {
   document.getElementById('global-spinner').style.display = 'flex';
 };
 
-// Nav dropdown toggle
+// Nav dropdown toggle — supports multiple dropdowns
 (function() {
-  var dropdown = document.querySelector('.nav-dropdown');
-  if (!dropdown) return;
-  var toggle = dropdown.querySelector('.nav-dropdown-toggle');
-  toggle.addEventListener('click', function(e) {
-    e.stopPropagation();
-    dropdown.classList.toggle('open');
+  var dropdowns = document.querySelectorAll('.nav-dropdown');
+  if (!dropdowns.length) return;
+  dropdowns.forEach(function(dropdown) {
+    var toggle = dropdown.querySelector('.nav-dropdown-toggle');
+    if (!toggle) return;
+    toggle.addEventListener('click', function(e) {
+      e.stopPropagation();
+      // Close any other open dropdowns first
+      dropdowns.forEach(function(d) { if (d !== dropdown) d.classList.remove('open'); });
+      dropdown.classList.toggle('open');
+    });
+    var menu = dropdown.querySelector('.nav-dropdown-menu');
+    if (menu) menu.addEventListener('click', function(e) { e.stopPropagation(); });
   });
   document.addEventListener('click', function() {
-    dropdown.classList.remove('open');
+    dropdowns.forEach(function(d) { d.classList.remove('open'); });
   });
-  dropdown.querySelector('.nav-dropdown-menu').addEventListener('click', function(e) {
+})();
+
+// Main nav hamburger toggle
+(function() {
+  var btn = document.getElementById('main-nav-hamburger');
+  var nav = document.getElementById('main-nav-links');
+  if (!btn || !nav) return;
+  btn.addEventListener('click', function(e) {
     e.stopPropagation();
+    var open = nav.classList.toggle('open');
+    btn.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  // Close nav when clicking any nav link (not dropdown toggles)
+  nav.querySelectorAll('a.nav-link').forEach(function(a) {
+    a.addEventListener('click', function() {
+      nav.classList.remove('open');
+      btn.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+    });
   });
 })();
 </script>

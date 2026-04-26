@@ -54,6 +54,21 @@
           </tbody>
         </table>
       </div>
+      {{#if (or hasPrev hasMore)}}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.75rem;">
+        {{#if hasPrev}}
+          <a href="/admin/money?search={{search}}&p={{subtract searchPage 1}}" class="btn btn-admin btn-small">&laquo; Previous</a>
+        {{else}}
+          <span></span>
+        {{/if}}
+        <span style="font-size:0.8rem;color:var(--text-secondary);">Page {{searchPage}}</span>
+        {{#if hasMore}}
+          <a href="/admin/money?search={{search}}&p={{add searchPage 1}}" class="btn btn-admin btn-small">Next &raquo;</a>
+        {{else}}
+          <span></span>
+        {{/if}}
+      </div>
+      {{/if}}
     {{else if search}}
       <div class="empty-state">No players found matching "{{search}}".</div>
     {{/if}}
@@ -106,6 +121,45 @@
   </div>
 
   <div class="admin-form-card">
+    <h3>💀 Add Wasted Coins</h3>
+    <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.75rem;">Add or remove Wasted Coins for a player. Select a player above or paste an Arma ID. Use positive to add, negative to deduct.</p>
+    <form method="POST" action="/admin/money/coins" class="money-form">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="form-group">
+        <label class="form-label">Player Arma ID</label>
+        <input
+          type="text"
+          name="arma_id"
+          id="coins-arma-id-input"
+          class="filter-input"
+          placeholder="Arma ID (select from search or paste)"
+          value="{{selectedArmaId}}"
+          required
+        >
+      </div>
+      <div class="form-group">
+        <label class="form-label">Coins Amount</label>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+          <input
+            type="number"
+            name="amount"
+            id="coins-amount-input"
+            class="filter-input"
+            placeholder="Amount (positive or negative)"
+            required
+            style="flex:1;"
+          >
+          <button type="button" class="btn btn-admin btn-small coins-preset" data-val="500">+500</button>
+          <button type="button" class="btn btn-admin btn-small coins-preset" data-val="1000">+1K</button>
+          <button type="button" class="btn btn-admin btn-small coins-preset" data-val="2500">+2.5K</button>
+          <button type="button" class="btn btn-admin btn-small coins-preset" data-val="5000">+5K</button>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-admin" style="background:#a855f7;color:#fff;">Add Coins</button>
+    </form>
+  </div>
+
+  <div class="admin-form-card">
     <h3>Set ATM Deposit Limit</h3>
     <form method="POST" action="/admin/money/atm-limit" class="money-form">
       <input type="hidden" name="_csrf" value="{{csrfToken}}">
@@ -138,11 +192,11 @@
             min="1"
             style="flex:1;"
           >
-          <button type="button" class="btn btn-admin btn-small" onclick="document.getElementById('atm-limit-input').value=150000">150K</button>
-          <button type="button" class="btn btn-admin btn-small" onclick="document.getElementById('atm-limit-input').value=300000">300K</button>
-          <button type="button" class="btn btn-admin btn-small" onclick="document.getElementById('atm-limit-input').value=500000">500K</button>
-          <button type="button" class="btn btn-admin btn-small" onclick="document.getElementById('atm-limit-input').value=750000">750K</button>
-          <button type="button" class="btn btn-admin btn-small" onclick="document.getElementById('atm-limit-input').value=1000000">1M</button>
+          <button type="button" class="btn btn-admin btn-small atm-preset" data-val="150000">150K</button>
+          <button type="button" class="btn btn-admin btn-small atm-preset" data-val="300000">300K</button>
+          <button type="button" class="btn btn-admin btn-small atm-preset" data-val="500000">500K</button>
+          <button type="button" class="btn btn-admin btn-small atm-preset" data-val="750000">750K</button>
+          <button type="button" class="btn btn-admin btn-small atm-preset" data-val="1000000">1M</button>
         </div>
       </div>
       <button type="submit" class="btn btn-admin" style="background:#fbbf24;color:#000;">Set ATM Limit</button>
@@ -205,6 +259,7 @@
       document.getElementById('arma-id-input').value = armaId;
       document.getElementById('selected-username').value = username;
       document.getElementById('atm-arma-id-input').value = armaId;
+      document.getElementById('coins-arma-id-input').value = armaId;
       fetchBalance(armaId);
       fetchAtmLimit(armaId);
     }
@@ -215,12 +270,27 @@
       });
     });
 
+    // ATM preset buttons
+    document.querySelectorAll('.atm-preset').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.getElementById('atm-limit-input').value = this.dataset.val;
+      });
+    });
+
+    // Coins preset buttons
+    document.querySelectorAll('.coins-preset').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.getElementById('coins-amount-input').value = this.dataset.val;
+      });
+    });
+
     // If a player is already selected (from query params), fetch both
     var existingId = document.getElementById('arma-id-input').value;
     if (existingId) {
       fetchBalance(existingId);
       fetchAtmLimit(existingId);
       document.getElementById('atm-arma-id-input').value = existingId;
+      document.getElementById('coins-arma-id-input').value = existingId;
     }
   })();
 </script>

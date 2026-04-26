@@ -170,7 +170,7 @@
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script>
 (function() {
-  var colors = ['#5865F2', '#22c55e', '#F59E0B', '#ef4444', '#8B5CF6', '#06b6d4'];
+  var colors = ['#22c55e', '#3B82F6', '#F59E0B', '#ef4444', '#8B5CF6', '#06b6d4'];
   var chartData = window.__chartData || {};
 
   function buildChart(elId, dataKey, yLabel, unit) {
@@ -188,7 +188,7 @@
         smooth: true,
         symbol: 'none',
         lineStyle: { width: 2 },
-        areaStyle: { opacity: 0.1 },
+        areaStyle: { opacity: 0.05 },
         itemStyle: { color: colors[i % colors.length] },
         data: s.times.map(function(t, idx) {
           return [t, s[dataKey][idx]];

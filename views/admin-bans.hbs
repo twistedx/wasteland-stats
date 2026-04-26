@@ -12,7 +12,7 @@
     <div class="error">{{errorMessage}}</div>
   {{/if}}
 
-  <form class="filter-bar" method="GET" action="/admin/bans">
+  <form class="filter-bar" method="GET" action="/admin/bans" id="ban-filter-form">
     <input
       type="text"
       name="search"
@@ -27,11 +27,35 @@
       <option value="banned_by" {{#if (eq field 'banned_by')}}selected{{/if}}>Banned By</option>
       <option value="reason" {{#if (eq field 'reason')}}selected{{/if}}>Reason</option>
     </select>
+    <select name="range" id="ban-range-select" class="filter-select">
+      <option value="all" {{#if (eq dateRange 'all')}}selected{{/if}}>Any Date</option>
+      <option value="24h" {{#if (eq dateRange '24h')}}selected{{/if}}>Last 24 hours</option>
+      <option value="7d" {{#if (eq dateRange '7d')}}selected{{/if}}>Last 7 days</option>
+      <option value="30d" {{#if (eq dateRange '30d')}}selected{{/if}}>Last 30 days</option>
+      <option value="90d" {{#if (eq dateRange '90d')}}selected{{/if}}>Last 90 days</option>
+      <option value="custom" {{#if (eq dateRange 'custom')}}selected{{/if}}>Custom Range…</option>
+    </select>
+    <input type="date" name="from" id="ban-date-from" class="filter-input" value="{{dateFrom}}" style="display:{{#if (eq dateRange 'custom')}}inline-block{{else}}none{{/if}};max-width:150px;" title="From date">
+    <input type="date" name="to" id="ban-date-to" class="filter-input" value="{{dateTo}}" style="display:{{#if (eq dateRange 'custom')}}inline-block{{else}}none{{/if}};max-width:150px;" title="To date">
     <div class="filter-actions">
       <button type="submit" class="btn btn-admin">Search</button>
       <a href="/admin/bans/export" class="btn btn-admin btn-export">Export CSV</a>
     </div>
   </form>
+  <script>
+  (function() {
+    var sel = document.getElementById('ban-range-select');
+    var from = document.getElementById('ban-date-from');
+    var to = document.getElementById('ban-date-to');
+    if (!sel) return;
+    sel.addEventListener('change', function() {
+      var show = this.value === 'custom';
+      from.style.display = show ? 'inline-block' : 'none';
+      to.style.display = show ? 'inline-block' : 'none';
+      if (!show) { from.value = ''; to.value = ''; }
+    });
+  })();
+  </script>
 
   {{#if bansError}}
     <div class="error">Failed to load ban list. Please try again.</div>
@@ -39,105 +63,72 @@
     <p class="result-count">{{banCount}} ban{{#unless (eq banCount 1)}}s{{/unless}} found</p>
 
     {{#if bans.length}}
-      <!-- Desktop table -->
-      <div class="table-scroll bans-table-desktop">
-        <table id="ban-table">
-          <thead>
-            <tr>
-              <th>Ban ID</th>
-              <th>Username</th>
-              <th>Discord</th>
-              <th>Arma GUID</th>
-              <th>Ban Date</th>
-              <th>Banned By</th>
-              <th>Reason</th>
-              <th>Duration</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {{#each bans}}
-              <tr>
-                <td class="guid">#{{this.id}}</td>
-                <td class="player-name">{{fallback this.banned_arma_username "Unknown"}}</td>
-                <td>{{fallback this.banned_discord_username "-"}}</td>
-                <td class="guid">{{fallback this.user_id_banned "-"}}</td>
-                <td>{{formatDate this.time_stamp}}</td>
-                <td>{{fallback this.admin_name "-"}}</td>
-                <td class="reason-cell">{{fallback this.reason "-"}}</td>
-                <td>{{#if (eq this.duration_hours -1)}}Permanent{{else}}{{this.duration_hours}}h{{/if}}</td>
-                <td style="display:flex;gap:0.4rem;">
-                  <button class="btn btn-admin btn-small ban-notes-btn" data-arma-id="{{this.user_id_banned}}" title="View/Edit Notes">Notes</button>
-                  <form method="POST" action="/admin/bans/unban" style="display:inline;" onsubmit="return confirm('Unban this player?');">
-                    <input type="hidden" name="_csrf" value="{{../csrfToken}}">
-                    <input type="hidden" name="ban_id" value="{{this.id}}">
-                    <button type="submit" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Unban #{{this.id}}</button>
-                  </form>
-                </td>
-              </tr>
-              <tr class="ban-notes-row" data-arma-id="{{this.user_id_banned}}" style="display:none;">
-                <td colspan="9">
-                  <div class="ban-notes-editor">
-                    <textarea class="ban-notes-textarea" rows="3" placeholder="Add notes about this player..."></textarea>
-                    <div class="ban-notes-actions">
-                      <button class="btn btn-admin btn-small ban-notes-save" data-arma-id="{{this.user_id_banned}}">Save</button>
-                      <span class="ban-notes-status"></span>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            {{/each}}
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Mobile accordion cards -->
-      <div class="bans-accordion-mobile">
+      <div class="ban-accordion">
         {{#each bans}}
-          <div class="ban-card">
-            <div class="ban-card-header">
-              <span class="ban-card-name">#{{this.id}} · {{fallback this.banned_arma_username "Unknown"}}</span>
-              <div class="ban-card-right">
-                <span class="ban-card-duration {{#if (eq this.duration_hours -1)}}ban-permanent{{/if}}">{{#if (eq this.duration_hours -1)}}Permanent{{else}}{{this.duration_hours}}h{{/if}}</span>
-                <svg class="ban-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+          <div class="ban-item {{#if (eq this.duration_hours -1)}}ban-border-red{{else}}ban-border-yellow{{/if}}">
+            <div class="ban-item-header">
+              <div class="ban-item-summary">
+                <span class="ban-item-id">#{{this.id}}</span>
+                {{#if this.user_id_banned}}
+                  <a href="/admin/player/{{this.user_id_banned}}" class="ban-item-name ban-player-link" onclick="event.stopPropagation();">{{fallback this.banned_arma_username "Unknown"}}</a>
+                {{else}}
+                  <span class="ban-item-name">{{fallback this.banned_arma_username "Unknown"}}</span>
+                {{/if}}
+                {{#if (eq this.duration_hours -1)}}
+                  <span class="badge badge-danger">PERMANENT</span>
+                {{else}}
+                  <span class="badge badge-warning">{{this.duration_hours}}h</span>
+                {{/if}}
+              </div>
+              <div class="ban-item-right">
+                <span style="color:var(--text-secondary);font-size:0.75rem;">{{fallback this.admin_name "-"}}</span>
+                <span style="color:var(--text-secondary);font-size:0.7rem;opacity:0.7;">{{formatDate this.time_stamp}}</span>
+                <span class="ban-arrow">&#9662;</span>
               </div>
             </div>
-            <div class="ban-card-body">
-              <div class="ban-card-row">
-                <span class="ban-card-label">Discord</span>
-                <span>{{fallback this.banned_discord_username "-"}}</span>
-              </div>
-              <div class="ban-card-row">
-                <span class="ban-card-label">GUID</span>
-                <span class="guid">{{fallback this.user_id_banned "-"}}</span>
-              </div>
-              <div class="ban-card-row">
-                <span class="ban-card-label">Date</span>
-                <span>{{formatDate this.time_stamp}}</span>
-              </div>
-              <div class="ban-card-row">
-                <span class="ban-card-label">Banned By</span>
-                <span>{{fallback this.admin_name "-"}}</span>
-              </div>
-              <div class="ban-card-row">
-                <span class="ban-card-label">Reason</span>
-                <span class="ban-card-reason">{{fallback this.reason "-"}}</span>
-              </div>
-              <div class="ban-card-row ban-card-notes-section" style="flex-direction:column;align-items:stretch;gap:0.5rem;">
-                <div style="display:flex;gap:0.4rem;">
-                  <button class="btn btn-admin btn-small ban-notes-btn" data-arma-id="{{this.user_id_banned}}">Notes</button>
-                  <form method="POST" action="/admin/bans/unban" style="display:inline;" onsubmit="return confirm('Unban this player?');">
-                    <input type="hidden" name="_csrf" value="{{../csrfToken}}">
-                    <input type="hidden" name="ban_id" value="{{this.id}}">
-                    <button type="submit" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Unban #{{this.id}}</button>
-                  </form>
+            <div class="ban-item-body">
+              <div class="ban-detail-grid">
+                <div class="ban-detail">
+                  <span class="ban-detail-label">Discord</span>
+                  <span>{{fallback this.banned_discord_username "-"}}</span>
                 </div>
-                <div class="ban-notes-editor" data-arma-id="{{this.user_id_banned}}" style="display:none;">
-                  <textarea class="ban-notes-textarea" rows="3" placeholder="Add notes about this player..."></textarea>
-                  <div class="ban-notes-actions">
-                    <button class="btn btn-admin btn-small ban-notes-save" data-arma-id="{{this.user_id_banned}}">Save</button>
-                    <span class="ban-notes-status"></span>
-                  </div>
+                <div class="ban-detail">
+                  <span class="ban-detail-label">Arma GUID</span>
+                  <code style="font-size:0.8rem;">{{fallback this.user_id_banned "-"}}</code>
+                </div>
+                <div class="ban-detail">
+                  <span class="ban-detail-label">Ban Date</span>
+                  <span>{{formatDate this.time_stamp}}</span>
+                </div>
+                <div class="ban-detail">
+                  <span class="ban-detail-label">Banned By</span>
+                  <span>{{fallback this.admin_name "-"}}</span>
+                </div>
+                <div class="ban-detail">
+                  <span class="ban-detail-label">Duration</span>
+                  <span>{{#if (eq this.duration_hours -1)}}Permanent{{else}}{{this.duration_hours}}h{{/if}}</span>
+                </div>
+                <div class="ban-detail" style="grid-column: 1 / -1;">
+                  <span class="ban-detail-label">Reason</span>
+                  <span>{{fallback this.reason "-"}}</span>
+                </div>
+              </div>
+              <div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap;">
+                {{#if this.user_id_banned}}
+                  <a href="/admin/player/{{this.user_id_banned}}" class="btn btn-admin btn-small" style="text-decoration:none;background:#5865F2;color:#fff;">View Profile</a>
+                {{/if}}
+                <button class="btn btn-admin btn-small ban-notes-btn" data-arma-id="{{this.user_id_banned}}">Notes</button>
+                <form method="POST" action="/admin/bans/unban" style="display:inline;" onsubmit="return confirm('Unban this player?');">
+                  <input type="hidden" name="_csrf" value="{{@root.csrfToken}}">
+                  <input type="hidden" name="ban_id" value="{{this.id}}">
+                  <button type="submit" class="btn btn-admin btn-small" style="background:#22c55e;color:#fff;">Unban #{{this.id}}</button>
+                </form>
+              </div>
+              <div class="ban-notes-editor" data-arma-id="{{this.user_id_banned}}" style="display:none;margin-top:0.75rem;">
+                <textarea class="ban-notes-textarea" rows="3" placeholder="Add notes about this player..." style="width:100%;"></textarea>
+                <div class="ban-notes-actions" style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem;">
+                  <button class="btn btn-admin btn-small ban-notes-save" data-arma-id="{{this.user_id_banned}}">Save</button>
+                  <span class="ban-notes-status"></span>
                 </div>
               </div>
             </div>
@@ -153,17 +144,42 @@
 
 {{> ban-modal}}
 
+<style>
+.ban-accordion { display: flex; flex-direction: column; gap: 0.5rem; }
+.ban-item { border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); overflow: hidden; }
+.ban-border-red { border-left: 3px solid #ef4444; }
+.ban-border-yellow { border-left: 3px solid #f59e0b; }
+.ban-item-header { display: flex; justify-content: space-between; align-items: center; padding: 0.65rem 0.85rem; cursor: pointer; transition: background 0.12s; gap: 0.75rem; }
+.ban-item-header:hover { background: var(--bg-primary); }
+.ban-item-summary { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; min-width: 0; }
+.ban-item-id { font-family: monospace; font-size: 0.8rem; color: var(--text-secondary); }
+.ban-item-name { font-weight: 600; font-size: 0.9rem; color: var(--text-primary); }
+.ban-player-link { text-decoration: none; color: var(--accent) !important; }
+.ban-player-link:hover { text-decoration: underline; }
+.ban-item-right { display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0; }
+.ban-arrow { font-size: 0.75rem; color: var(--text-secondary); transition: transform 0.2s; }
+.ban-item.open .ban-arrow { transform: rotate(180deg); }
+.ban-item-body { display: none; padding: 0 0.85rem 0.85rem; border-top: 1px solid var(--border); }
+.ban-item.open .ban-item-body { display: block; }
+.ban-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.5rem; margin-top: 0.65rem; }
+.ban-detail { display: flex; flex-direction: column; gap: 0.15rem; }
+.ban-detail-label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+@media (max-width: 640px) {
+  .ban-item-right span:not(.ban-arrow) { display: none; }
+}
+</style>
+
 <script>
 (function() {
   var csrfToken = '{{csrfToken}}';
   var loadedNotes = {};
 
-  // Toggle ban-card accordion on header click
-  document.addEventListener('click', function(e) {
-    var header = e.target.closest('.ban-card-header');
-    if (!header) return;
-    if (e.target.closest('button') || e.target.closest('form')) return;
-    header.parentElement.classList.toggle('open');
+  // Accordion toggle — ignore clicks on inner buttons/links/forms
+  document.querySelectorAll('.ban-item-header').forEach(function(header) {
+    header.addEventListener('click', function(e) {
+      if (e.target.closest('button') || e.target.closest('a') || e.target.closest('form')) return;
+      header.closest('.ban-item').classList.toggle('open');
+    });
   });
 
   document.addEventListener('click', function(e) {
@@ -173,27 +189,12 @@
     var armaId = btn.getAttribute('data-arma-id');
     if (!armaId) return;
 
-    var isMobile = !!btn.closest('.bans-accordion-mobile');
-
-    if (isMobile) {
-      // Mobile: toggle the inline editor
-      var editorDiv = btn.closest('.ban-card-notes-section').querySelector('.ban-notes-editor');
-      if (editorDiv) {
-        var isVisible = editorDiv.style.display !== 'none';
-        editorDiv.style.display = isVisible ? 'none' : 'block';
-        if (!isVisible && !loadedNotes[armaId]) {
-          fetchNotes(armaId, editorDiv.querySelector('.ban-notes-textarea'));
-        }
-      }
-    } else {
-      // Desktop: toggle the notes row
-      var notesRow = document.querySelector('tr.ban-notes-row[data-arma-id="' + armaId + '"]');
-      if (notesRow) {
-        var isVisible2 = notesRow.style.display !== 'none';
-        notesRow.style.display = isVisible2 ? 'none' : 'table-row';
-        if (!isVisible2 && !loadedNotes[armaId]) {
-          fetchNotes(armaId, notesRow.querySelector('.ban-notes-textarea'));
-        }
+    var editorDiv = btn.closest('.ban-item-body').querySelector('.ban-notes-editor[data-arma-id="' + armaId + '"]');
+    if (editorDiv) {
+      var isVisible = editorDiv.style.display !== 'none';
+      editorDiv.style.display = isVisible ? 'none' : 'block';
+      if (!isVisible && !loadedNotes[armaId]) {
+        fetchNotes(armaId, editorDiv.querySelector('.ban-notes-textarea'));
       }
     }
   });

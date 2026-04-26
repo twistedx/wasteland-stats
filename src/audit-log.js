@@ -42,6 +42,8 @@ function init() {
     )
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_player_notes_arma ON player_notes (arma_id)`);
+  // Add attachments column to existing DBs (stores JSON array of { type, filename, size, uploaded_at })
+  try { db.exec("ALTER TABLE player_notes ADD COLUMN attachments TEXT DEFAULT '[]'"); } catch (e) { /* exists */ }
 
   const count = db.prepare("SELECT COUNT(*) as cnt FROM audit_log").get().cnt;
   console.log(`AuditLog: ${count} entries in database.`);
@@ -77,14 +79,27 @@ function getStats() {
 
 function addPlayerNote(armaId, note, user) {
   if (!db) return null;
-  const result = db.prepare("INSERT INTO player_notes (arma_id, note, admin_username, admin_discord_id) VALUES (?, ?, ?, ?)")
+  const result = db.prepare("INSERT INTO player_notes (arma_id, note, admin_username, admin_discord_id, attachments) VALUES (?, ?, ?, ?, '[]')")
     .run(armaId, note, user?.username || "unknown", user?.discord_id || null);
   return result.lastInsertRowid;
 }
 
 function getPlayerNotes(armaId) {
   if (!db) return [];
-  return db.prepare("SELECT * FROM player_notes WHERE arma_id = ? ORDER BY created_at DESC").all(armaId);
+  const rows = db.prepare("SELECT * FROM player_notes WHERE arma_id = ? ORDER BY created_at DESC").all(armaId);
+  // Parse attachments JSON
+  return rows.map(r => {
+    try { r.attachmentsArr = JSON.parse(r.attachments || "[]"); }
+    catch { r.attachmentsArr = []; }
+    return r;
+  });
+}
+
+function getPlayerNote(id) {
+  if (!db) return null;
+  const r = db.prepare("SELECT * FROM player_notes WHERE id = ?").get(id);
+  if (r) { try { r.attachmentsArr = JSON.parse(r.attachments || "[]"); } catch { r.attachmentsArr = []; } }
+  return r || null;
 }
 
 function deletePlayerNote(id) {
@@ -92,4 +107,22 @@ function deletePlayerNote(id) {
   db.prepare("DELETE FROM player_notes WHERE id = ?").run(id);
 }
 
-module.exports = { init, log, getEntries, getCategories, getStats, addPlayerNote, getPlayerNotes, deletePlayerNote };
+function addAttachment(noteId, attachment) {
+  if (!db) return;
+  const note = getPlayerNote(noteId);
+  if (!note) throw new Error("Note not found");
+  const arr = note.attachmentsArr || [];
+  arr.push(attachment);
+  db.prepare("UPDATE player_notes SET attachments = ? WHERE id = ?").run(JSON.stringify(arr), noteId);
+}
+
+function removeAttachment(noteId, filename) {
+  if (!db) return null;
+  const note = getPlayerNote(noteId);
+  if (!note) throw new Error("Note not found");
+  const arr = (note.attachmentsArr || []).filter(a => a.filename !== filename);
+  db.prepare("UPDATE player_notes SET attachments = ? WHERE id = ?").run(JSON.stringify(arr), noteId);
+  return note;
+}
+
+module.exports = { init, log, getEntries, getCategories, getStats, addPlayerNote, getPlayerNote, getPlayerNotes, deletePlayerNote, addAttachment, removeAttachment };
